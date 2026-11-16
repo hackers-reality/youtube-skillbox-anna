@@ -53,16 +53,18 @@ async function tool(method, args) {
     return demoPayload(method, args);
   }
   const res = await anna.tools.invoke({ tool_id: TOOL_ID, method, args: args || {} });
-  // Anna unwraps executa {success, data} → {ok, result}. Tolerate either envelope.
-  const ok = !!(res && (res.ok === true || res.success === true));
-  if (!ok) {
-    const errObj = res?.error;
-    const err = typeof errObj === "string"
-      ? errObj
-      : (errObj?.message || errObj?.code || "tool failed");
-    throw new Error(String(err));
+  // The SDK resolves with the BARE payload (msg.result) — no envelope.
+  // Only reject on explicit failure shapes.
+  if (res === undefined || res === null) throw new Error("tool returned no data");
+  if (typeof res !== "object") return res;
+  if (res.success === false || res.ok === false || res.error) {
+    const e = res.error;
+    throw new Error(typeof e === "string" ? e : (e && (e.message || e.code)) || "tool failed");
   }
-  return (res && res.result !== undefined) ? res.result : (res && res.data);
+  // Defensive envelope handling in case a host passes one through:
+  if (res.ok === true && "result" in res) return res.result;
+  if (res.success === true && "data" in res) return res.data;
+  return res;
 }
 
 async function llm(systemPrompt, userMessage, maxTokens = 3200) {

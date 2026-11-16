@@ -216,6 +216,10 @@ def _handle_engine_result(js, raw, err):
     if err:
         return {"success": False, "error": err}
     if js is not None:
+        # Anna's transport only delivers top-level JSON *objects* — a bare
+        # array arrives in the bundle as {}. Always wrap lists.
+        if isinstance(js, list):
+            js = {"items": js}
         return {"success": True, "data": _strip_nulls(js)}
     return {"success": True, "data": {"raw": raw or "(no output)"}}
 
