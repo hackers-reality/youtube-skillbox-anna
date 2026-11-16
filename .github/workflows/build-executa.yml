@@ -21,9 +21,6 @@ jobs:
           - os: macos-latest
             platform: darwin-arm64
             archive: tar.gz
-          - os: macos-14
-            platform: darwin-x86_64
-            archive: tar.gz
           - os: windows-latest
             platform: windows-x86_64
             archive: zip
