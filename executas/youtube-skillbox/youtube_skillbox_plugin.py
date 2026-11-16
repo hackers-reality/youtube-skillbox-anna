@@ -14,7 +14,7 @@ import sys
 import time
 import traceback
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 ENGINE_TIMEOUT = 90
 AUDIT_TIMEOUT = 150
 
@@ -159,22 +159,21 @@ def _normalize_sections(sections):
 
 
 def _engine_script():
-    """Locate ytdata.py: prefer the copy bundled inside this binary (frozen), fall back to pip metadata / repo checkout."""
+    """Locate ytdata — frozen binary contains it as a module (PyInstaller
+    hidden-import); in dev, wire the installed wheel / repo checkout into sys.path."""
     import os
 
-    meipass = getattr(sys, "_MEIPASS", None)
-    if meipass:
-        bundled = os.path.join(meipass, "ytdata.py")
-        if os.path.isfile(bundled):
-            sys.path.insert(0, meipass)
-            return meipass
+    try:
+        import ytdata  # noqa: F401 — freeze: already inside the binary; dev: no-op add to sys.path below
 
-    from youtube_skillbox.cli import find_skills_dir
+        return "<bundled>"
+    except ImportError:
+        from youtube_skillbox.cli import find_skills_dir
 
-    p = find_skills_dir()
-    if p not in sys.path:
-        sys.path.insert(0, p)
-    return p
+        p = find_skills_dir()
+        if p not in sys.path:
+            sys.path.insert(0, p)
+        return p
 
 
 def _run_engine(*args, timeout=ENGINE_TIMEOUT):
@@ -431,5 +430,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 

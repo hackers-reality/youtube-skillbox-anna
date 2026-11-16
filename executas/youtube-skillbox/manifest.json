@@ -1,7 +1,7 @@
 {
   "name": "skillbox-core",
   "display_name": "YouTube Skillbox Engine",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Evidence-backed YouTube research from the open-source Skillbox engine: channel snapshots, outliers, keyword volume, competition difficulty, SEO scorecards, content gaps, keyword verdicts and transcripts. Every result is labelled MEASURED / INFERRED.",
   "tools": [
     {
