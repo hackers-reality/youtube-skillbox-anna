@@ -1,11 +1,28 @@
 {
   "slug": "youtube-skillbox",
   "name": "YouTube Skillbox Engine",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "executa_type": "tool",
   "tool_id": "tool-dev-youtube-skillbox",
   "type": "python",
-  "enabled": true
+  "enabled": true,
+  "distribution": {
+    "active": "binary",
+    "profiles": {
+      "local": {
+        "type": "local",
+        "supports_protocol": true
+      },
+      "binary": {
+        "type": "binary",
+        "supports_protocol": true,
+        "binary_urls": {
+          "linux-x86_64": "https://github.com/hackers-reality/youtube-skillbox-anna/releases/download/executa-v0.4.0/skillbox-core-linux-x86_64.tar.gz",
+          "darwin-arm64": "https://github.com/hackers-reality/youtube-skillbox-anna/releases/download/executa-v0.4.0/skillbox-core-darwin-arm64.tar.gz",
+          "windows-x86_64": "https://github.com/hackers-reality/youtube-skillbox-anna/releases/download/executa-v0.4.0/skillbox-core-windows-x86_64.zip"
+        }
+      }
+    }
+  }
 }
-
 

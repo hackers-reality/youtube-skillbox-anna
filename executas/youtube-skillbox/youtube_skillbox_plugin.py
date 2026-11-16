@@ -14,7 +14,7 @@ import sys
 import time
 import traceback
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 ENGINE_TIMEOUT = 90
 AUDIT_TIMEOUT = 150
 
