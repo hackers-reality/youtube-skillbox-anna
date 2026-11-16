@@ -469,11 +469,18 @@ function renderIdeasLab(d) {
 function renderCompeteLab(d) {
   if (!d || d.score === undefined) return `<p class="hint">No competition data returned.</p>`;
   const sig = (d.signals || []).map((s) => `<tr><td>${escapeHtml(String(s.name || ""))}</td><td>${escapeHtml(String(s.weight ?? ""))}</td><td>${escapeHtml(String(s.value ?? ""))}</td><td>${escapeHtml(String(s.detail || "").slice(0, 90))}</td></tr>`).join("");
+  // engine emits advice as a list of lines; render as a list, not a comma-joined string
+  const advice = Array.isArray(d.advice)
+    ? (d.advice.length ? `<ul style="margin:8px 0 0;padding-left:18px;font-size:12.5px">${d.advice.map((a) => `<li>${escapeHtml(String(a))}</li>`).join("")}</ul>` : "")
+    : (d.advice ? `<p style="margin:8px 0 0;font-size:12.5px">${escapeHtml(String(d.advice))}</p>` : "");
+  const meta = [d.median_views != null ? `median views ${fmtViews(d.median_views)}` : null,
+    d.floor_views != null ? `floor ${fmtViews(d.floor_views)}` : null,
+    d.verified != null ? `${escapeHtml(String(d.verified))} verified` : null].filter(Boolean).join(" · ");
   return `
   <div class="lab-sec">Competition for “${escapeHtml(String(d.keyword || ""))}” <span class="ev ev-measured">MEASURED</span></div>
-  <div class="stat" style="margin-bottom:8px"><div class="n">${escapeHtml(String(d.score))}<span style="font-size:13px;color:var(--text-dim)">/100 · ${escapeHtml(String(d.band || ""))} · top ${escapeHtml(String(d.scored ?? "?"))} scored</span></div><div class="k">difficulty</div></div>
+  <div class="stat" style="margin-bottom:8px"><div class="n">${escapeHtml(String(d.score))}<span style="font-size:13px;color:var(--text-dim)">/100 · ${escapeHtml(String(d.band || ""))} · top ${escapeHtml(String(d.scored ?? "?"))} scored</span></div><div class="k">${meta || "difficulty"}</div></div>
   ${sig ? labTable(["Signal", "Weight", "Value", "Detail"], sig) : ""}
-  ${d.advice ? `<p style="margin:8px 0 0;font-size:12.5px">${escapeHtml(String(d.advice))}</p>` : ""}`;
+  ${advice}`;
 }
 
 function renderVerdictLab(d) {
