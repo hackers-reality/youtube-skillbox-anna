@@ -176,13 +176,39 @@ def _payload(**kwargs):
     return {"success": True, "data": kwargs}
 
 
+def _strip_nulls(obj):
+    """Deep-strip null/absent keys the engine emits as schema defaults — the
+    engine always serializes its full schema, so key-presence tells the
+    truth about which fields it actually measured. Kept: `enrichment_summary`
+    (non-null; shows the batch enricher budget)."""
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if v is None and k != "enrichment_summary":
+                continue
+            out[k] = _strip_nulls(v)
+        return out
+    if isinstance(obj, list):
+        return [_strip_nulls(v) for v in obj]
+    return obj
+
+
+def _normalize_sections(sections):
+    """Engine emits null for a tab the channel genuinely doesn't have.
+    Surface that honestly as 'no tab' rather than a blank/absent key."""
+    for key in ("videos", "shorts", "streams", "playlists", "shows"):
+        if sections.get(key) is None:
+            sections[key] = "no tab"
+    return sections
+
+
 def _handle_engine_result(args, timeout=ENGINE_TIMEOUT):
     js, raw, err = _run_engine(*args, timeout=timeout)
     if err:
         return {"success": False, "error": err}
     if js is None:
         return {"success": True, "data": {"raw": raw or "(no output)"}}
-    return {"success": True, "data": js}
+    return {"success": True, "data": _strip_nulls(js)}
 
 
 def _exec(tool: str, arguments: dict) -> dict:
@@ -194,7 +220,10 @@ def _exec(tool: str, arguments: dict) -> dict:
         sections = _handle_engine_result(["sections", handle, "--json"], timeout=ENGINE_TIMEOUT)
         profile = _handle_engine_result(["profile", handle, "--json"], timeout=ENGINE_TIMEOUT)
         if sections.get("success") and profile.get("success"):
-            return {"success": True, "data": {"sections": sections["data"], "profile": profile["data"]}}
+            sec = sections["data"]
+            if isinstance(sec, dict):
+                sec = _normalize_sections(sec)
+            return {"success": True, "data": {"sections": sec, "profile": profile["data"]}}
         # One failing half is worse than a useful error — report both payloads/errors honestly.
         return {
             "success": False,
