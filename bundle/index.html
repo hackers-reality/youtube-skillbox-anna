@@ -108,6 +108,14 @@
               <span>Context / brainstorm</span>
               <textarea id="studio-context" rows="2" placeholder="Rough notes, transcript excerpt, anything you already know…"></textarea>
             </label>
+            <label class="field">
+              <span>Competitor channel (for content gap)</span>
+              <input id="lab-competitor" type="text" placeholder="@mrbeast or https://youtube.com/@…" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Video URL (for SEO scorecard)</span>
+              <input id="lab-video" type="text" placeholder="https://youtube.com/watch?v=…" autocomplete="off" />
+            </label>
           </div>
 
           <div class="studio-actions">
@@ -119,12 +127,33 @@
             <button class="btn btn-primary" data-task="full">Full pack ✦</button>
           </div>
 
+          <div class="output-head" style="margin-top:18px">
+            <span>Keyword lab — measured research (free, no API key)</span>
+          </div>
+          <div class="studio-actions lab-actions">
+            <button class="btn" data-lab="search">Live search</button>
+            <button class="btn" data-lab="ideas">Keyword ideas</button>
+            <button class="btn" data-lab="compete">Competition</button>
+            <button class="btn" data-lab="verdict">GO / MAYBE / SKIP</button>
+            <button class="btn" data-lab="gap">Content gap</button>
+            <button class="btn" data-lab="scorecard">SEO scorecard</button>
+            <button class="btn btn-primary" data-lab="chain">Full research chain ✦</button>
+          </div>
+
           <div class="studio-output">
             <div class="output-head">
               <span id="studio-task-label">Output</span>
               <button id="studio-copy" class="btn btn-ghost btn-small">Copy</button>
             </div>
             <pre id="studio-pre" class="output-pre" tabindex="0">Choose a task above — the output lands here, labelled MEASURED / INFERRED.</pre>
+          </div>
+
+          <div class="studio-output">
+            <div class="output-head">
+              <span id="lab-label">Lab output</span>
+              <button id="lab-copy" class="btn btn-ghost btn-small">Copy</button>
+            </div>
+            <div id="lab-result" class="lab-result" tabindex="0">Run a lab task above — measured tables land here.</div>
           </div>
         </section>
 

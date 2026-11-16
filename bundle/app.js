@@ -47,12 +47,15 @@ function setStatus(text, ok, warn = false) {
 }
 
 /* ---------- helpers: tools / llm / storage ---------- */
-async function tool(method, args) {
+async function tool(method, args, timeoutMs) {
   if (standalone || !anna) {
     // deterministic demo payloads so the demo is still demonstrable
     return demoPayload(method, args);
   }
-  const res = await anna.tools.invoke({ tool_id: TOOL_ID, method, args: args || {} });
+  const res = await anna.tools.invoke(
+    { tool_id: TOOL_ID, method, args: args || {} },
+    timeoutMs ? { timeoutMs } : undefined
+  );
   // The SDK resolves with the BARE payload (msg.result) — no envelope.
   // Only reject on explicit failure shapes.
   if (res === undefined || res === null) throw new Error("tool returned no data");
@@ -334,6 +337,11 @@ function demoPayload(method, args) {
     case "latest": return { videos: [{ title: "Why Earth spins", duration: "24", views: 8437 }] };
     case "outliers": return { videos: [{ title: "Why Earth spins", views: 8437, ratio: 64.4 }] };
     case "keywords": return { ideas: [{ keyword: `${H.replace("@","")} seo`, opportunity_score: 61, competition_score: 35, verdict: "MAYBE" }] };
+    case "search": return { items: [{ id: "dQw4w9WgXcQ", title: "Demo SERP result — install the app for live data", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", duration: 482, duration_string: "8:02", views: 128433, channel: "DemoChannel" }] };
+    case "compete": return { keyword: args.query || "demo", score: 42, band: "MEDIUM", scored: 10, signals: [{ name: "title density", weight: 3, value: 0.4, detail: "4/10 top titles carry the keyword" }], advice: "Beat-able: mid band, weak title density in the top 10." };
+    case "verdict": return { verdict: "GO", opportunity: 61, competition: 42, label: "heuristic — not a ranking prediction" };
+    case "gap": return { seed: args.seed || "demo", competitor: args.competitor || "@demo", only_me: [{ keyword: "my unique angle", score: 71, year_trend: true, question: false }], only_them: ["their keyword one", "their keyword two"], both: [{ keyword: "shared topic", score: 55, year_trend: false, question: false }] };
+    case "scorecard": return { video_id: "demo1234567", target_keyword: args.keyword || "", score: 68, checks: [{ name: "title_keyword", weight: 20, pass: true, detail: "Keyword present in title" }, { name: "description_len", weight: 10, pass: false, detail: "Description under 100 chars" }] };
     default: return {};
   }
 }
@@ -402,6 +410,239 @@ function wireStudio() {
   byId("studio-copy").addEventListener("click", () => navigator.clipboard.writeText(byId("studio-pre").textContent).catch(() => {}));
 }
 
+/* ---------- keyword lab (Feature 1 — live research, no API key) ---------- */
+const LAB_SYSTEM = `
+You are the YouTube Skillbox research analyst. You receive MEASURED tool output (keyword opportunity scores, competition signals, SERP rows, content-gap lists, SEO checks) — never invent numbers.
+Rules:
+- Quote measured numbers exactly as given. Reasoning about them = INFERRED. What to do next = RECOMMENDATION.
+- If a tool errored or returned empty, say exactly that — no substitute numbers.
+- Structure: MEASURED (bullet facts from the evidence) → INFERRED (what it means for this seed) → RECOMMENDATION (one concrete next move, GO/MAYBE/SKIP if a verdict is present).
+Plain language, tight, no filler.`;
+
+function labSeed() {
+  return byId("studio-keyword").value.trim() || byId("studio-topic").value.trim();
+}
+
+function fmtViews(n) {
+  const x = Number(n);
+  if (!isFinite(x) || n === null || n === undefined) return "—";
+  if (x >= 1e9) return (x / 1e9).toFixed(1) + "B";
+  if (x >= 1e6) return (x / 1e6).toFixed(1) + "M";
+  if (x >= 1e3) return (x / 1e3).toFixed(1) + "K";
+  return String(Math.round(x));
+}
+
+function fmtLen(s) {
+  if (s === null || s === undefined || s === "") return "—";
+  const x = Math.round(Number(s));
+  if (!isFinite(x)) return String(s); // already formatted (e.g. "8:02")
+  if (x <= 0) return "—";
+  const h = Math.floor(x / 3600), m = Math.floor((x % 3600) / 60), sec = x % 60;
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function labTable(head, rows) {
+  return `<table class="tbl"><thead><tr>${head.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderSearchLab(d) {
+  const items = (d && (d.items || (Array.isArray(d) ? d : []))) || [];
+  if (!items.length) return `<p class="hint">No results — YouTube returned nothing for that query.</p>`;
+  const rows = items.slice(0, 10).map((v) => {
+    const url = v.url || `https://www.youtube.com/watch?v=${v.id || ""}`;
+    return `<tr><td><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(String(v.title || v.id || "?").slice(0, 80))}</a></td><td>${escapeHtml(String(v.channel || ""))}</td><td>${fmtViews(v.views)}</td><td>${fmtLen(v.duration ?? v.duration_string)}</td></tr>`;
+  }).join("");
+  return `<div class="lab-sec">Live SERP for this seed <span class="ev ev-measured">MEASURED</span></div>` + labTable(["Title", "Channel", "Views", "Len"], rows);
+}
+
+function renderIdeasLab(d) {
+  const kws = (d && (d.keywords || d.ideas)) || [];
+  if (!kws.length) return `<p class="hint">No keyword ideas returned.</p>`;
+  const rows = kws.slice(0, 15).map((k) => {
+    const flags = (k.year_trend ? " 📈" : "") + (k.question ? " ❓" : "");
+    return `<tr><td>${escapeHtml(String(k.keyword || ""))}${flags}</td><td>${Number(k.opportunity_score ?? k.score ?? 0)}</td></tr>`;
+  }).join("");
+  const meta = d.seed ? `<div class="hint" style="margin:0 0 6px">seed “${escapeHtml(d.seed)}” · ${escapeHtml(String(d.unique ?? kws.length))} unique from ${escapeHtml(String(d.queries ?? "?"))} queries · 📈 year in keyword · ❓ question-form</div>` : "";
+  return `<div class="lab-sec">Keyword ideas (suggest + DDG demand) <span class="ev ev-measured">MEASURED</span></div>${meta}` + labTable(["Keyword", "Opportunity"], rows);
+}
+
+function renderCompeteLab(d) {
+  if (!d || d.score === undefined) return `<p class="hint">No competition data returned.</p>`;
+  const sig = (d.signals || []).map((s) => `<tr><td>${escapeHtml(String(s.name || ""))}</td><td>${escapeHtml(String(s.weight ?? ""))}</td><td>${escapeHtml(String(s.value ?? ""))}</td><td>${escapeHtml(String(s.detail || "").slice(0, 90))}</td></tr>`).join("");
+  return `
+  <div class="lab-sec">Competition for “${escapeHtml(String(d.keyword || ""))}” <span class="ev ev-measured">MEASURED</span></div>
+  <div class="stat" style="margin-bottom:8px"><div class="n">${escapeHtml(String(d.score))}<span style="font-size:13px;color:var(--text-dim)">/100 · ${escapeHtml(String(d.band || ""))} · top ${escapeHtml(String(d.scored ?? "?"))} scored</span></div><div class="k">difficulty</div></div>
+  ${sig ? labTable(["Signal", "Weight", "Value", "Detail"], sig) : ""}
+  ${d.advice ? `<p style="margin:8px 0 0;font-size:12.5px">${escapeHtml(String(d.advice))}</p>` : ""}`;
+}
+
+function renderVerdictLab(d) {
+  if (!d || !d.verdict) return `<p class="hint">No verdict returned.</p>`;
+  const v = String(d.verdict).toUpperCase();
+  const cls = v === "GO" ? "green" : v === "SKIP" ? "red" : "";
+  return `
+  <div class="lab-sec">GO / MAYBE / SKIP <span class="ev ev-inferred">INFERRED</span> <span class="hint" style="text-transform:none;letter-spacing:0">from measured opportunity + competition</span></div>
+  <div class="stat"><div class="n ${cls}">${escapeHtml(v)}</div><div class="k">opportunity ${escapeHtml(String(d.opportunity))}/100 · competition ${escapeHtml(String(d.competition))}/100</div></div>
+  <p class="hint" style="margin:8px 0 0">${escapeHtml(String(d.label || ""))}</p>`;
+}
+
+function renderGapLab(d) {
+  if (!d) return `<p class="hint">No gap data returned.</p>`;
+  const them = (d.only_them || []).slice(0, 25);
+  const mine = (d.only_me || []).slice(0, 15);
+  const both = (d.both || []).slice(0, 15);
+  const kwRow = (k) => typeof k === "string"
+    ? `<tr><td>${escapeHtml(k)}</td><td>—</td></tr>`
+    : `<tr><td>${escapeHtml(String(k.keyword || ""))}</td><td>${Number(k.score ?? 0)}${k.year_trend ? " 📈" : ""}${k.question ? " ❓" : ""}</td></tr>`;
+  return `
+  <div class="lab-sec">Content gap — “${escapeHtml(String(d.seed || ""))}” vs ${escapeHtml(String(d.competitor || ""))} <span class="ev ev-measured">MEASURED</span></div>
+  <div class="lab-sec">They cover, you don't (${them.length})</div>
+  ${them.length ? them.map((s) => `<span class="lab-chip">${escapeHtml(String(s))}</span>`).join("") : `<p class="hint" style="margin:0">none — you already cover their tags.</p>`}
+  <div class="lab-sec">Only you (${mine.length})</div>
+  ${mine.length ? labTable(["Keyword", "Score"], mine.map(kwRow).join("")) : `<p class="hint" style="margin:0">none.</p>`}
+  <div class="lab-sec">Shared (${both.length})</div>
+  ${both.length ? labTable(["Keyword", "Score"], both.map(kwRow).join("")) : `<p class="hint" style="margin:0">none.</p>`}`;
+}
+
+function renderScorecardLab(d) {
+  if (!d || d.score === undefined) return `<p class="hint">No scorecard returned.</p>`;
+  const rows = (d.checks || []).map((c) => `<tr><td>${c.pass ? "✅" : "❌"}</td><td>${escapeHtml(String(c.name || ""))}</td><td>${escapeHtml(String(c.weight ?? ""))}</td><td>${escapeHtml(String(c.detail || "").slice(0, 110))}</td></tr>`).join("");
+  return `
+  <div class="lab-sec">SEO scorecard — ${escapeHtml(String(d.video_id || ""))}${d.target_keyword ? ` · target “${escapeHtml(String(d.target_keyword))}”` : ""} <span class="ev ev-measured">MEASURED</span></div>
+  <div class="stat" style="margin-bottom:8px"><div class="n">${escapeHtml(String(d.score))}<span style="font-size:13px;color:var(--text-dim)">/100</span></div><div class="k">seo score</div></div>
+  ${labTable(["", "Check", "W", "Detail"], rows)}`;
+}
+
+/* Opportunity for verdict = mean of the top-5 measured keyword scores, clamped to 0-100.
+ * The aggregation step is INFERRED; every input is MEASURED by the keywords tool. */
+function opportunityFrom(kw) {
+  const rows = (kw && (kw.keywords || kw.ideas)) || [];
+  const top = rows.slice(0, 5).map((r) => Number(r.opportunity_score ?? r.score ?? 0)).filter((n) => isFinite(n));
+  if (!top.length) return null;
+  return Math.max(0, Math.min(100, Math.round(top.reduce((a, b) => a + b, 0) / top.length)));
+}
+
+async function runLab(kind) {
+  const out = byId("lab-result");
+  const label = byId("lab-label");
+  const seed = labSeed();
+  const competitor = byId("lab-competitor").value.trim();
+  const video = byId("lab-video").value.trim();
+  const T = 120000; // engine hard-caps at 90s; give the wire headroom
+
+  const need = (cond, msg) => { if (cond) return true; out.innerHTML = `<p class="hint">${escapeHtml(msg)}</p>`; label.textContent = "Missing input"; return false; };
+  if (["search", "ideas", "compete", "verdict", "chain"].includes(kind) && !need(seed, "Enter a keyword (or a video idea) first — the lab researches from it.")) return;
+  if (kind === "gap" && !need(seed && competitor, "Content gap needs a seed keyword AND a competitor channel (e.g. @mrbeast).")) return;
+  if (kind === "scorecard" && !need(video, "SEO scorecard needs a video URL (or 11-char ID).")) return;
+
+  $$(".lab-actions [data-lab]").forEach((x) => (x.disabled = true));
+  out.innerHTML = `<p class="hint">…</p>`;
+  const step = (m) => { label.textContent = m; };
+
+  try {
+    let html = "";
+    if (kind === "search") {
+      step("Searching the live SERP…");
+      html = renderSearchLab(await tool("search", { query: seed, limit: 10 }, T));
+    } else if (kind === "ideas") {
+      step("Expanding seed through suggest + DDG…");
+      html = renderIdeasLab(await tool("keywords", { seed, limit: 20 }, T));
+    } else if (kind === "compete") {
+      step("Scoring the top 10…");
+      html = renderCompeteLab(await tool("compete", { query: seed }, T));
+    } else if (kind === "verdict") {
+      step("Measuring opportunity (keywords)…");
+      const kw = await tool("keywords", { seed, limit: 12 }, T);
+      const opp = opportunityFrom(kw);
+      if (opp === null) throw new Error("keywords tool returned no scores — cannot form a verdict without measured numbers.");
+      step("Measuring competition (compete)…");
+      const comp = await tool("compete", { query: seed }, T);
+      const compScore = Number(comp && comp.score);
+      if (!isFinite(compScore)) throw new Error("compete tool returned no difficulty score.");
+      step("Computing the call…");
+      html = renderVerdictLab(await tool("verdict", { opportunity: opp, competition: compScore }, T));
+    } else if (kind === "gap") {
+      step("Pulling both channels' keyword sets…");
+      html = renderGapLab(await tool("gap", { seed, competitor }, T));
+    } else if (kind === "scorecard") {
+      step("Fetching video metadata…");
+      html = renderScorecardLab(await tool("scorecard", { video, keyword: seed }, T));
+    } else if (kind === "chain") {
+      html = await runChain({ seed, competitor, video }, step, T);
+    }
+    out.innerHTML = html;
+    label.textContent = kind === "chain" ? "Full research chain" : `Done — ${kind}`;
+  } catch (e) {
+    out.innerHTML = `<p class="hint">Error: ${escapeHtml(String(e.message || e))}</p>`;
+    label.textContent = "Failed";
+  } finally {
+    $$(".lab-actions [data-lab]").forEach((x) => (x.disabled = false));
+  }
+}
+
+async function runChain({ seed, competitor, video }, step, T) {
+  const ev = {};
+  const errs = {};
+  const grab = async (key, msg, fn) => {
+    step(msg);
+    try { ev[key] = await fn(); } catch (e) { ev[key] = null; errs[key] = String(e.message || e); }
+  };
+
+  await grab("keywords", "1/5 · keyword opportunities…", () => tool("keywords", { seed, limit: 15 }, T));
+  const opp = opportunityFrom(ev.keywords);
+
+  await grab("compete", "2/5 · competition difficulty…", () => tool("compete", { query: seed }, T));
+  // NaN when compete failed — never coerce a missing score to 0 (would fabricate the verdict)
+  const compScore = ev.compete && ev.compete.score !== undefined && ev.compete.score !== null
+    ? Number(ev.compete.score)
+    : NaN;
+
+  if (opp !== null && isFinite(compScore)) {
+    await grab("verdict", "3/5 · GO/MAYBE/SKIP…", () => tool("verdict", { opportunity: opp, competition: compScore }, T));
+  } else {
+    errs.verdict = "skipped — missing measured inputs";
+  }
+
+  if (competitor) await grab("gap", "4/5 · content gap vs competitor…", () => tool("gap", { seed, competitor }, T));
+  else step("4/5 · no competitor given — skipping gap…");
+
+  if (video) await grab("scorecard", "4/5 · SEO scorecard…", () => tool("scorecard", { video, keyword: seed }, T));
+  await grab("search", "5/5 · live SERP check…", () => tool("search", { query: seed, limit: 6 }, T));
+
+  const parts = [];
+  if (ev.verdict) parts.push(renderVerdictLab(ev.verdict));
+  if (ev.keywords) parts.push(renderIdeasLab(ev.keywords));
+  if (ev.compete) parts.push(renderCompeteLab(ev.compete));
+  if (ev.gap) parts.push(renderGapLab(ev.gap));
+  if (ev.scorecard) parts.push(renderScorecardLab(ev.scorecard));
+  if (ev.search) parts.push(renderSearchLab(ev.search));
+
+  step("Synthesizing with host LLM…");
+  const evidence = JSON.stringify(ev, null, 0).slice(0, 14000);
+  let read = "";
+  try {
+    read = await llm(LAB_SYSTEM, `Seed: ${seed}\n${competitor ? `Competitor: ${competitor}\n` : ""}${video ? `Video: ${video}\n` : ""}Evidence JSON:\n${evidence}\n\nWrite the research read.`, 2600);
+  } catch (e) {
+    read = `Host LLM failed: ${e.message || e}\n\nRaw measured evidence is above.`;
+  }
+
+  const errNote = Object.keys(errs).length
+    ? `<p class="hint" style="margin-top:8px">Not measured: ${escapeHtml(Object.entries(errs).map(([k, v]) => `${k} (${v})`).join(" · "))}</p>`
+    : "";
+  return parts.join("") + errNote + `
+  <div class="card bigfix" style="margin-top:10px">
+    <div class="label">The read — host LLM over measured evidence</div>
+    <div class="audit-report" style="margin-top:8px">${renderMd(read)}</div>
+  </div>`;
+}
+
+function wireLab() {
+  $$(".lab-actions [data-lab]").forEach((b) => {
+    b.addEventListener("click", () => runLab(b.dataset.lab));
+  });
+  byId("lab-copy").addEventListener("click", () => navigator.clipboard.writeText(byId("lab-result").innerText).catch(() => {}));
+}
+
 /* ---------- retention analyzer ---------- */
 const RETENTION_SYSTEM = `
 You read YouTube Studio audience-retention exports and report honestly. Rules:
@@ -436,6 +677,7 @@ function wireRetention() {
 async function main() {
   wireTabs();
   wireStudio();
+  wireLab();
   wireRetention();
   const ok = await connect();
   byId("audit-run").addEventListener("click", () => runAudit(byId("audit-handle").value));
