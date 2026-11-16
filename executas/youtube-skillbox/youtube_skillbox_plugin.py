@@ -14,7 +14,7 @@ import sys
 import time
 import traceback
 
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 ENGINE_TIMEOUT = 90
 AUDIT_TIMEOUT = 150
 
@@ -430,6 +430,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 

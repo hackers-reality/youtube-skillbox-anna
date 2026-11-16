@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "skillbox-core"
-version = "0.6.0"
+version = "0.6.1"
 description = "Executa for the YouTube Skillbox Anna App — evidence-backed YouTube research via the open-source YouTube Skillbox engine."
 requires-python = ">=3.11"
 dependencies = [
-    "youtube-skillbox>=0.4.14",
+    "youtube-skillbox>=0.4.15",
 ]
 
 [project.scripts]
@@ -16,6 +16,8 @@ dependencies = [
 
 [tool.setuptools]
 py-modules = ["youtube_skillbox_plugin"]
+
+
 
 
 

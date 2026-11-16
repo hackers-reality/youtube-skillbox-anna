@@ -49,15 +49,20 @@ function setStatus(text, ok, warn = false) {
 /* ---------- helpers: tools / llm / storage ---------- */
 async function tool(method, args) {
   if (standalone || !anna) {
-    // deterministic demo payloads so the UI is still demonstrable
+    // deterministic demo payloads so the demo is still demonstrable
     return demoPayload(method, args);
   }
   const res = await anna.tools.invoke({ tool_id: TOOL_ID, method, args: args || {} });
-  if (!res || res.success !== true) {
-    const err = (res && res.error) || "tool failed";
-    throw new Error(err);
+  // Anna unwraps executa {success, data} → {ok, result}. Tolerate either envelope.
+  const ok = !!(res && (res.ok === true || res.success === true));
+  if (!ok) {
+    const errObj = res?.error;
+    const err = typeof errObj === "string"
+      ? errObj
+      : (errObj?.message || errObj?.code || "tool failed");
+    throw new Error(String(err));
   }
-  return res.data;
+  return (res && res.result !== undefined) ? res.result : (res && res.data);
 }
 
 async function llm(systemPrompt, userMessage, maxTokens = 3200) {
