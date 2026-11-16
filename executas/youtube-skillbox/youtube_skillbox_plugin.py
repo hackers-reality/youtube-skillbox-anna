@@ -16,8 +16,9 @@ results.
 import json
 import subprocess
 import sys
+import time
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 ENGINE_TIMEOUT = 120
 AUDIT_TIMEOUT = 180
 
@@ -146,8 +147,21 @@ MANIFEST = {
 }
 
 
-def _run_engine(*args, timeout=ENGINE_TIMEOUT):
-    """Run the bundled engine; return (parsed_json_or_None, raw_text, error)."""
+def _retryable(err):
+    e = err.lower()
+    return (
+        "429" in e
+        or "too many requests" in e
+        or "http error 5" in e
+        or "timed out" in e
+        or "timeout" in e
+        or "connection reset" in e
+        or "connection aborted" in e
+        or "remote disconnected" in e
+    )
+
+
+def _run_engine_once(*args, timeout=ENGINE_TIMEOUT):
     cmd = [sys.executable, "-m", "youtube_skillbox.cli", *args]
     try:
         proc = subprocess.run(
@@ -170,6 +184,21 @@ def _run_engine(*args, timeout=ENGINE_TIMEOUT):
     except json.JSONDecodeError:
         # Sections/posts may not emit JSON; hand raw text through.
         return None, out, None
+
+
+def _run_engine(*args, timeout=ENGINE_TIMEOUT):
+    """429/timeout-retry wrapper — YouTube throttles datacenter IPs hard,
+    so we give transient failures one or two chances with backoff."""
+    result = None
+    efforts = 3
+    for i in range(efforts):
+        js, raw, err = _run_engine_once(*args, timeout=timeout)
+        if err is None or not _retryable(err):
+            return js, raw, err
+        result = (js, raw, err)
+        if i < efforts - 1:
+            time.sleep(2.0 * (i + 1))  # 2s, 4s
+    return result
 
 
 def _payload(**kwargs):
@@ -482,3 +511,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

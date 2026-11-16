@@ -111,15 +111,21 @@ function wireTabs() {
 /* ---------- audit pipeline ---------- */
 const AUDIT_SYSTEM = `
 You are the YouTube Skillbox analyst. You receive hard tool data (channel counts, subs, videos, outliers, keywords, scorecards) — never invent numbers.
+ABSOLUTE RULES (not suggestions):
+1. Any \`error\` key or empty array in evidence = that data does NOT exist. State it verbatim as "MEASURED: unavailable — <reason>"; NEVER fill it in.
+2. If ALL core fields (subs, videos, outliers) are missing/empty, your ENTIRE verdict is exactly this sentence: "ENGINE BLOCKED: insufficient measured data from this host. No verdict will be invented." Nothing more.
+3. If partial data exists, build verdict ONLY from it, label it clearly, and open with "PARTIAL AUDIT".
+4. MEASURED/INFERRED/HYPOTHESIS tags mandatory, one per claim. Numbers must trace to evidence fields.
+
 Write with a creator's directness: specific fixes, no filler, no "great job". Structure:
-1) THE ONE-LINE VERDICT (what actually moves this channel)
-2) MEASURED snapshot (subs / uploads / cadence / outliers w/ ratios)
-3) What's working (evidence, not vibes)
+1) THE ONE-LINE VERDICT
+2) MEASURED snapshot (only real numbers)
+3) What's working (evidence)
 4) The 3 highest-leverage fixes, one line each
 5) What NOT to do, one line
-6) Keyword angle (if keyword data present) — opportunity vs competition, plain English
-Label every claim MEASURED / INFERRED / HYPOTHESIS like "MEASURED:", "INFERRED:", "HYPOTHESIS:". Verdict = the whole channel's unlock, not generic advice.
-Max ~1200 words. Markdown.`;
+6) Keyword angle if present, else "MEASURED: unavailable"
+
+Max ~900 words. Markdown.`;
 
 async function runAudit(handle) {
   handle = (handle || "").trim();
@@ -149,14 +155,40 @@ async function runAudit(handle) {
 
   const evidence = {};
   let okSteps = 0;
+  let anyOk = false;
+  const errors = {};
   for (const job of jobs) {
     setStage(15 + okSteps * 18, `Running ${job.label}…`);
     try {
       evidence[job.key] = await tool(job.key, job.args);
+      anyOk = true;
     } catch (e) {
-      evidence[job.key] = { error: String(e.message || e) };
+      const msg = String(e.message || e);
+      evidence[job.key] = { error: msg };
+      errors[job.label] = msg;
     }
     okSteps += 1;
+  }
+
+  const allFailed = jobs.every((j) => evidence[j.key] && evidence[j.key].error);
+
+  if (allFailed) {
+    setStage(100, "Engine blocked from this host.");
+    rawPre.textContent = JSON.stringify({ evidence }, null, 2);
+    rawBox.classList.remove("hidden");
+    result.innerHTML = `<div class="card bigfix">
+      <div class="label">ENGINE BLOCKED — nothing measured</div>
+      <div class="audit-report" style="margin-top:8px">
+        <strong>MEASURED:</strong> 0 of ${jobs.length} tool calls succeeded.<br><br>
+        <strong>Errors:</strong><br>${Object.entries(errors).map(([k,v]) => `• <strong>${escapeHtml(k)}</strong> — ${escapeHtml(v.slice(0,300))}`).join("<br>")}<br><br>
+        <strong>Likely cause:</strong> YouTube throttles datacenter IPs (HTTP 429). The Anna agent in this region is being treated as a bot.<br><br>
+        <strong>This is not a fabricated verdict.</strong> The app refuses to invent numbers. If Anna's cloud is blocked for this host, the same audit works fine from your own machine (<code>pip install youtube-skillbox</code>).
+      </div>
+    </div>`;
+    result.classList.remove("hidden");
+    progress.classList.add("hidden");
+    btn.disabled = false;
+    return;
   }
 
   setStage(70, "Scoring keyword opportunity…");
