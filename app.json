@@ -1,8 +1,13 @@
 {
   "name": "YouTube Skillbox",
-  "slug": "youtube-skillbox",
-  "tagline": "Evidence-backed YouTube audit — channel, keywords & content fixes in one app",
+  "slug": "youtube-skillbox-anna",
+  "tagline": "Evidence-backed YouTube audits, keyword research and content fixes",
   "description": "Paste your channel URL and get a research-through-retention audit, powered by the open-source YouTube Skillbox engine. Snapshot, outliers, SEO scorecard, keyword volume & competition, a GO / MAYBE / SKIP verdict, plus an AI content studio (hooks, titles, chapters, SEO). Every number is labelled MEASURED / INFERRED — no vibes, no fake rankings. Zero user API keys: built on yt-dlp + free public endpoints, MIT licensed.",
-  "category": "productivity",
-  "pricing_model": "free"
+  "category": "developer-tools",
+  "pricing_model": "free",
+  "bundled_executas": {
+    "youtube-skillbox": {
+      "path": "./executas/youtube-skillbox"
+    }
+  }
 }

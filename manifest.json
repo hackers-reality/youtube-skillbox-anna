@@ -2,7 +2,7 @@
   "schema": 4,
   "required_executas": [
     {
-      "tool_id": "tool-dev-youtube-skillbox",
+      "tool_id": "bundled:youtube-skillbox",
       "min_version": "0.1.0",
       "version": "latest"
     }

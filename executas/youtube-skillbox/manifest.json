@@ -1,0 +1,251 @@
+{
+  "name": "skillbox-core",
+  "display_name": "YouTube Skillbox Engine",
+  "version": "0.1.0",
+  "description": "Evidence-backed YouTube research from the open-source Skillbox engine: channel snapshots, outliers, keyword volume, competition difficulty, SEO scorecards, content gaps, keyword verdicts and transcripts. Every result is labelled MEASURED / INFERRED.",
+  "tools": [
+    {
+      "name": "ping",
+      "description": "Smoke-test the tool. Returns pong and the engine version.",
+      "parameters": [],
+      "timeout": 10
+    },
+    {
+      "name": "snapshot",
+      "description": "Channel snapshot: every tab count (videos/shorts/shows/playlists/community) plus the About section (subs, description, keywords). Fast.",
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "Channel handle (with or without @) or channel URL.",
+          "required": true
+        }
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "latest",
+      "description": "Most recent uploads (reverse chronological), with durations and view counts.",
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "Channel handle or URL.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Max videos to return.",
+          "required": false,
+          "default": 10
+        }
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "outliers",
+      "description": "Videos that dramatically outperform the channel's own subscribed baseline (views/subs ratio) — the best source of repeatable ideas.",
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "Channel handle or URL.",
+          "required": true
+        },
+        {
+          "name": "min_ratio",
+          "type": "number",
+          "description": "Minimum views/subs multiple.",
+          "required": false,
+          "default": 2.0
+        }
+      ],
+      "timeout": 180
+    },
+    {
+      "name": "scorecard",
+      "description": "SEO checklist for one video: title, keyword-in-title, description, tags, chapters, freshness. Returns 0-100 and per-check results.",
+      "parameters": [
+        {
+          "name": "video",
+          "type": "string",
+          "description": "Video URL or 11-char ID.",
+          "required": true
+        },
+        {
+          "name": "keyword",
+          "type": "string",
+          "description": "Target keyword for the checks.",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "keywords",
+      "description": "Keyword ideas + relative demand index from YouTube suggest (weighted by position) and DuckDuckGo. 0-100 opportunity score per idea.",
+      "parameters": [
+        {
+          "name": "seed",
+          "type": "string",
+          "description": "Seed topic, e.g. 'youtube seo'.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Max ideas to return.",
+          "required": false,
+          "default": 25
+        }
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "compete",
+      "description": "Competition difficulty 0-100 for a keyword from the live SERP. Higher = harder. Views(35) authority(25) titles(20) entrenchment(15) velocity(5).",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "description": "Keyword to score.",
+          "required": true
+        },
+        {
+          "name": "gl",
+          "type": "string",
+          "description": "Region code.",
+          "required": false,
+          "default": "US"
+        },
+        {
+          "name": "hl",
+          "type": "string",
+          "description": "Language code.",
+          "required": false,
+          "default": "en"
+        }
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "verdict",
+      "description": "Deterministic GO / MAYBE / SKIP verdict for a keyword opportunity based on opportunity vs competition scores you supply (from keywords + compete).",
+      "parameters": [
+        {
+          "name": "opportunity",
+          "type": "number",
+          "description": "0-100 opportunity (from keywords).",
+          "required": true
+        },
+        {
+          "name": "competition",
+          "type": "number",
+          "description": "0-100 competition difficulty (from compete).",
+          "required": true
+        }
+      ],
+      "timeout": 10
+    },
+    {
+      "name": "search",
+      "description": "Search YouTube videos matching a query (locale-pinnable).",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "description": "Search query.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Max results.",
+          "required": false,
+          "default": 10
+        },
+        {
+          "name": "gl",
+          "type": "string",
+          "description": "Region code.",
+          "required": false,
+          "default": "US"
+        },
+        {
+          "name": "hl",
+          "type": "string",
+          "description": "Language code.",
+          "required": false,
+          "default": "en"
+        }
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "gap",
+      "description": "Keyword gap: ideas similar to a seed where your competitor's channel already holds keywords you don't. Straight from metadata.",
+      "parameters": [
+        {
+          "name": "seed",
+          "type": "string",
+          "description": "Seed topic.",
+          "required": true
+        },
+        {
+          "name": "competitor",
+          "type": "string",
+          "description": "Competitor channel handle or URL.",
+          "required": true
+        }
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "home",
+      "description": "Home-tab shelves for a channel: featured video, Shorts, playlists, posts and Featured Channels (with URLs).",
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "Channel handle or URL.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Items per shelf.",
+          "required": false,
+          "default": 12
+        }
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "transcribe",
+      "description": "Spoken text of any video (auto/human captions). Returns plain text. Original language + English when available.",
+      "parameters": [
+        {
+          "name": "video",
+          "type": "string",
+          "description": "Video URL or 11-char ID.",
+          "required": true
+        },
+        {
+          "name": "language",
+          "type": "string",
+          "description": "Preferred language code(s), e.g. 'en' or 'es,en'.",
+          "required": false,
+          "default": "en"
+        }
+      ],
+      "timeout": 120
+    }
+  ],
+  "credentials": [],
+  "host_capabilities": [],
+  "runtime": {
+    "type": "python"
+  }
+}

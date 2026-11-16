@@ -8,7 +8,7 @@
 
 import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
 
-const TOOL_ID = "tool-dev-youtube-skillbox";
+const TOOL_ID = (typeof window !== "undefined" && window.__ANNA_TOOL_IDS__ && window.__ANNA_TOOL_IDS__["youtube-skillbox"]) || "bundled:youtube-skillbox";
 const AUDITS_KEY = "youtube-skillbox:audits";
 
 const $ = (sel, root = document) => root.querySelector(sel);
