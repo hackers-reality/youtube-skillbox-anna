@@ -1,19 +1,32 @@
 {
   "name": "skillbox-core",
   "display_name": "YouTube Skillbox Engine",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Evidence-backed YouTube research from the open-source Skillbox engine: channel snapshots, outliers, keyword volume, competition difficulty, SEO scorecards, content gaps, keyword verdicts and transcripts. Every result is labelled MEASURED / INFERRED.",
   "tools": [
     {
       "name": "ping",
       "description": "Smoke-test the tool. Returns pong and the engine version.",
-      "parameters": [],
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        }
+      ],
       "timeout": 10
     },
     {
       "name": "snapshot",
       "description": "Channel snapshot: every tab count (videos/shorts/shows/playlists/community) plus the About section (subs, description, keywords). Fast.",
       "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
         {
           "name": "handle",
           "type": "string",
@@ -27,6 +40,12 @@
       "name": "latest",
       "description": "Most recent uploads (reverse chronological), with durations and view counts.",
       "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
         {
           "name": "handle",
           "type": "string",
@@ -48,6 +67,12 @@
       "description": "Videos that dramatically outperform the channel's own subscribed baseline (views/subs ratio) — the best source of repeatable ideas.",
       "parameters": [
         {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
           "name": "handle",
           "type": "string",
           "description": "Channel handle or URL.",
@@ -67,6 +92,12 @@
       "name": "scorecard",
       "description": "SEO checklist for one video: title, keyword-in-title, description, tags, chapters, freshness. Returns 0-100 and per-check results.",
       "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
         {
           "name": "video",
           "type": "string",
@@ -88,6 +119,12 @@
       "description": "Keyword ideas + relative demand index from YouTube suggest (weighted by position) and DuckDuckGo. 0-100 opportunity score per idea.",
       "parameters": [
         {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
           "name": "seed",
           "type": "string",
           "description": "Seed topic, e.g. 'youtube seo'.",
@@ -107,6 +144,12 @@
       "name": "compete",
       "description": "Competition difficulty 0-100 for a keyword from the live SERP. Higher = harder. Views(35) authority(25) titles(20) entrenchment(15) velocity(5).",
       "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
         {
           "name": "query",
           "type": "string",
@@ -135,6 +178,12 @@
       "description": "Deterministic GO / MAYBE / SKIP verdict for a keyword opportunity based on opportunity vs competition scores you supply (from keywords + compete).",
       "parameters": [
         {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
           "name": "opportunity",
           "type": "number",
           "description": "0-100 opportunity (from keywords).",
@@ -153,6 +202,12 @@
       "name": "search",
       "description": "Search YouTube videos matching a query (locale-pinnable).",
       "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
         {
           "name": "query",
           "type": "string",
@@ -188,6 +243,12 @@
       "description": "Keyword gap: ideas similar to a seed where your competitor's channel already holds keywords you don't. Straight from metadata.",
       "parameters": [
         {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
           "name": "seed",
           "type": "string",
           "description": "Seed topic.",
@@ -206,6 +267,12 @@
       "name": "home",
       "description": "Home-tab shelves for a channel: featured video, Shorts, playlists, posts and Featured Channels (with URLs).",
       "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
         {
           "name": "handle",
           "type": "string",
@@ -226,6 +293,12 @@
       "name": "transcribe",
       "description": "Spoken text of any video (auto/human captions). Returns plain text. Original language + English when available.",
       "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
         {
           "name": "video",
           "type": "string",

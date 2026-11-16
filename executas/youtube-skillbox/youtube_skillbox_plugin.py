@@ -14,9 +14,19 @@ import sys
 import time
 import traceback
 
-VERSION = "0.6.1"
+VERSION = "0.6.2"
 ENGINE_TIMEOUT = 90
 AUDIT_TIMEOUT = 150
+
+# Anna's chat-agent gateway demands a Matrix Agent ID (client_id) for
+# executa_skills calls but does not always inject it. Declaring the param
+# gives the caller a schema slot to pass an online ID; the engine ignores it.
+CLIENT_ID_PARAM = {
+    "name": "client_id",
+    "type": "string",
+    "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+    "required": False,
+}
 
 MANIFEST = {
     "name": "skillbox-core",
@@ -32,13 +42,13 @@ MANIFEST = {
         {
             "name": "ping",
             "description": "Smoke-test the tool. Returns pong and the engine version.",
-            "parameters": [],
+            "parameters": [CLIENT_ID_PARAM,],
             "timeout": 10,
         },
         {
             "name": "snapshot",
             "description": "Channel snapshot: every tab count (videos/shorts/shows/playlists/community) plus the About section (subs, description, keywords). Fast.",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "handle", "type": "string", "description": "Channel handle (with or without @) or channel URL.", "required": True},
             ],
             "timeout": ENGINE_TIMEOUT,
@@ -46,7 +56,7 @@ MANIFEST = {
         {
             "name": "latest",
             "description": "Most recent uploads (reverse chronological), with durations and view counts.",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "handle", "type": "string", "description": "Channel handle or URL.", "required": True},
                 {"name": "limit", "type": "integer", "description": "Max videos to return.", "required": False, "default": 10},
             ],
@@ -55,7 +65,7 @@ MANIFEST = {
         {
             "name": "outliers",
             "description": "Videos that dramatically outperform the channel's own subscribed baseline (views/subs ratio) — the best source of repeatable ideas.",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "handle", "type": "string", "description": "Channel handle or URL.", "required": True},
                 {"name": "min_ratio", "type": "number", "description": "Minimum views/subs multiple.", "required": False, "default": 2.0},
             ],
@@ -64,7 +74,7 @@ MANIFEST = {
         {
             "name": "scorecard",
             "description": "SEO checklist for one video: title, keyword-in-title, description, tags, chapters, freshness. Returns 0-100 and per-check results.",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "video", "type": "string", "description": "Video URL or 11-char ID.", "required": True},
                 {"name": "keyword", "type": "string", "description": "Target keyword for the checks.", "required": False, "default": ""},
             ],
@@ -73,7 +83,7 @@ MANIFEST = {
         {
             "name": "keywords",
             "description": "Keyword ideas + relative demand index from YouTube suggest (weighted by position) and DuckDuckGo. 0-100 opportunity score per idea.",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "seed", "type": "string", "description": "Seed topic, e.g. 'youtube seo'.", "required": True},
                 {"name": "limit", "type": "integer", "description": "Max ideas to return.", "required": False, "default": 25},
             ],
@@ -82,7 +92,7 @@ MANIFEST = {
         {
             "name": "compete",
             "description": "Competition difficulty 0-100 for a keyword from the live SERP. Higher = harder. Views(35) authority(25) titles(20) entrenchment(15) velocity(5).",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "query", "type": "string", "description": "Keyword to score.", "required": True},
                 {"name": "gl", "type": "string", "description": "Region code.", "required": False, "default": "US"},
                 {"name": "hl", "type": "string", "description": "Language code.", "required": False, "default": "en"},
@@ -92,7 +102,7 @@ MANIFEST = {
         {
             "name": "verdict",
             "description": "Deterministic GO / MAYBE / SKIP verdict for a keyword opportunity based on opportunity vs competition scores you supply (from keywords + compete).",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "opportunity", "type": "number", "description": "0-100 opportunity (from keywords).", "required": True},
                 {"name": "competition", "type": "number", "description": "0-100 competition difficulty (from compete).", "required": True},
             ],
@@ -101,7 +111,7 @@ MANIFEST = {
         {
             "name": "search",
             "description": "Search YouTube videos matching a query (locale-pinnable).",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "query", "type": "string", "description": "Search query.", "required": True},
                 {"name": "limit", "type": "integer", "description": "Max results.", "required": False, "default": 10},
                 {"name": "gl", "type": "string", "description": "Region code.", "required": False, "default": "US"},
@@ -112,7 +122,7 @@ MANIFEST = {
         {
             "name": "gap",
             "description": "Keyword gap: ideas similar to a seed where your competitor's channel already holds keywords you don't. Straight from metadata.",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "seed", "type": "string", "description": "Seed topic.", "required": True},
                 {"name": "competitor", "type": "string", "description": "Competitor channel handle or URL.", "required": True},
             ],
@@ -121,7 +131,7 @@ MANIFEST = {
         {
             "name": "home",
             "description": "Home-tab shelves for a channel: featured video, Shorts, playlists, posts and Featured Channels (with URLs).",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "handle", "type": "string", "description": "Channel handle or URL.", "required": True},
                 {"name": "limit", "type": "integer", "description": "Items per shelf.", "required": False, "default": 12},
             ],
@@ -130,7 +140,7 @@ MANIFEST = {
         {
             "name": "transcribe",
             "description": "Spoken text of any video (auto/human captions). Returns plain text. Original language + English when available.",
-            "parameters": [
+            "parameters": [CLIENT_ID_PARAM,
                 {"name": "video", "type": "string", "description": "Video URL or 11-char ID.", "required": True},
                 {"name": "language", "type": "string", "description": "Preferred language code(s), e.g. 'en' or 'es,en'.", "required": False, "default": "en"},
             ],
