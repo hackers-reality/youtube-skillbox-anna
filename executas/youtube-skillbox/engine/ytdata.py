@@ -1363,7 +1363,7 @@ def cmd_scorecard(a):
             "score": score,
             "checks": [{"name": n, "weight": w, "pass": ok, "detail": d}
                        for n, w, ok, d in checks]
-        }, ensure_ascii=False, indent=2)))
+        }), ensure_ascii=False, indent=2))
         return
 
     print(f"SEO Scorecard for {vid}" + (f"  (target: {a.keyword})" if a.keyword else "") + f"\n")
@@ -1531,8 +1531,8 @@ def cmd_outliers(a):
 
     if a.json:
         print(json.dumps(_strip_nulls({"channel": base, "subscribers": subs,
-                          "min_ratio": a.min_ratio, "outliers": outliers},
-                         ensure_ascii=False, indent=2)))
+                          "min_ratio": a.min_ratio, "outliers": outliers}),
+                         ensure_ascii=False, indent=2))
         return
 
     if not outliers:
@@ -1645,7 +1645,7 @@ def cmd_gap(a):
             "only_me": [k for kw, k in my_kws.items() if kw not in comp_tags][:a.limit],
             "only_them": [kw for kw in comp_tags if kw not in my_kws][:a.limit],
             "both": [k for kw, k in my_kws.items() if kw in comp_tags][:a.limit],
-        }, ensure_ascii=False, indent=2)))
+        }), ensure_ascii=False, indent=2))
         return
 
     only_me = [k for kw, k in my_kws.items() if kw not in comp_tags][:a.limit]
@@ -1863,7 +1863,7 @@ def cmd_keywords(a):
         print(json.dumps(_strip_nulls({"seed": seed, "gl": a.gl, "hl": a.hl, "sources": sorted(use),
                           "kl": kl, "queries": len(queries), "unique": len(stats),
                           "score_meaning": "opportunity",
-                          "keywords": rows}, ensure_ascii=False, indent=2)))
+                          "keywords": rows}), ensure_ascii=False, indent=2))
         return
     print(f'Keyword ideas for "{seed}" — {len(stats)} unique from {len(queries)} queries '
           f'(gl={a.gl} hl={a.hl}, sources: {",".join(sorted(use))})')
@@ -1936,8 +1936,8 @@ def cmd_trends(a):
 
     if a.json:
         print(json.dumps(_strip_nulls({"seed": a.seed, "gl": a.gl, "hl": a.hl,
-                          "window_days": a.days, "keywords": all_kw},
-                         ensure_ascii=False, indent=2)))
+                          "window_days": a.days, "keywords": all_kw}),
+                         ensure_ascii=False, indent=2))
         return
 
     print(f'Trend for "{a.seed}"  (gl={a.gl} hl={a.hl}'
@@ -2180,8 +2180,8 @@ def cmd_compete(a):
 
     if a.json:
         print(json.dumps(_strip_nulls({"keyword": q, "gl": a.gl, "hl": a.hl, **stats,
-                          "advice": _compete_advice(stats)},
-                         ensure_ascii=False, indent=2)))
+                          "advice": _compete_advice(stats)}),
+                         ensure_ascii=False, indent=2))
         return
 
     print(f'Competition for "{q}" — top {stats["scored"]}  (gl={a.gl} hl={a.hl})\n')
@@ -2319,8 +2319,8 @@ def cmd_track(a):
 
     if a.json:
         print(json.dumps(_strip_nulls({"keyword": q, "video": vid, "rank": rank, "gl": a.gl, "hl": a.hl,
-                          "previous": prev, "history": history + log[-1:]},
-                         ensure_ascii=False, indent=2)))
+                          "previous": prev, "history": history + log[-1:]}),
+                         ensure_ascii=False, indent=2))
         return
 
     pos = f"#{rank}" if rank else f"not in top {a.top}"
