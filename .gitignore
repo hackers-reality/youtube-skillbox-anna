@@ -1,6 +1,6 @@
 # --- Anna App ---
-.anna/                 # CLI working-state (tool-id mappings, dev tokens)
-dist/                  # built bundle if you add a build step
+.anna/
+dist/
 
 # --- Node ---
 node_modules/
@@ -14,13 +14,13 @@ __pycache__/
 *.pyo
 .venv/
 .uv-cache/
-uv.lock                 # uncomment only if you vendor per-platform locks
+uv.lock
 *.egg-info/
 build/
 
 # --- Anna dev artifacts ---
 fixtures/
-*.jsonl                 # audit reports, mongo dumps — keep out of git if sensitive
+*.jsonl
 .dev-key*
 dev.key
 
