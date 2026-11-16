@@ -401,6 +401,13 @@ async function main() {
   const ok = await connect();
   byId("audit-run").addEventListener("click", () => runAudit(byId("audit-handle").value));
   byId("audit-handle").addEventListener("keydown", (e) => { if (e.key === "Enter") runAudit(byId("audit-handle").value); });
+  $$(".chip[data-handle]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const input = byId("audit-handle");
+      input.value = chip.dataset.handle;
+      input.focus();
+    });
+  });
   await renderSavedList();
   if (anna && anna.window) {
     try { await anna.window.set_title({ title: "YouTube Skillbox" }); } catch (_) {}
