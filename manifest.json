@@ -1,0 +1,32 @@
+{
+  "schema": 4,
+  "required_executas": [
+    {
+      "tool_id": "tool-dev-youtube-skillbox"
+    }
+  ],
+  "tags": ["youtube-skillbox"],
+  "ui": {
+    "bundle": {
+      "format": "static-spa",
+      "entry": "index.html",
+      "external_origins": []
+    },
+    "views": [
+      {
+        "name": "main",
+        "title": "youtube-skillbox",
+        "default": true,
+        "default_size": { "w": 480, "h": 360 },
+        "min_size": { "w": 320, "h": 240 }
+      }
+    ],
+    "csp_overrides": {},
+    "state_merge": "last_writer_wins"
+  },
+  "dev": {
+    "fixtures": ["fixtures/*.jsonl"],
+    "seed_storage": {},
+    "user_id": 1
+  }
+}

@@ -1,0 +1,38 @@
+# --- Anna App ---
+.anna/                 # CLI working-state (tool-id mappings, dev tokens)
+dist/                  # built bundle if you add a build step
+
+# --- Node ---
+node_modules/
+npm-debug.log*
+.yarn/
+.pnpm-store/
+
+# --- Python / executa ---
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+.uv-cache/
+uv.lock                 # uncomment only if you vendor per-platform locks
+*.egg-info/
+build/
+
+# --- Anna dev artifacts ---
+fixtures/
+*.jsonl                 # audit reports, mongo dumps — keep out of git if sensitive
+.dev-key*
+dev.key
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Scratch / temp ---
+tmp/
+*.tmp
+*.log
+reports/
+artifacts/
