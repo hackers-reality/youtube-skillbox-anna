@@ -62,7 +62,6 @@ jobs:
           cp executas/youtube-skillbox/engine/ytdata.py pkg/
           printf '{"name":"skillbox-core","version":"%s","runtime":{"binary":{"entrypoint":{"default":"skillbox-core"},"permissions":{"skillbox-core":"0o755"}}}}' "${GITHUB_REF_NAME#executa-v}" > pkg/manifest.json
           tar czf "pkg/skillbox-core-${{ matrix.platform }}.tar.gz" -C pkg skillbox-core ytdata.py manifest.json
-          cp "pkg/skillbox-core-${{ matrix.platform }}.tar.gz" "pkg/skillbox-core-${{ matrix.platform }}.tar.gz"
 
       - name: "Package (windows: zip)"
         if: matrix.platform == 'windows-x86_64'
