@@ -239,9 +239,9 @@ async function runAudit(handle) {
 function renderAuditCards(handle, ev, verdict) {
   const sec = (ev.snapshot && ev.snapshot.sections) || {};
   const prof = (ev.snapshot && ev.snapshot.profile) || {};
-  const latest = (ev.latest && (Array.isArray(ev.latest) ? ev.latest : ev.latest.videos)) || [];
-  const outliers = (ev.outliers && (Array.isArray(ev.outliers) ? ev.outliers : ev.outliers.videos)) || [];
-  const kw = (ev.keywords && (Array.isArray(ev.keywords) ? ev.keywords : ev.keywords.ideas)) || [];
+  const latest = (ev.latest && (Array.isArray(ev.latest) ? ev.latest : (ev.latest.videos || ev.latest.items || []))) || [];
+  const outliers = (ev.outliers && (Array.isArray(ev.outliers) ? ev.outliers : (ev.outliers.outliers || ev.outliers.videos || []))) || [];
+  const kw = (ev.keywords && (Array.isArray(ev.keywords) ? ev.keywords : (ev.keywords.keywords || ev.keywords.ideas || []))) || [];
 
   const subs = prof.subscribers ?? sec.subs ?? "?";
   const videos = sec.videos ?? "?";
