@@ -78,8 +78,9 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: executa-v${{ github.event.inputs.version || github.ref_name }}
+          tag_name: ${{ github.ref_name }}
           files: |
             pkg/skillbox-core-${{ matrix.platform }}.tar.gz
             pkg/skillbox-core-${{ matrix.platform }}.zip
           generate_release_notes: false
+
