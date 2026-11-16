@@ -52,7 +52,7 @@ jobs:
             --collect-all youtube_skillbox \
             executas/youtube-skillbox/youtube_skillbox_plugin.py
 
-      - name: Package (unix: tar.gz)
+      - name: "Package (unix: tar.gz)"
         if: matrix.platform != 'windows-x86_64'
         shell: bash
         run: |
@@ -64,7 +64,7 @@ jobs:
           tar czf "pkg/skillbox-core-${{ matrix.platform }}.tar.gz" -C pkg skillbox-core ytdata.py manifest.json
           cp "pkg/skillbox-core-${{ matrix.platform }}.tar.gz" "pkg/skillbox-core-${{ matrix.platform }}.tar.gz"
 
-      - name: Package (windows: zip)
+      - name: "Package (windows: zip)"
         if: matrix.platform == 'windows-x86_64'
         shell: pwsh
         run: |
