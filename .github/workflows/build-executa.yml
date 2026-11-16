@@ -1,0 +1,89 @@
+name: Build Skillbox Executa
+
+on:
+  push:
+    tags:
+      - 'executa-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+            archive: tar.gz
+          - os: macos-latest
+            platform: darwin-arm64
+            archive: tar.gz
+          - os: macos-14
+            platform: darwin-x86_64
+            archive: tar.gz
+          - os: windows-latest
+            platform: windows-x86_64
+            archive: zip
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps + PyInstaller
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install youtube-skillbox pyinstaller
+
+      - name: Build single-file binary
+        shell: bash
+        run: |
+          pyinstaller --onefile --name skillbox-core \
+            --paths executas/youtube-skillbox/engine \
+            --hidden-import ytdata \
+            --collect-all yt_dlp \
+            --collect-all youtube_skillbox \
+            executas/youtube-skillbox/youtube_skillbox_plugin.py
+
+      - name: Package (unix: tar.gz)
+        if: matrix.platform != 'windows-x86_64'
+        shell: bash
+        run: |
+          mkdir -p pkg
+          cp dist/skillbox-core pkg/
+          chmod 0755 pkg/skillbox-core
+          cp executas/youtube-skillbox/engine/ytdata.py pkg/
+          printf '{"name":"skillbox-core","version":"%s","runtime":{"binary":{"entrypoint":{"default":"skillbox-core"},"permissions":{"skillbox-core":"0o755"}}}}' "${GITHUB_REF_NAME#executa-v}" > pkg/manifest.json
+          tar czf "pkg/skillbox-core-${{ matrix.platform }}.tar.gz" -C pkg skillbox-core ytdata.py manifest.json
+          cp "pkg/skillbox-core-${{ matrix.platform }}.tar.gz" "pkg/skillbox-core-${{ matrix.platform }}.tar.gz"
+
+      - name: Package (windows: zip)
+        if: matrix.platform == 'windows-x86_64'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force pkg | Out-Null
+          Copy-Item "dist\skillbox-core.exe" "pkg\skillbox-core.exe"
+          Copy-Item "executas\youtube-skillbox\engine\ytdata.py" "pkg\ytdata.py"
+          $v = $env:GITHUB_REF_NAME -replace '^executa-v',''
+          @{
+            name = "skillbox-core"
+            version = $v
+            runtime = @{ binary = @{ entrypoint = @{ default = "skillbox-core.exe" }; permissions = @{ "skillbox-core.exe" = "0o755" } } }
+          } | ConvertTo-Json -Depth 10 | Set-Content "pkg\manifest.json"
+          Compress-Archive -Path "pkg\skillbox-core.exe", "pkg\ytdata.py", "pkg\manifest.json" -DestinationPath "pkg\skillbox-core-windows-x86_64.zip"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: executa-v${{ github.event.inputs.version || github.ref_name }}
+          files: |
+            pkg/skillbox-core-${{ matrix.platform }}.tar.gz
+            pkg/skillbox-core-${{ matrix.platform }}.zip
+          generate_release_notes: false

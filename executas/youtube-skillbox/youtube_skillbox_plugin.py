@@ -1,26 +1,22 @@
 """YouTube Skillbox — Executa plugin powering the Anna App.
 
 Exposes the open-source YouTube Skillbox engine (PyPI: youtube-skillbox)
-as first-class Anna tools. The engine locates ytdata.py through
-`youtube_skillbox.cli.find_skills_dir()`, so we invoke it via
-`python -m youtube_skillbox.cli <subcommand> [...args] --json` and parse the
-emitted JSON. Where `--json` is unsupported or fails, we fall back to the raw
-text so callers always get something honest.
-
-All engine commands talk over the network (yt-dlp / Innertube / suggest
-endpoints). Callers must expect timeouts, HTTP 429s and empty payloads; those
-surface as `{"success": False, "error": ...}` business failures, never as fake
-results.
+as first-class Anna tools. When run as the frozen PyInstaller binary, we
+ship the engine *inside* the binary; when run in dev (`python plugin.py`)
+we find it via `youtube_skillbox.cli.find_skills_dir()`.
+Either way the engine runs IN-PROCESS with stdout captured into a string,
+so the exact same code path works everywhere.
 """
 
+import io
 import json
-import subprocess
 import sys
 import time
+import traceback
 
-VERSION = "0.1.2"
-ENGINE_TIMEOUT = 120
-AUDIT_TIMEOUT = 180
+VERSION = "0.3.0"
+ENGINE_TIMEOUT = 90
+AUDIT_TIMEOUT = 150
 
 MANIFEST = {
     "name": "skillbox-core",
@@ -147,204 +143,87 @@ MANIFEST = {
 }
 
 
-def _retryable(err):
-    e = err.lower()
-    return (
-        "429" in e
-        or "too many requests" in e
-        or "http error 5" in e
-        or "timed out" in e
-        or "timeout" in e
-        or "connection reset" in e
-        or "connection aborted" in e
-        or "remote disconnected" in e
-    )
-
-
-def _run_engine_once(*args, timeout=ENGINE_TIMEOUT):
-    cmd = [sys.executable, "-m", "youtube_skillbox.cli", *args]
-    try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            encoding="utf-8",
-            errors="replace",
-        )
-    except subprocess.TimeoutExpired:
-        return None, "", f"timeout after {timeout}s — YouTube throttled us (HTTP 429?). Try again shortly."
-    out = (proc.stdout or "").strip()
-    if proc.returncode != 0:
-        err = (proc.stderr or out or "engine exited non-zero").strip()
-        tail = err[-400:]
-        return None, out, tail
-    try:
-        return json.loads(out), out, None
-    except json.JSONDecodeError:
-        # Sections/posts may not emit JSON; hand raw text through.
-        return None, out, None
-
-
-def _run_engine(*args, timeout=ENGINE_TIMEOUT):
-    """429/timeout-retry wrapper — YouTube throttles datacenter IPs hard,
-    so we give transient failures one or two chances with backoff."""
-    result = None
-    efforts = 3
-    for i in range(efforts):
-        js, raw, err = _run_engine_once(*args, timeout=timeout)
-        if err is None or not _retryable(err):
-            return js, raw, err
-        result = (js, raw, err)
-        if i < efforts - 1:
-            time.sleep(2.0 * (i + 1))  # 2s, 4s
-    return result
-
-
-def _payload(**kwargs):
-    return {"success": True, "data": kwargs}
-
-
 def _strip_nulls(obj):
-    """Deep-strip null/absent keys the engine emits as schema defaults — the
-    engine always serializes its full schema, so key-presence tells the
-    truth about which fields it actually measured. Kept: `enrichment_summary`
-    (non-null; shows the batch enricher budget)."""
     if isinstance(obj, dict):
-        out = {}
-        for k, v in obj.items():
-            if v is None and k != "enrichment_summary":
-                continue
-            out[k] = _strip_nulls(v)
-        return out
+        return {k: _strip_nulls(v) for k, v in obj.items() if v is not None or k == "enrichment_summary"}
     if isinstance(obj, list):
         return [_strip_nulls(v) for v in obj]
     return obj
 
 
 def _normalize_sections(sections):
-    """Engine emits null for a tab the channel genuinely doesn't have.
-    Surface that honestly as 'no tab' rather than a blank/absent key."""
     for key in ("videos", "shorts", "streams", "playlists", "shows"):
-        if sections.get(key) is None:
+        if isinstance(sections, dict) and sections.get(key) is None:
             sections[key] = "no tab"
     return sections
 
 
-def _handle_engine_result(args, timeout=ENGINE_TIMEOUT):
-    js, raw, err = _run_engine(*args, timeout=timeout)
+def _engine_script():
+    """Locate ytdata.py: prefer the copy bundled inside this binary (frozen), fall back to pip metadata / repo checkout."""
+    import os
+
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        bundled = os.path.join(meipass, "ytdata.py")
+        if os.path.isfile(bundled):
+            sys.path.insert(0, meipass)
+            return meipass
+
+    from youtube_skillbox.cli import find_skills_dir
+
+    p = find_skills_dir()
+    if p not in sys.path:
+        sys.path.insert(0, p)
+    return p
+
+
+def _run_engine(*args, timeout=ENGINE_TIMEOUT):
+    """Run the engine in-process and capture its stdout."""
+    try:
+        _engine_script()
+    except Exception as e:
+        return None, "", f"engine not found: {e}"
+
+    old_out = sys.stdout
+    buf = io.StringIO()
+    old_argv = sys.argv
+    sys.stdout = buf
+    sys.argv = ["ytdata", *args]
+
+    err = None
+    try:
+        import ytdata
+
+        ytdata.main()
+    except TimeoutError:
+        err = f"timeout after {timeout}s — YouTube throttled us (HTTP 429?)."
+    except SystemExit:
+        pass  # argparse --help and friends — captured stdout is what we want
+    except Exception:
+        tb = traceback.format_exc(limit=3).strip().splitlines()
+        err = f"engine crashed: {tb[-1] if tb else 'unknown error'}"
+    finally:
+        sys.stdout = old_out
+        sys.argv = old_argv
+
+    raw = buf.getvalue().strip()
+    try:
+        return json.loads(raw), raw, err
+    except Exception:
+        return None, raw, err
+
+
+def _handle_engine_result(js, raw, err):
     if err:
         return {"success": False, "error": err}
-    if js is None:
-        return {"success": True, "data": {"raw": raw or "(no output)"}}
-    return {"success": True, "data": _strip_nulls(js)}
+    if js is not None:
+        return {"success": True, "data": _strip_nulls(js)}
+    return {"success": True, "data": {"raw": raw or "(no output)"}}
 
 
-def _exec(tool: str, arguments: dict) -> dict:
-    a = arguments or {}
-    if tool == "ping":
-        return {"success": True, "data": {"pong": True, "engine": f"youtube-skillbox {_engine_version()}"}}
-    if tool == "snapshot":
-        handle = _norm_handle(a.get("handle"))
-        sections = _handle_engine_result(["sections", handle, "--json"], timeout=ENGINE_TIMEOUT)
-        profile = _handle_engine_result(["profile", handle, "--json"], timeout=ENGINE_TIMEOUT)
-        if sections.get("success") and profile.get("success"):
-            sec = sections["data"]
-            if isinstance(sec, dict):
-                sec = _normalize_sections(sec)
-            return {"success": True, "data": {"sections": sec, "profile": profile["data"]}}
-        # One failing half is worse than a useful error — report both payloads/errors honestly.
-        return {
-            "success": False,
-            "error": f"sections: {_err(sections)} | profile: {_err(profile)}",
-        }
-    if tool == "latest":
-        return _handle_engine_result(
-            ["latest", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 10))), "--json"],
-            timeout=ENGINE_TIMEOUT,
-        )
-    if tool == "outliers":
-        return _handle_engine_result(
-            ["outliers", _norm_handle(a.get("handle")), "--min-ratio", str(float(a.get("min_ratio", 2.0))), "--json"],
-            timeout=AUDIT_TIMEOUT,
-        )
-    if tool == "scorecard":
-        video = _norm_video(a.get("video"))
-        args = ["scorecard", video]
-        kw = (a.get("keyword") or "").strip()
-        if kw:
-            args += ["--keyword", kw]
-        args.append("--json")
-        return _handle_engine_result(args, timeout=ENGINE_TIMEOUT)
-    if tool == "keywords":
-        return _handle_engine_result(
-            ["keywords", str(a.get("seed", "")).strip(), "--limit", str(int(a.get("limit", 25))), "--json"],
-            timeout=ENGINE_TIMEOUT,
-        )
-    if tool == "compete":
-        return _handle_engine_result(
-            [
-                "compete",
-                str(a.get("query", "")).strip(),
-                "--top", "10",
-                "--gl", str(a.get("gl", "US")),
-                "--hl", str(a.get("hl", "en")),
-                "--json",
-            ],
-            timeout=ENGINE_TIMEOUT,
-        )
-    if tool == "verdict":
-        opp = float(a.get("opportunity", 0))
-        comp = float(a.get("competition", 0))
-
-        if opp >= 70 and comp <= 40:
-            call = "GO"
-        elif opp >= 50 and comp < 50:
-            call = "GO"
-        elif opp >= 40 and comp < 65:
-            call = "MAYBE"
-        else:
-            call = "SKIP"
-        return {
-            "success": True,
-            "data": {
-                "verdict": call,
-                "opportunity": opp,
-                "competition": comp,
-                "label": "heuristic — not a ranking prediction",
-            },
-        }
-    if tool == "search":
-        return _handle_engine_result(
-            [
-                "search",
-                str(a.get("query", "")).strip(),
-                "--limit", str(int(a.get("limit", 10))),
-                "--gl", str(a.get("gl", "US")),
-                "--hl", str(a.get("hl", "en")),
-                "--json",
-            ],
-            timeout=ENGINE_TIMEOUT,
-        )
-    if tool == "gap":
-        return _handle_engine_result(
-            ["gap", str(a.get("seed", "")).strip(), "--competitor", _norm_handle(a.get("competitor")), "--json"],
-            timeout=ENGINE_TIMEOUT,
-        )
-    if tool == "home":
-        return _handle_engine_result(
-            ["home", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 12))), "--json"],
-            timeout=ENGINE_TIMEOUT,
-        )
-    if tool == "transcribe":
-        return _transcribe(str(a.get("video", "")).strip(), str(a.get("language", "en")).strip() or "en")
-    return {"success": False, "error": f"unknown method: {tool}"}
-
-
-def _err(res: dict):
-    if res.get("success"):
-        return "ok"
-    return str(res.get("error", "unknown error"))[:200]
+def _eng(*args, timeout=ENGINE_TIMEOUT):
+    js, raw, err = _run_engine(*args, timeout=timeout)
+    return _handle_engine_result(js, raw, err)
 
 
 def _norm_handle(h):
@@ -359,34 +238,44 @@ def _norm_handle(h):
 
 
 def _norm_video(v):
-    v = (v or "").strip()
-    if v.startswith("http"):
-        return v
-    return v  # engine accepts bare 11-char IDs
+    return (v or "").strip()
 
 
 def _engine_version():
     try:
         from importlib.metadata import version
+
         return version("youtube-skillbox")
     except Exception:
         return "?"
 
 
+def _verdict(opp, comp):
+    if opp >= 70 and comp <= 40:
+        call = "GO"
+    elif opp >= 50 and comp < 50:
+        call = "GO"
+    elif opp >= 40 and comp < 65:
+        call = "MAYBE"
+    else:
+        call = "SKIP"
+    return {
+        "verdict": call,
+        "opportunity": opp,
+        "competition": comp,
+        "label": "heuristic — not a ranking prediction",
+    }
+
+
 def _transcribe(video: str, language: str) -> dict:
-    """Captions via yt-dlp Python API, same approach as the transcript skill."""
     if not video:
         return {"success": False, "error": "video URL or ID required"}
     try:
         import yt_dlp
+        from yt_dlp import YoutubeDL
     except ImportError:
-        return {"success": False, "error": "yt-dlp not installed"}
+        return {"success": False, "error": "yt-dlp not installed in this runtime"}
     url = video if video.startswith("http") else f"https://www.youtube.com/watch?v={video}"
-    try:
-        from yt_dlp.extractor import getcaptionsasjson_msgs  # noqa: F401  (availability check only)
-    except Exception:
-        pass
-
     opts = {
         "quiet": True,
         "no_warnings": True,
@@ -397,71 +286,49 @@ def _transcribe(video: str, language: str) -> dict:
         "subtitlesformat": "vtt",
     }
     try:
-        import tempfile
-        import re
+        with YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        caps = info.get("requested_subtitles") or {}
+        chosen = None
+        for lang in [language, "en"] + list(caps):
+            if caps.get(lang):
+                chosen = lang
+                break
+        if chosen is None:
+            return {"success": False, "error": "no captions available for this video"}
+        import urllib.request
 
-        with tempfile.TemporaryDirectory() as tmp:
-            opts["outtmpl"] = f"{tmp}/%(id)s"
-            from yt_dlp import YoutubeDL
-
-            with YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-            caps = info.get("requested_subtitles") or {}
-            text = None
-            chosen = None
-            # Prefer manual captions
-            for lang in [language, "en"] + list(caps):
-                track = caps.get(lang)
-                if track:
-                    chosen = lang
-                    break
-            if chosen is None:
-                return {"success": False, "error": "no captions available for this video"}
-            url_list = caps[chosen].get("url")
-            if url_list:
-                try:
-                    import urllib.request
-
-                    raw = urllib.request.urlopen(url_list, timeout=30).read().decode("utf-8", "replace")
-                    text = _vtt_to_text(raw)
-                except Exception as e:
-                    return {"success": False, "error": f"failed to fetch captions: {e}"}
-            if not text:
-                return {"success": False, "error": "caption track empty"}
-            return {
-                "success": True,
-                "data": {
-                    "video_id": info.get("id"),
-                    "channel": info.get("channel"),
-                    "title": info.get("title"),
-                    "language": chosen,
-                    "generated": chosen not in (info.get("subtitles") or {}),
-                    "transcript": text.strip(),
-                },
-            }
+        raw = urllib.request.urlopen(caps[chosen].get("url"), timeout=30).read().decode("utf-8", "replace")
+        text = _vtt_to_text(raw)
+        return {
+            "success": True,
+            "data": {
+                "video_id": info.get("id"),
+                "channel": info.get("channel"),
+                "title": info.get("title"),
+                "language": chosen,
+                "generated": chosen not in (info.get("subtitles") or {}),
+                "transcript": text.strip(),
+            },
+        }
     except Exception as e:
         return {"success": False, "error": f"transcribe failed: {e}"}
 
 
 def _vtt_to_text(vtt: str) -> str:
-    """Flatten WebVTT cues into one readable string."""
     import re
 
     lines = []
     for line in vtt.splitlines():
         line = line.strip()
-        if not line:
+        if not line or line.startswith(("WEBVTT", "Kind:", "Language:", "NOTE")):
             continue
-        if line.startswith(("WEBVTT", "Kind:", "Language:", "NOTE")):
-            continue
-        if re.match(r"^\d{2}:\d{2}|^\d+$", line):
-            continue  # cue identifiers / timestamps
         if "-->" in line:
             continue
-        # strip tags
+        if re.match(r"^\d{2}:\d{2}|^\d+$", line):
+            continue
         line = re.sub(r"<[^>]+>", "", line)
         lines.append(line)
-    # de-duplicate consecutive identical lines (rolling captions)
     out = []
     for ln in lines:
         if out and out[-1] == ln:
@@ -471,7 +338,60 @@ def _vtt_to_text(vtt: str) -> str:
 
 
 def invoke(method: str, args: dict) -> dict:
-    return _exec(method, args or {})
+    a = args or {}
+    try:
+        if method == "ping":
+            return {
+                "success": True,
+                "data": {"pong": True, "engine": f"youtube-skillbox {_engine_version()}"},
+            }
+        if method == "snapshot":
+            handle = _norm_handle(a.get("handle"))
+            sections = _eng("sections", handle, "--json", timeout=ENGINE_TIMEOUT)
+            profile = _eng("profile", handle, "--json", timeout=ENGINE_TIMEOUT)
+            if sections.get("success") and profile.get("success"):
+                sec = sections["data"]
+                if isinstance(sec, dict):
+                    sec = _normalize_sections(sec)
+                return {"success": True, "data": {"sections": sec, "profile": profile["data"]}}
+            return {
+                "success": False,
+                "error": f"sections: {_err_str(sections)} | profile: {_err_str(profile)}",
+            }
+        if method == "latest":
+            return _eng("latest", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 10))), "--json", timeout=ENGINE_TIMEOUT)
+        if method == "outliers":
+            return _eng("outliers", _norm_handle(a.get("handle")), "--min-ratio", str(float(a.get("min_ratio", 2.0))), "--json", timeout=AUDIT_TIMEOUT)
+        if method == "scorecard":
+            args2 = ["scorecard", _norm_video(a.get("video"))]
+            kw = (a.get("keyword") or "").strip()
+            if kw:
+                args2 += ["--keyword", kw]
+            args2.append("--json")
+            return _eng(*args2, timeout=ENGINE_TIMEOUT)
+        if method == "keywords":
+            return _eng("keywords", str(a.get("seed", "")).strip(), "--limit", str(int(a.get("limit", 25))), "--json", timeout=ENGINE_TIMEOUT)
+        if method == "compete":
+            return _eng("compete", str(a.get("query", "")).strip(), "--top", "10", "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en")), "--json", timeout=ENGINE_TIMEOUT)
+        if method == "verdict":
+            return {"success": True, "data": _verdict(float(a.get("opportunity", 0)), float(a.get("competition", 0)))}
+        if method == "search":
+            return _eng("search", str(a.get("query", "")).strip(), "--limit", str(int(a.get("limit", 10))), "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en")), "--json", timeout=ENGINE_TIMEOUT)
+        if method == "gap":
+            return _eng("gap", str(a.get("seed", "")).strip(), "--competitor", _norm_handle(a.get("competitor")), "--json", timeout=ENGINE_TIMEOUT)
+        if method == "home":
+            return _eng("home", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 12))), "--json", timeout=ENGINE_TIMEOUT)
+        if method == "transcribe":
+            return _transcribe(str(a.get("video", "")).strip(), str(a.get("language", "en")).strip() or "en")
+        return {"success": False, "error": f"unknown method: {method}"}
+    except Exception as e:
+        return {"success": False, "error": f"{method} crashed: {e}"}
+
+
+def _err_str(res):
+    if res.get("success"):
+        return "ok"
+    return str(res.get("error", "unknown error"))[:200]
 
 
 def main() -> None:
@@ -511,4 +431,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 

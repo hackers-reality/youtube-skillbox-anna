@@ -1,7 +1,7 @@
 {
   "name": "skillbox-core",
   "display_name": "YouTube Skillbox Engine",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "Evidence-backed YouTube research from the open-source Skillbox engine: channel snapshots, outliers, keyword volume, competition difficulty, SEO scorecards, content gaps, keyword verdicts and transcripts. Every result is labelled MEASURED / INFERRED.",
   "tools": [
     {
@@ -21,7 +21,7 @@
           "required": true
         }
       ],
-      "timeout": 120
+      "timeout": 90
     },
     {
       "name": "latest",
@@ -41,7 +41,7 @@
           "default": 10
         }
       ],
-      "timeout": 120
+      "timeout": 90
     },
     {
       "name": "outliers",
@@ -61,7 +61,7 @@
           "default": 2.0
         }
       ],
-      "timeout": 180
+      "timeout": 150
     },
     {
       "name": "scorecard",
@@ -81,7 +81,7 @@
           "default": ""
         }
       ],
-      "timeout": 120
+      "timeout": 90
     },
     {
       "name": "keywords",
@@ -101,7 +101,7 @@
           "default": 25
         }
       ],
-      "timeout": 120
+      "timeout": 90
     },
     {
       "name": "compete",
@@ -128,7 +128,7 @@
           "default": "en"
         }
       ],
-      "timeout": 120
+      "timeout": 90
     },
     {
       "name": "verdict",
@@ -181,7 +181,7 @@
           "default": "en"
         }
       ],
-      "timeout": 120
+      "timeout": 90
     },
     {
       "name": "gap",
@@ -200,7 +200,7 @@
           "required": true
         }
       ],
-      "timeout": 120
+      "timeout": 90
     },
     {
       "name": "home",
@@ -220,7 +220,7 @@
           "default": 12
         }
       ],
-      "timeout": 120
+      "timeout": 90
     },
     {
       "name": "transcribe",
@@ -240,7 +240,7 @@
           "default": "en"
         }
       ],
-      "timeout": 120
+      "timeout": 90
     }
   ],
   "credentials": [],
