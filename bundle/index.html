@@ -2,12 +2,149 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>youtube-skillbox</title>
-    <script src="./app.js" type="module"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YouTube Skillbox</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect x=%2220%22 y=%2214%22 width=%2260%22 height=%2272%22 rx=%2216%22 fill=%22%23ff4747%22/><polygon points=%2240,34 66,50 40,66%22 fill=%22white%22/></svg>" />
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <h1>youtube-skillbox</h1>
-    <button id="primary-btn">Run</button>
-    <pre id="status">…</pre>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <svg viewBox="0 0 100 100" class="logo" aria-hidden="true"><rect x="10" y="10" width="80" height="80" rx="22" fill="url(#g)"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff4747"/><stop offset="1" stop-color="#c40000"/></linearGradient></defs><polygon points="37,32 75,50 37,68" fill="#fff"/></svg>
+          <div>
+            <h1>YouTube Skillbox</h1>
+            <span class="tagline">Evidence-backed audits &amp; content fixes</span>
+          </div>
+        </div>
+        <div class="badges">
+          <span class="pill">$0 · no API keys</span>
+          <span class="pill pill-red">localhost-grade data</span>
+        </div>
+      </header>
+
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button class="tab is-active" data-tab="audit" role="tab">🎯 Audit My Channel</button>
+        <button class="tab" data-tab="studio" role="tab">✍️ Content Studio</button>
+        <button class="tab" data-tab="retention" role="tab">📉 Retention Fix</button>
+      </nav>
+
+      <main>
+        <!-- ─────────────── Audit tab ─────────────── -->
+        <section id="tab-audit" class="panel is-active" role="tabpanel">
+          <div class="panel-head">
+            <div>
+              <h2>Channel Audit</h2>
+              <p>Your whole YouTube story, measured — subs, outliers, keywords, scorecard — then one fix.</p>
+            </div>
+            <div class="evidence-legend">
+              <span class="ev ev-measured">MEASURED</span> measured numbers
+              <span class="ev ev-inferred">INFERRED</span> logical read
+              <span class="ev ev-hypothesis">HYPOTHESIS</span> unvalidated
+            </div>
+          </div>
+
+          <div class="input-row">
+            <input id="audit-handle" type="text" placeholder="@YourChannel or youtube.com/@YourChannel" autocomplete="off" spellcheck="false" />
+            <button id="audit-run" class="btn btn-primary">Run Full Audit</button>
+          </div>
+          <p class="hint">Takes ~60–120s. YouTube throttles aggressively — if you hit 429, wait a minute and retry.</p>
+
+          <div id="audit-progress" class="progress hidden">
+            <div class="progress-label" id="audit-stage">Queueing audit…</div>
+            <div class="bar"><div id="audit-bar" class="bar-fill"></div></div>
+          </div>
+
+          <details id="audit-raw" class="rawbox hidden"><summary>Raw engine output (evidence)</summary><pre id="audit-raw-pre"></pre></details>
+
+          <div id="audit-result" class="result hidden"></div>
+
+          <div class="saved-wrap">
+            <h3>Saved audits</h3>
+            <ul id="saved-list" class="saved-list"><li class="empty">No saved audits yet — run one above.</li></ul>
+          </div>
+        </section>
+
+        <!-- ─────────────── Content studio tab ─────────────── -->
+        <section id="tab-studio" class="panel" role="tabpanel">
+          <div class="panel-head">
+            <div>
+              <h2>Content Studio</h2>
+              <p>Draft, lint and rework hooks, titles, chapters and Shorts using Skillbox's proven structure — for any topic.</p>
+            </div>
+          </div>
+
+          <div class="studio-grid">
+            <label class="field">
+              <span>Video idea / topic</span>
+              <input id="studio-topic" type="text" placeholder="e.g. why your Shorts flop & podcast clips don't" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Target keyword (optional)</span>
+              <input id="studio-keyword" type="text" placeholder="e.g. youtube growth" autocomplete="off" />
+            </label>
+            <label class="field field-wide">
+              <span>Notes / context (optional)</span>
+              <textarea id="studio-context" rows="2" placeholder="Raw brainstorm — voice notes, transcript, anything"></textarea>
+            </label>
+          </div>
+
+          <div class="studio-actions">
+            <button class="btn btn-primary" data-task="hooks">21 Hook Options (scored)</button>
+            <button class="btn btn-primary" data-task="titles">5 Titles (linted &amp; truncation-safe)</button>
+            <button class="btn btn-primary" data-task="seo">Description + Tags + SEO sweep</button>
+            <button class="btn btn-primary" data-task="chapters">Chapters from a transcript</button>
+            <button class="btn btn-primary" data-task="shorts">3 Shorts hiding in this video</button>
+            <button class="btn btn-primary" data-task="full">Full pack (hooks+title+seo+chapters)</button>
+          </div>
+
+          <div class="studio-output">
+            <div class="output-head">
+              <span id="studio-task-label">Output</span>
+              <button id="studio-copy" class="btn btn-ghost btn-small">Copy</button>
+            </div>
+            <pre id="studio-pre" class="output-pre" tabindex="0">Output appears here…</pre>
+          </div>
+        </section>
+
+        <!-- ─────────────── Retention tab ─────────────── -->
+        <section id="tab-retention" class="panel" role="tabpanel">
+          <div class="panel-head">
+            <div>
+              <h2>Retention Fix — Why People Bail</h2>
+              <p>Paste a Studio audience-retention CSV (or describe your graph) → get the hook leak, the cliffs, and the exact fix.</p>
+            </div>
+          </div>
+
+          <div class="retention-grid">
+            <label class="field">
+              <span>Paste retention CSV</span>
+              <textarea id="ret-csv" spellcheck="false" placeholder="Video position (%),Percentage watched&#10;0,95.0&#10;3,88.2&#10;6,74.1&#10;…"></textarea>
+            </label>
+            <label class="field">
+              <span>Video length in seconds (for absolute timecode)</span>
+              <input id="ret-duration" type="number" min="1" placeholder="e.g. 720" />
+              <span class="hint">Only used to label timestamps; leave blank to stay percentage-based.</span>
+              <button id="ret-analyze" class="btn btn-primary" style="margin-top:10px">Analyze</button>
+            </label>
+          </div>
+
+          <details class="rawbox"><summary>What the analysis checks</summary>
+            <p class="hint" style="margin-top:8px">Hook leak — retention at the end of the first 30 s (healthy ≥ 25% of peak). Cliffs — sudden &gt;10 pt drops between adjacent points. Slide — sustained decline over 3+ consecutive points. Output is labelled MEASURED/INFERRED/RECOMMENDATION. No rate-junk advice, no fake numbers.</p>
+          </details>
+
+          <pre id="ret-output" class="output-pre hidden"></pre>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <span id="status-dot" class="dot"></span>
+        <span id="status-text">Connecting to host…</span>
+        <span class="spacer"></span>
+        <span class="foot-note">Built on the open-source Skillbox engine · MIT</span>
+      </footer>
+    </div>
+
+    <script src="app.js" type="module"></script>
   </body>
 </html>
