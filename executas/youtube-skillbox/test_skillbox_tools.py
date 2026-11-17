@@ -71,6 +71,17 @@ class CreatorToolTests(unittest.TestCase):
         self.assertEqual(result["hook_leak"]["window"], "first 30 seconds")
         self.assertEqual(result["hook_leak"]["loss_points"], 38.0)
 
+    def test_absolute_retention_does_not_get_relative_severity(self):
+        csv_text = (
+            "seconds,retention_pct\\n"
+            "0,130\\n10,120\\n20,112\\n30,108\\n45,105\\n"
+        )
+        result = _parse_retention_csv(csv_text)
+        self.assertTrue(result["hook_leak"]["absolute_retention_detected"])
+        self.assertIn("not applicable", result["hook_leak"]["severity"])
+        self.assertTrue(result["slide"]["absolute_retention_detected"])
+        self.assertIn("not applicable", result["slide"]["severity"])
+
     def test_malformed_retention_headers_fail_explicitly(self):
         result = _parse_retention_csv("foo,bar\n1,2\n3,4\n")
         self.assertIn("error", result)
