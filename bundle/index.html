@@ -142,6 +142,15 @@
                   <span>Thumbnail text <small>OPTIONAL · FOR TITLE LINT</small></span>
                   <input id="studio-thumb" type="text" placeholder="Paste the words shown on your thumbnail" autocomplete="off" />
                 </label>
+                <label class="field">
+                  <span>Transcript language</span>
+                  <select id="transcript-language" aria-label="Transcript language">
+                    <option value="auto" selected>Original language + English</option>
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="mr">Marathi</option>
+                  </select>
+                </label>
                 <label class="field field-wide">
                   <span>Context, notes or transcript excerpt <small>OPTIONAL</small></span>
                   <textarea id="studio-context" rows="3" placeholder="Audience, evidence, video outline, transcript excerpt, tone or constraints…"></textarea>
@@ -220,10 +229,9 @@
                   </select>
                 </label>
                 <label class="field field-pair">
-                  <span>Transcript language</span>
-                  <select id="lab-language" aria-label="Transcript language">
-                    <option value="auto" selected>Original language + English</option>
-                    <option value="en">English</option>
+                  <span>Search language</span>
+                  <select id="lab-language" aria-label="Search language">
+                    <option value="en" selected>English</option>
                     <option value="hi">Hindi</option>
                     <option value="mr">Marathi</option>
                   </select>
