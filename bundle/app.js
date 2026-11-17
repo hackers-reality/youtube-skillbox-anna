@@ -552,9 +552,10 @@ function wireStudio() {
           const parsed = parseJsonArray(generated);
           const hooks = (parsed || []).map((item) => typeof item === "string" ? item : item && item.hook)
             .filter((item) => typeof item === "string" && item.trim());
-          if (!hooks.length) {
-            output.textContent = "The model did not return the required hook JSON structure, so no scores were fabricated.\n\nGenerated response:\n" + generated;
-            label.textContent = "DRAFT RETURNED · SCORING NOT RUN";
+          if (hooks.length !== 21) {
+            output.textContent = "INCOMPLETE HOOK SET · SCORING NOT RUN\nExpected exactly 21 distinct hook options; received "
+              + hooks.length + ". No partial set is presented as the promised 21.\n\nGenerated response:\n" + generated;
+            label.textContent = "HOOK SET INCOMPLETE · " + hooks.length + "/21";
             return;
           }
           try {
@@ -569,9 +570,10 @@ function wireStudio() {
           const parsed = parseJsonArray(generated);
           const titles = (parsed || []).map((item) => typeof item === "string" ? item : item && item.title)
             .filter((item) => typeof item === "string" && item.trim());
-          if (!titles.length) {
-            output.textContent = "The model did not return the required title JSON structure, so no lint scores were fabricated.\n\nGenerated response:\n" + generated;
-            label.textContent = "DRAFT RETURNED · LINT NOT RUN";
+          if (titles.length !== 5) {
+            output.textContent = "INCOMPLETE TITLE SET · LINT NOT RUN\nExpected exactly 5 title options; received "
+              + titles.length + ". No partial set is presented as the promised five.\n\nGenerated response:\n" + generated;
+            label.textContent = "TITLE SET INCOMPLETE · " + titles.length + "/5";
             return;
           }
           try {
@@ -642,7 +644,7 @@ function renderSearchLab(d) {
   if (!items.length) return `<p class="hint">No results — YouTube returned nothing for that query.</p>`;
   const rows = items.slice(0, 10).map((v) => {
     const url = v.url || `https://www.youtube.com/watch?v=${v.id || ""}`;
-    return `<tr><td><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(String(v.title || v.id || "?").slice(0, 80))}</a></td><td>${escapeHtml(String(v.channel || ""))}</td><td>${fmtViews(v.views)}</td><td>${fmtLen(v.duration ?? v.duration_string)}</td></tr>`;
+    return `<tr><td><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(String(v.title || v.id || "?").slice(0, 80))}</a></td><td>${escapeHtml(String(v.channel || ""))}</td><td>${fmtViews(v.views ?? v.view_count)}</td><td>${fmtLen(v.duration ?? v.duration_string)}</td></tr>`;
   }).join("");
   return `<div class="lab-sec">Live SERP for this seed <span class="ev ev-measured">MEASURED</span></div>` + labTable(["Title", "Channel", "Views", "Len"], rows);
 }
@@ -724,8 +726,11 @@ function renderJsonLab(title, data) {
 }
 
 function opportunityFrom(kw) {
-  const rows = (kw && (kw.keywords || kw.ideas)) || [];
-  const top = rows.slice(0, 5).map((r) => Number(r.opportunity_score ?? r.score ?? 0)).filter((n) => isFinite(n));
+  const rows = (kw && (kw.keywords || kw.ideas || kw.items)) || [];
+  const top = rows.slice(0, 5)
+    .map((row) => row && (row.opportunity_score ?? row.score))
+    .filter((value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)))
+    .map(Number);
   if (!top.length) return null;
   return Math.max(0, Math.min(100, Math.round(top.reduce((a, b) => a + b, 0) / top.length)));
 }
