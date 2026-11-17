@@ -21,6 +21,7 @@ class CreatorToolTests(unittest.TestCase):
         self.assertIn("STAKES", row["properties"])
         self.assertIn("CURIOSITY", row["properties"])
         self.assertIn("BREVITY", row["properties"])
+        self.assertEqual(row["formula"], "The Question")
         self.assertIn(row["band"], {"STRONG", "WORKABLE", "WEAK"})
         self.assertIn("not a retention", row["score_type"])
 
