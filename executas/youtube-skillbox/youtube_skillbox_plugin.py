@@ -88,6 +88,8 @@ MANIFEST = {
             "parameters": [CLIENT_ID_PARAM,
                 {"name": "seed", "type": "string", "description": "Seed topic, e.g. 'youtube seo'.", "required": True},
                 {"name": "limit", "type": "integer", "description": "Max ideas to return.", "required": False, "default": 25},
+                {"name": "gl", "type": "string", "description": "Region code.", "required": False, "default": "US"},
+                {"name": "hl", "type": "string", "description": "Language code.", "required": False, "default": "en"},
             ],
             "timeout": ENGINE_TIMEOUT,
         },
