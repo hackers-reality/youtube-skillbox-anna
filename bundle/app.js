@@ -619,12 +619,46 @@ function wireStudio() {
           return;
         }
 
+        const contextLimit = ["chapters", "shorts", "edit", "script", "full"].includes(task) ? 20000 : 8000;
         const userMessage = "Topic: " + topic + "\n"
           + (keyword ? "Target keyword: " + keyword + "\n" : "")
           + (thumbnailText ? "Existing thumbnail text: " + thumbnailText + "\n" : "")
-          + (context ? "Context and source notes:\n" + context.slice(0, 5000) + "\n" : "")
+          + (context ? "Context and source notes:\n" + context.slice(0, contextLimit) + "\n" : "")
           + "\nCreate the requested asset now.";
-        const maxTokens = task === "hooks" ? 4600 : task === "script" || task === "full" ? 4600 : 3000;
+
+        if (task === "script") {
+          const hookResponse = await llm(TASK_PROMPTS.script_hooks, userMessage, 2200);
+          const generatedHooks = parseJsonArray(hookResponse);
+          const hookRows = (generatedHooks || []).map((item) => typeof item === "string" ? item : item && item.hook)
+            .filter((item) => typeof item === "string" && item.trim());
+          if (hookRows.length !== 5) {
+            output.textContent = "SCRIPT NOT GENERATED · INCOMPLETE HOOK SET\nThe original Skillbox script workflow requires five hook candidates before scoring. Received "
+              + hookRows.length + ".\n\nGenerated response:\n" + hookResponse;
+            label.textContent = "SCRIPT STOPPED · " + hookRows.length + "/5 HOOKS";
+            return;
+          }
+          const scoredHooks = await tool("hookscore", { hooks: hookRows });
+          const topTwo = (scoredHooks.scored_hooks || []).slice(0, 2);
+          if (topTwo.length !== 2) {
+            throw new Error("Skillbox hookscore did not return two ranked candidates; the script was not drafted.");
+          }
+          const selected = topTwo.map((row, index) => (
+            (index + 1) + ". " + row.hook + " | " + row.verdict + "/100 | " + row.formula
+              + " | weakest: " + row.weakest + " — " + row.fix
+          )).join("\n");
+          const script = await llm(
+            TASK_PROMPTS.script,
+            userMessage + "\n\nTop two of five hooks, ranked by Skillbox's heuristic copy score (not a performance prediction):\n" + selected,
+            4600
+          );
+          output.textContent = renderHookScores({ count: 2, scored_hooks: topTwo }, generatedHooks)
+            + "\n\nFULL SCRIPT DRAFT\nVoice note: use the supplied style notes only; no creator voice sample was inferred.\n\n"
+            + script;
+          label.textContent = "SCRIPT · TOP 2 OF 5 HOOKS SCORED";
+          return;
+        }
+
+        const maxTokens = task === "hooks" || task === "full" ? 4600 : 3000;
         const generated = await llm(TASK_PROMPTS[task] || TASK_PROMPTS.full, userMessage, maxTokens);
         if (task === "hooks") {
           const parsed = parseJsonArray(generated);
