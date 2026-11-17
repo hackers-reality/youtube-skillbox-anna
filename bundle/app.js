@@ -400,6 +400,70 @@ async function renderSavedList() {
   }));
 }
 
+/* ---------- channel explorer ---------- */
+function wireExplorer() {
+  $(".explorer-actions [data-explore]").forEach((button) => {
+    button.addEventListener("click", () => runExplorer(button.dataset.explore));
+  });
+}
+
+async function runExplorer(kind) {
+  const handle = byId("audit-handle").value.trim();
+  const output = byId("audit-explorer-result");
+  const buttons = $(".explorer-actions [data-explore]");
+  if (!handle) {
+    output.textContent = "Enter a channel handle above before browsing its public surfaces.";
+    return;
+  }
+
+  const requests = {
+    uploads: {
+      label: "Recent channel uploads",
+      method: "channel",
+      args: { handle, limit: 20, tab: "videos", with_duration: true },
+      timeout: 120000
+    },
+    shorts: {
+      label: "Recent Shorts",
+      method: "channel",
+      args: { handle, limit: 20, tab: "shorts", with_duration: true },
+      timeout: 120000
+    },
+    posts: {
+      label: "Community posts",
+      method: "posts",
+      args: { handle, limit: 15 },
+      timeout: 85000
+    },
+    home: {
+      label: "Channel home shelves",
+      method: "home",
+      args: { handle, limit: 8, verbose: true },
+      timeout: 85000
+    },
+    shows: {
+      label: "Channel Shows",
+      method: "shows",
+      args: { handle, limit: 15 },
+      timeout: 85000
+    }
+  };
+  const request = requests[kind];
+  if (!request) return;
+
+  buttons.forEach((button) => (button.disabled = true));
+  output.innerHTML = '<p class="hint">Fetching ' + escapeHtml(request.label.toLowerCase()) + '…</p>';
+  try {
+    const data = await tool(request.method, request.args, request.timeout);
+    output.innerHTML = renderJsonLab(request.label + " · " + handle, data);
+  } catch (error) {
+    output.innerHTML = '<p class="hint">Channel research failed: '
+      + escapeHtml(String(error.message || error)) + '</p>';
+  } finally {
+    buttons.forEach((button) => (button.disabled = false));
+  }
+}
+
 /* ---------- content studio ---------- */
 const HOOK_FORMULAS = `21 proven hook formulas (use a small, deliberately-scoped subset, pick by fit, score honestly 0–100):
 1. Opposing beliefs — "Everyone says X. Here's why they're wrong."
@@ -926,6 +990,7 @@ function wireRetention() {
 /* ---------- boot ---------- */
 async function main() {
   wireTabs();
+  wireExplorer();
   wireStudio();
   wireLab();
   wireRetention();
