@@ -77,6 +77,21 @@
             </div>
             <p class="hint audit-hint">Uses public YouTube data. Requests can be rate-limited by YouTube; unavailable measurements stay unavailable.</p>
 
+            <div class="card channel-explorer mt">
+              <div class="section-head">
+                <div><p class="eyebrow">CHANNEL EXPLORER</p><h2>Beyond the snapshot</h2><p class="section-copy">Browse the channel's public uploads, Shorts, Community posts, home shelves and Shows.</p></div>
+                <span class="section-note">Live YouTube data</span>
+              </div>
+              <div class="studio-actions explorer-actions">
+                <button class="btn" data-explore="uploads">Recent uploads</button>
+                <button class="btn" data-explore="shorts">Shorts</button>
+                <button class="btn" data-explore="posts">Community posts</button>
+                <button class="btn" data-explore="home">Home shelves</button>
+                <button class="btn" data-explore="shows">Shows</button>
+              </div>
+              <div id="audit-explorer-result" class="lab-result" tabindex="0" aria-live="polite">Enter a channel handle above, then choose a channel surface to browse.</div>
+            </div>
+
             <div id="audit-progress" class="progress hidden" role="status" aria-live="polite">
               <div class="progress-top"><span class="progress-label" id="audit-stage">Preparing audit…</span><span class="progress-pct" id="audit-pct">0%</span></div>
               <div class="bar" role="progressbar" aria-label="Audit progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="5"><div id="audit-bar" class="bar-fill"></div></div>
@@ -170,8 +185,12 @@
                   <input id="lab-competitor" type="text" placeholder="@competitor or channel URL" autocomplete="off" />
                 </label>
                 <label class="field">
-                  <span>Video URL <small>FOR SEO SCORECARD / RANK TRACKING</small></span>
+                  <span>Video URL <small>FOR INFO / SEO SCORECARD / RANK TRACKING</small></span>
                   <input id="lab-video" type="text" placeholder="https://youtube.com/watch?v=…" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Playlist URL <small>OPTIONAL · FOR PLAYLIST BROWSING</small></span>
+                  <input id="lab-playlist" type="text" placeholder="https://youtube.com/playlist?list=…" autocomplete="off" />
                 </label>
                 <label class="field field-pair">
                   <span>Search region</span>
@@ -198,6 +217,8 @@
                 <button class="btn" data-lab="compete">Competition</button>
                 <button class="btn" data-lab="verdict">GO / MAYBE / SKIP</button>
                 <button class="btn" data-lab="gap">Content gap</button>
+                <button class="btn" data-lab="info">Video metadata</button>
+                <button class="btn" data-lab="playlist">Playlist contents</button>
                 <button class="btn" data-lab="scorecard">SEO scorecard</button>
                 <button class="btn" data-lab="track">Track rank</button>
                 <button class="btn" data-lab="trends">Keyword trends</button>
