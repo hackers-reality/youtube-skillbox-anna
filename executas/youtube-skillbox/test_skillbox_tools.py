@@ -98,11 +98,11 @@ class CreatorToolTests(unittest.TestCase):
 
     def test_webvtt_parser_preserves_real_cue_timestamps(self):
         vtt = (
-            "WEBVTT\\n\\n"
-            "00:00:01.000 --> 00:00:02.500\\n"
-            "Hello <i>world</i>!\\n\\n"
-            "00:00:03.000 --> 00:00:04.250\\n"
-            "Next cue &amp; more.\\n"
+            "WEBVTT\n\n"
+            "00:00:01.000 --> 00:00:02.500\n"
+            "Hello <i>world</i>!\n\n"
+            "00:00:03.000 --> 00:00:04.250\n"
+            "Next cue &amp; more.\n"
         )
         segments = _vtt_to_segments(vtt)
         self.assertEqual(len(segments), 2)
