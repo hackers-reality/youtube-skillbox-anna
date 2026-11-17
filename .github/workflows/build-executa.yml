@@ -33,6 +33,11 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Run Executa bridge regression tests
+        shell: bash
+        run: |
+          python -m unittest discover -s executas/youtube-skillbox -p "test_*.py" -v
+
       - name: Install deps + PyInstaller
         shell: bash
         run: |
