@@ -553,7 +553,9 @@ Rules:
 Plain language, tight, no filler.`;
 
 function labSeed() {
-  return byId("studio-keyword").value.trim() || byId("studio-topic").value.trim();
+  return byId("lab-seed").value.trim()
+    || byId("studio-keyword").value.trim()
+    || byId("studio-topic").value.trim();
 }
 
 function fmtViews(n) {
@@ -656,6 +658,10 @@ function renderScorecardLab(d) {
 
 /* Opportunity for verdict = mean of the top-5 measured keyword scores, clamped to 0-100.
  * The aggregation step is INFERRED; every input is MEASURED by the keywords tool. */
+function renderJsonLab(title, data) {
+  return \`<div class="lab-sec">\${escapeHtml(title)} <span class="ev ev-measured">MEASURED</span></div><pre class="output-pre">\${escapeHtml(JSON.stringify(data, null, 2))}</pre>\`;
+}
+
 function opportunityFrom(kw) {
   const rows = (kw && (kw.keywords || kw.ideas)) || [];
   const top = rows.slice(0, 5).map((r) => Number(r.opportunity_score ?? r.score ?? 0)).filter((n) => isFinite(n));
@@ -669,112 +675,125 @@ async function runLab(kind) {
   const seed = labSeed();
   const competitor = byId("lab-competitor").value.trim();
   const video = byId("lab-video").value.trim();
-  const T = 120000; // engine hard-caps at 90s; give the wire headroom
+  const gl = byId("lab-region").value || "IN";
+  const hl = byId("lab-language").value || "en";
+  const T = 120000;
 
-  const need = (cond, msg) => { if (cond) return true; out.innerHTML = `<p class="hint">${escapeHtml(msg)}</p>`; label.textContent = "Missing input"; return false; };
-  if (["search", "ideas", "compete", "verdict", "chain"].includes(kind) && !need(seed, "Enter a keyword (or a video idea) first — the lab researches from it.")) return;
-  if (kind === "gap" && !need(seed && competitor, "Content gap needs a seed keyword AND a competitor channel (e.g. @mrbeast).")) return;
-  if (kind === "scorecard" && !need(video, "SEO scorecard needs a video URL (or 11-char ID).")) return;
+  const need = (condition, message) => {
+    if (condition) return true;
+    out.innerHTML = '<p class="hint">' + escapeHtml(message) + '</p>';
+    label.textContent = "MISSING INPUT";
+    return false;
+  };
+  if (["search", "ideas", "compete", "verdict", "chain", "trends", "track"].includes(kind)
+      && !need(seed, "Enter a research seed or video idea first.")) return;
+  if (kind === "gap" && !need(seed && competitor, "Content gap needs a seed and competitor channel (for example, @channel).")) return;
+  if (kind === "scorecard" && !need(video, "SEO scorecard needs a video URL or 11-character video ID.")) return;
+  if (kind === "track" && !need(video, "Rank tracking needs the video URL or ID to track.")) return;
 
-  $$(".lab-actions [data-lab]").forEach((x) => (x.disabled = true));
-  out.innerHTML = `<p class="hint">…</p>`;
-  const step = (m) => { label.textContent = m; };
+  $$(".lab-actions [data-lab]").forEach((button) => (button.disabled = true));
+  out.innerHTML = '<p class="hint">Running ' + escapeHtml(kind) + ' research…</p>';
+  const step = (message) => { label.textContent = message; };
 
   try {
     let html = "";
     if (kind === "search") {
-      step("Searching the live SERP…");
-      html = renderSearchLab(await tool("search", { query: seed, limit: 10 }, T));
+      step("SEARCHING LIVE YOUTUBE RESULTS…");
+      html = renderSearchLab(await tool("search", { query: seed, limit: 10, gl, hl }, T));
     } else if (kind === "ideas") {
-      step("Expanding seed through suggest + DDG…");
-      html = renderIdeasLab(await tool("keywords", { seed, limit: 20 }, T));
+      step("EXPANDING KEYWORD IDEAS…");
+      html = renderIdeasLab(await tool("keywords", { seed, limit: 20, gl, hl }, T));
     } else if (kind === "compete") {
-      step("Scoring the top 10…");
-      html = renderCompeteLab(await tool("compete", { query: seed }, T));
+      step("SCORING COMPETITION…");
+      html = renderCompeteLab(await tool("compete", { query: seed, gl, hl }, T));
     } else if (kind === "verdict") {
-      step("Measuring opportunity (keywords)…");
-      const kw = await tool("keywords", { seed, limit: 12 }, T);
-      const opp = opportunityFrom(kw);
-      if (opp === null) throw new Error("keywords tool returned no scores — cannot form a verdict without measured numbers.");
-      step("Measuring competition (compete)…");
-      const comp = await tool("compete", { query: seed }, T);
-      const compScore = Number(comp && comp.score);
-      if (!isFinite(compScore)) throw new Error("compete tool returned no difficulty score.");
-      step("Computing the call…");
-      html = renderVerdictLab(await tool("verdict", { opportunity: opp, competition: compScore }, T));
+      step("MEASURING KEYWORD OPPORTUNITY…");
+      const keywords = await tool("keywords", { seed, limit: 12, gl, hl }, T);
+      const opportunity = opportunityFrom(keywords);
+      if (opportunity === null) throw new Error("Keyword research returned no measurable opportunity scores; no verdict can be calculated.");
+      step("MEASURING COMPETITION…");
+      const competitionData = await tool("compete", { query: seed, gl, hl }, T);
+      const competition = Number(competitionData && competitionData.score);
+      if (!isFinite(competition)) throw new Error("Competition tool returned no difficulty score.");
+      step("COMPUTING THE VERDICT…");
+      html = renderVerdictLab(await tool("verdict", { opportunity, competition }, T));
     } else if (kind === "gap") {
-      step("Pulling both channels' keyword sets…");
+      step("COMPARING CHANNEL KEYWORD SETS…");
       html = renderGapLab(await tool("gap", { seed, competitor }, T));
     } else if (kind === "scorecard") {
-      step("Fetching video metadata…");
+      step("FETCHING VIDEO METADATA…");
       html = renderScorecardLab(await tool("scorecard", { video, keyword: seed }, T));
+    } else if (kind === "track") {
+      step("CHECKING VIDEO POSITION IN SEARCH…");
+      html = renderJsonLab("Keyword rank tracking", await tool("track", { query: seed, video, gl, hl }, T));
+    } else if (kind === "trends") {
+      step("READING SAVED KEYWORD HISTORY…");
+      html = renderJsonLab("Historical keyword trend", await tool("trends", { seed }, T));
     } else if (kind === "chain") {
-      html = await runChain({ seed, competitor, video }, step, T);
+      html = await runChain({ seed, competitor, video, gl, hl }, step, T);
     }
     out.innerHTML = html;
-    label.textContent = kind === "chain" ? "Full research chain" : `Done — ${kind}`;
-  } catch (e) {
-    out.innerHTML = `<p class="hint">Error: ${escapeHtml(String(e.message || e))}</p>`;
-    label.textContent = "Failed";
+    label.textContent = kind === "chain" ? "RESEARCH CHAIN COMPLETE" : "DONE · " + kind.toUpperCase();
+  } catch (error) {
+    out.innerHTML = '<p class="hint">Research failed: ' + escapeHtml(String(error.message || error)) + '</p>';
+    label.textContent = "RESEARCH FAILED";
   } finally {
-    $$(".lab-actions [data-lab]").forEach((x) => (x.disabled = false));
+    $$(".lab-actions [data-lab]").forEach((button) => (button.disabled = false));
   }
 }
 
-async function runChain({ seed, competitor, video }, step, T) {
-  const ev = {};
-  const errs = {};
-  const grab = async (key, msg, fn) => {
-    step(msg);
-    try { ev[key] = await fn(); } catch (e) { ev[key] = null; errs[key] = String(e.message || e); }
+async function runChain({ seed, competitor, video, gl, hl }, step, T) {
+  const evidence = {};
+  const errors = {};
+  const grab = async (key, message, callback) => {
+    step(message);
+    try { evidence[key] = await callback(); }
+    catch (error) { evidence[key] = null; errors[key] = String(error.message || error); }
   };
 
-  await grab("keywords", "1/5 · keyword opportunities…", () => tool("keywords", { seed, limit: 15 }, T));
-  const opp = opportunityFrom(ev.keywords);
+  await grab("keywords", "1/5 · keyword opportunities…", () => tool("keywords", { seed, limit: 15, gl, hl }, T));
+  const opportunity = opportunityFrom(evidence.keywords);
+  await grab("compete", "2/5 · competition difficulty…", () => tool("compete", { query: seed, gl, hl }, T));
+  const competition = evidence.compete && evidence.compete.score !== undefined && evidence.compete.score !== null
+    ? Number(evidence.compete.score) : NaN;
 
-  await grab("compete", "2/5 · competition difficulty…", () => tool("compete", { query: seed }, T));
-  // NaN when compete failed — never coerce a missing score to 0 (would fabricate the verdict)
-  const compScore = ev.compete && ev.compete.score !== undefined && ev.compete.score !== null
-    ? Number(ev.compete.score)
-    : NaN;
-
-  if (opp !== null && isFinite(compScore)) {
-    await grab("verdict", "3/5 · GO/MAYBE/SKIP…", () => tool("verdict", { opportunity: opp, competition: compScore }, T));
+  if (opportunity !== null && isFinite(competition)) {
+    await grab("verdict", "3/5 · GO / MAYBE / SKIP…", () => tool("verdict", { opportunity, competition }, T));
   } else {
-    errs.verdict = "skipped — missing measured inputs";
+    errors.verdict = "skipped because measured opportunity or competition data was missing";
   }
 
   if (competitor) await grab("gap", "4/5 · content gap vs competitor…", () => tool("gap", { seed, competitor }, T));
-  else step("4/5 · no competitor given — skipping gap…");
-
+  else step("4/5 · no competitor supplied — content gap skipped…");
   if (video) await grab("scorecard", "4/5 · SEO scorecard…", () => tool("scorecard", { video, keyword: seed }, T));
-  await grab("search", "5/5 · live SERP check…", () => tool("search", { query: seed, limit: 6 }, T));
+  await grab("search", "5/5 · live search results…", () => tool("search", { query: seed, limit: 6, gl, hl }, T));
 
   const parts = [];
-  if (ev.verdict) parts.push(renderVerdictLab(ev.verdict));
-  if (ev.keywords) parts.push(renderIdeasLab(ev.keywords));
-  if (ev.compete) parts.push(renderCompeteLab(ev.compete));
-  if (ev.gap) parts.push(renderGapLab(ev.gap));
-  if (ev.scorecard) parts.push(renderScorecardLab(ev.scorecard));
-  if (ev.search) parts.push(renderSearchLab(ev.search));
+  if (evidence.verdict) parts.push(renderVerdictLab(evidence.verdict));
+  if (evidence.keywords) parts.push(renderIdeasLab(evidence.keywords));
+  if (evidence.compete) parts.push(renderCompeteLab(evidence.compete));
+  if (evidence.gap) parts.push(renderGapLab(evidence.gap));
+  if (evidence.scorecard) parts.push(renderScorecardLab(evidence.scorecard));
+  if (evidence.search) parts.push(renderSearchLab(evidence.search));
 
-  step("Synthesizing with host LLM…");
-  const evidence = JSON.stringify(ev, null, 0).slice(0, 14000);
-  let read = "";
+  step("SYNTHESIZING FROM MEASURED EVIDENCE…");
+  const evidenceJson = JSON.stringify(evidence, null, 0).slice(0, 14000);
+  let interpretation = "";
   try {
-    read = await llm(LAB_SYSTEM, `Seed: ${seed}\n${competitor ? `Competitor: ${competitor}\n` : ""}${video ? `Video: ${video}\n` : ""}Evidence JSON:\n${evidence}\n\nWrite the research read.`, 2600);
-  } catch (e) {
-    read = `Host LLM failed: ${e.message || e}\n\nRaw measured evidence is above.`;
+    interpretation = await llm(LAB_SYSTEM, "Seed: " + seed + "\nRegion: " + gl + "\nLanguage: " + hl + "\n"
+      + (competitor ? "Competitor: " + competitor + "\n" : "")
+      + (video ? "Video: " + video + "\n" : "")
+      + "Evidence JSON:\n" + evidenceJson + "\n\nWrite the research read.", 2600);
+  } catch (error) {
+    interpretation = "Host LLM unavailable: " + (error.message || error) + ". Raw measured evidence is shown above.";
   }
-
-  const errNote = Object.keys(errs).length
-    ? `<p class="hint" style="margin-top:8px">Not measured: ${escapeHtml(Object.entries(errs).map(([k, v]) => `${k} (${v})`).join(" · "))}</p>`
+  const errorNote = Object.keys(errors).length
+    ? '<p class="hint" style="margin-top:8px">NOT MEASURED: '
+      + escapeHtml(Object.entries(errors).map(([key, value]) => key + " (" + value + ")").join(" · ")) + '</p>'
     : "";
-  return parts.join("") + errNote + `
-  <div class="card bigfix" style="margin-top:10px">
-    <div class="label">The read — host LLM over measured evidence</div>
-    <div class="audit-report" style="margin-top:8px">${renderMd(read)}</div>
-  </div>`;
+  return parts.join("") + errorNote + '<div class="card bigfix" style="margin-top:10px">'
+    + '<div class="label">RESEARCH READ · HOST LLM OVER MEASURED EVIDENCE</div>'
+    + '<div class="audit-report" style="margin-top:8px">' + renderMd(interpretation) + '</div></div>';
 }
 
 function wireLab() {
