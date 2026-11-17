@@ -75,7 +75,10 @@
                   <button class="chip" data-chat-prompt="Find my strongest outlier and explain why it worked.">Explain my strongest outlier</button>
                   <button class="chip" data-chat-prompt="Give me three content ideas based on my channel.">Give me content ideas</button>
                 </div>
+                <div id="chat-attachment" class="chat-attachment hidden" aria-live="polite"></div>
                 <form id="chat-form" class="chat-compose">
+                  <input id="chat-file" type="file" accept="image/*,.csv,.zip,text/csv,application/zip" hidden />
+                  <button id="chat-attach" class="btn" type="button" aria-label="Attach image, CSV or ZIP">＋ Attach</button>
                   <textarea id="chat-input" rows="2" placeholder="Ask Anna about your channel…" aria-label="Ask Anna"></textarea>
                   <button id="chat-send" class="btn btn-primary" type="submit">Send <span aria-hidden="true">↗</span></button>
                 </form>
@@ -84,10 +87,10 @@
                 <div class="section-head"><div><p class="eyebrow">CHANNEL WORKSPACE</p><h2>Make it yours</h2></div><span class="section-note">Public data only</span></div>
                 <p class="section-copy">Paste a channel handle, URL or channel ID. We’ll show the public identity before saving it.</p>
                 <label class="field"><span>Channel handle / URL / ID</span><input id="profile-handle" type="text" placeholder="@yourchannel or UC…" autocomplete="off" /></label>
-                <label class="field mt"><span>Verification phrase <small>OPTIONAL</small></span><input id="profile-phrase" type="text" value="YouTube Skillbox" autocomplete="off" /></label>
+                <label class="field mt"><span>Verification phrase <small>GENERATED · READ-ONLY</small></span><div class="copy-field"><input id="profile-phrase" type="text" placeholder="Generated after channel is found" autocomplete="off" readonly /><button id="profile-copy" class="btn btn-small" type="button" disabled>Copy</button></div></label>
                 <div class="profile-actions"><button id="profile-fetch" class="btn btn-primary" type="button">Find channel</button><button id="profile-verify" class="btn" type="button" disabled>Verify phrase</button></div>
                 <div id="profile-preview" class="profile-preview"><span class="hint">No channel loaded yet.</span></div>
-                <p class="hint profile-note">Verification checks the latest public description. You update the phrase yourself in YouTube Studio; this flow needs no OAuth or write access.</p>
+                <p class="hint profile-note">The app generates a unique phrase. Copy it, add it manually to your public YouTube description, then verify. No OAuth or write access is used.</p>
               </aside>
             </div>
           </section>
@@ -321,7 +324,7 @@
                 <label class="field" for="ret-csv">
                   <span>Audience-retention CSV or ZIP export</span>
                   <div id="ret-dropzone" class="dropzone"><input id="ret-file" type="file" accept=".csv,.zip,text/csv,application/zip" /><span class="drop-icon">↥</span><strong>Drop a CSV or YouTube Studio ZIP</strong><small>We’ll find the retention table and keep the video title from the ZIP name.</small></div>
-                  <div id="ret-file-entry-wrap" class="hidden"><select id="ret-file-entry" aria-label="Choose a CSV from the ZIP"></select></div>
+                  <div id="ret-file-entry-wrap" class="hidden"><select id="ret-file-entry" aria-label="Choose a CSV from the ZIP"></select><button id="ret-analyze-all" class="btn btn-small" type="button">Analyze every CSV</button></div>
                   <textarea id="ret-csv" rows="12" spellcheck="false" placeholder="Video position (%),Percentage watched&#10;0,95.0&#10;3,88.2&#10;6,74.1&#10;…"></textarea>
                 </label>
                 <div class="ret-controls">

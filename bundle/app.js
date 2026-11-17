@@ -10,6 +10,8 @@ import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
 import { invokeAnnaTool } from "./anna-tool-runtime.mjs";
 
 const TOOL_ID = (typeof window !== "undefined" && window.__ANNA_TOOL_IDS__ && window.__ANNA_TOOL_IDS__["youtube-skillbox"]) || "bundled:youtube-skillbox";
+const DEV_TOOL_ID = "tool-dev-youtube-skillbox";
+const PRIMARY_TOOL_ID = typeof location !== "undefined" && /\/dev\//.test(location.pathname + location.search) ? DEV_TOOL_ID : TOOL_ID;
 const AUDITS_KEY = "youtube-skillbox:audits";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -53,10 +55,22 @@ async function tool(method, args, timeoutMs, options = {}) {
     throw new Error("Anna host is not connected. Open this app inside Anna AI OS to run live Skillbox tools; no sample measurements were substituted.");
   }
 
-  const request = { tool_id: TOOL_ID, method, args: args || {} };
-  if (Number.isFinite(timeoutMs) && timeoutMs > 0) request.timeoutMs = timeoutMs;
-
-  const res = await invokeAnnaTool(anna, request, options);
+  const invoke = (toolId) => {
+    const request = { tool_id: toolId, method, args: args || {} };
+    if (Number.isFinite(timeoutMs) && timeoutMs > 0) request.timeoutMs = timeoutMs;
+    return invokeAnnaTool(anna, request, options);
+  };
+  let res;
+  try {
+    res = await invoke(PRIMARY_TOOL_ID);
+  } catch (firstError) {
+    // Anna's push rewrites the generated map to the immutable production ID.
+    // The local harness declares the dev ID instead, so retry only for that
+    // precise declaration mismatch and never mask a real tool failure.
+    const message = String(firstError && (firstError.message || firstError));
+    if (PRIMARY_TOOL_ID === DEV_TOOL_ID || !/not a declared (required\/optional|required|optional) executa/i.test(message)) throw firstError;
+    res = await invoke(DEV_TOOL_ID);
+  }
 
   if (res === undefined || res === null) throw new Error("tool returned no data");
   if (typeof res !== "object") return res;
@@ -65,7 +79,12 @@ async function tool(method, args, timeoutMs, options = {}) {
   // the explicit RPC envelope as well so older hosts fail transparently.
   if (res.ok === false) {
     const e = res.error;
-    throw new Error(typeof e === "string" ? e : (e && (e.message || e.code)) || "Anna host request failed");
+    const message = typeof e === "string" ? e : (e && (e.message || e.code)) || "Anna host request failed";
+    if (PRIMARY_TOOL_ID !== DEV_TOOL_ID && /not a declared (required\/optional|required|optional) executa/i.test(message)) {
+      res = await invoke(DEV_TOOL_ID);
+    } else {
+      throw new Error(message);
+    }
   }
   const payload = res.ok === true && "result" in res ? res.result : res;
   if (payload && typeof payload === "object") {
@@ -87,6 +106,22 @@ async function llm(systemPrompt, userMessage, maxTokens = 3200) {
     systemPrompt,
     maxTokens,
     temperature: 0.35,
+  });
+  return (r && r.content && r.content.text) || String(r);
+}
+
+async function llmWithImage(systemPrompt, userMessage, imageBlock, maxTokens = 2600) {
+  if (standalone || !anna) {
+    throw new Error("Anna's hosted vision model is unavailable outside the Anna app runtime.");
+  }
+  const r = await anna.llm.complete({
+    messages: [
+      { role: "user", content: { type: "text", text: userMessage } },
+      { role: "user", content: imageBlock },
+    ],
+    systemPrompt,
+    maxTokens,
+    temperature: 0.25,
   });
   return (r && r.content && r.content.text) || String(r);
 }
@@ -129,6 +164,16 @@ const CHAT_KEY = "youtube-skillbox:chat";
 const THEME_KEY = "youtube-skillbox:theme";
 let profileState = null;
 let chatHistory = [];
+let chatAttachment = null;
+
+function generateVerificationPhrase() {
+  const first = ["amber", "orbit", "quiet", "silver", "cedar", "lunar", "violet", "hidden"];
+  const second = ["comet", "signal", "harbor", "studio", "ripple", "lantern", "garden", "atlas"];
+  const source = globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function"
+    ? globalThis.crypto.getRandomValues(new Uint32Array(2))
+    : [Math.floor(Math.random() * 1e9), Math.floor(Math.random() * 1e9)];
+  return `Anna Skillbox ${first[source[0] % first.length]} ${second[source[1] % second.length]} ${String(source[0] % 10000).padStart(4, "0")}`;
+}
 
 function profileName(profile) { return profile && (profile.name || profile.title || profile.channel_name || profile.author || "Channel"); }
 function profileHandle(profile) { return profile && (profile.handle || profile.custom_url || profile.channel || profile.channel_url || ""); }
@@ -140,12 +185,14 @@ function renderProfileState() {
   const name = byId("nav-profile-name");
   const handle = byId("nav-profile-handle");
   const avatar = byId("nav-avatar");
+  const copy = byId("profile-copy");
   if (!profileState || !profileState.profile) {
     if (preview) preview.innerHTML = '<span class="hint">No channel loaded yet.</span>';
     if (verify) verify.disabled = true;
     if (name) name.textContent = "No channel yet";
     if (handle) handle.textContent = "Set up your workspace";
     if (avatar) avatar.textContent = "?";
+    if (copy) copy.disabled = true;
     return;
   }
   const profile = profileState.profile;
@@ -155,8 +202,11 @@ function renderProfileState() {
   if (name) name.textContent = displayName;
   if (handle) handle.textContent = profileState.verified ? displayHandle + " · verified" : displayHandle;
   if (avatar) avatar.innerHTML = image ? `<img src="${escapeHtml(image)}" alt="" />` : escapeHtml(String(displayName).slice(0, 1).toUpperCase());
-  if (preview) preview.innerHTML = `<div class="profile-identity">${image ? `<img src="${escapeHtml(image)}" alt="" />` : `<div class="profile-avatar-fallback">${escapeHtml(String(displayName).slice(0, 1).toUpperCase())}</div>`}<div><strong>${escapeHtml(displayName)}</strong><span>${escapeHtml(displayHandle)}</span></div></div><p>${escapeHtml(String(profile.description || profile.about || "No public description returned."))}</p><div class="profile-status ${profileState.verified ? 'is-verified' : ''}">${profileState.verified ? '✓ Phrase verified in latest public description' : 'Identity found · verify the phrase after updating your description'}</div>`;
+  if (preview) preview.innerHTML = `<div class="profile-identity">${image ? `<img src="${escapeHtml(image)}" alt="" />` : `<div class="profile-avatar-fallback">${escapeHtml(String(displayName).slice(0, 1).toUpperCase())}</div>`}<div><strong>${escapeHtml(displayName)}</strong><span>${escapeHtml(displayHandle)}</span></div></div><p>${escapeHtml(String(profile.description || profile.about || "No public description returned."))}</p><div class="profile-status ${profileState.verified ? 'is-verified' : ''}">${profileState.verified ? '✓ Phrase verified in latest public description' : 'Identity found · copy the phrase, update your description, then verify'}</div>`;
   if (verify) verify.disabled = false;
+  if (copy) copy.disabled = !profileState.phrase;
+  const phrase = byId("profile-phrase");
+  if (phrase) phrase.value = profileState.phrase || "";
 }
 
 async function fetchProfile(handleValue, silent = false) {
@@ -166,7 +216,9 @@ async function fetchProfile(handleValue, silent = false) {
   if (preview && !silent) preview.innerHTML = '<div class="skeleton-stack"><span class="skeleton skeleton-wide"></span><span class="skeleton"></span><span class="skeleton skeleton-short"></span></div>';
   try {
     const profile = await tool("profile", { handle }, 85000);
-    profileState = { handle, profile, phrase: byId("profile-phrase").value.trim(), verified: false };
+    const phrase = profileState && profileState.handle === handle && profileState.phrase && profileState.phrase !== "YouTube Skillbox" ? profileState.phrase : generateVerificationPhrase();
+    profileState = { handle, profile, phrase, verified: false };
+    byId("profile-phrase").value = phrase;
     await storageSet(PROFILE_KEY, [profileState]);
     byId("profile-handle").value = handle;
     renderProfileState();
@@ -181,7 +233,7 @@ async function fetchProfile(handleValue, silent = false) {
 
 async function verifyProfilePhrase() {
   if (!profileState) return;
-  const phrase = byId("profile-phrase").value.trim();
+  const phrase = String(profileState.phrase || byId("profile-phrase").value || "").trim();
   if (!phrase) return;
   const refreshed = await fetchProfile(profileState.handle, true);
   const description = String(refreshed.profile.description || refreshed.profile.about || "");
@@ -218,7 +270,46 @@ function chatAdd(role, text, loading = false) {
   return node;
 }
 
-async function chatContext(message) {
+function renderChatAttachment() {
+  const box = byId("chat-attachment");
+  if (!box) return;
+  if (!chatAttachment) {
+    box.className = "chat-attachment hidden";
+    box.innerHTML = "";
+    return;
+  }
+  const preview = chatAttachment.dataUrl && chatAttachment.type.startsWith("image/")
+    ? `<img src="${escapeHtml(chatAttachment.dataUrl)}" alt="Attached thumbnail preview" />`
+    : `<span class="file-glyph">${chatAttachment.type.includes("zip") ? "ZIP" : "CSV"}</span>`;
+  box.className = "chat-attachment";
+  box.innerHTML = `${preview}<span><strong>${escapeHtml(chatAttachment.name)}</strong><small>${escapeHtml(chatAttachment.description || "Ready for Anna to inspect")}</small></span><button id="chat-attachment-remove" class="btn btn-small" type="button" aria-label="Remove attachment">×</button>`;
+  byId("chat-attachment-remove")?.addEventListener("click", () => { chatAttachment = null; renderChatAttachment(); });
+}
+
+async function readChatAttachment(file) {
+  if (!file) return;
+  const type = file.type || (file.name.toLowerCase().endsWith(".zip") ? "application/zip" : "text/csv");
+  const attachment = { name: file.name, type, file };
+  if (type.startsWith("image/")) {
+    attachment.dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error || new Error("Could not read image"));
+      reader.readAsDataURL(file);
+    });
+    attachment.description = "Thumbnail image · Anna can score the hook, hierarchy, contrast and promise";
+  } else if (/\.zip$/i.test(file.name) || type.includes("zip")) {
+    attachment.entries = await readZipCsvEntries(file);
+    attachment.description = `${attachment.entries.length} CSV exports · each will be classified by metric`;
+  } else {
+    attachment.text = await file.text();
+    attachment.description = "CSV export · ready for metric-aware analysis";
+  }
+  chatAttachment = attachment;
+  renderChatAttachment();
+}
+
+async function chatContext(message, attachment = null) {
   const lower = message.toLowerCase();
   let evidence = "";
   if (profileState && /(audit|channel|outlier|upload|short|why|views|perform)/.test(lower)) {
@@ -230,25 +321,46 @@ async function chatContext(message) {
     ]);
     evidence = JSON.stringify({ latest: calls[0].status === "fulfilled" ? calls[0].value : { error: String(calls[0].reason) }, outliers: calls[1].status === "fulfilled" ? calls[1].value : { error: String(calls[1].reason) }, profile: calls[2].status === "fulfilled" ? calls[2].value : { error: String(calls[2].reason) } }).slice(0, 16000);
   }
-  return `Current workspace profile: ${profileState ? JSON.stringify(profileState.profile) : "not configured"}\nMeasured context (may contain explicit errors; never replace them): ${evidence || "No tool call was needed for this question."}`;
+  let attachmentContext = "No attachment was provided.";
+  if (attachment) {
+    try {
+      attachmentContext = await attachmentAnalysisContext(attachment);
+    } catch (error) {
+      attachmentContext = `Attachment analysis unavailable: ${error.message || error}`;
+    }
+  }
+  return `Current workspace profile: ${profileState ? JSON.stringify(profileState.profile) : "not configured"}\nMeasured context (may contain explicit errors; never replace them): ${evidence || "No tool call was needed for this question."}\nAttachment context:\n${attachmentContext}`;
 }
 
 function wireChat() {
   const form = byId("chat-form");
   if (!form) return;
+  byId("chat-attach")?.addEventListener("click", () => byId("chat-file")?.click());
+  byId("chat-file")?.addEventListener("change", async () => {
+    try { await readChatAttachment(byId("chat-file").files && byId("chat-file").files[0]); }
+    catch (error) { chatAdd("assistant", "I couldn’t read that attachment: " + (error.message || error)); }
+  });
   const send = async (message) => {
     const text = String(message || byId("chat-input").value || "").trim();
-    if (!text || !anna || standalone) { if (!anna || standalone) chatAdd("assistant", "Open this app inside Anna to use the live guide."); return; }
+    const attachment = chatAttachment;
+    if (!text && !attachment) { if (!anna || standalone) chatAdd("assistant", "Open this app inside Anna to use the live guide."); return; }
+    if ((!anna || standalone) && attachment && !text) { chatAdd("assistant", "Open this app inside Anna to analyze an attachment."); return; }
     byId("chat-input").value = "";
-    chatAdd("user", text);
+    const userLabel = text || "Please inspect this attachment.";
+    chatAdd("user", attachment ? `${userLabel}\n\nAttached: ${attachment.name}` : userLabel);
+    chatAttachment = null;
+    renderChatAttachment();
     const loading = chatAdd("assistant", "", true);
     byId("chat-send").disabled = true;
     try {
-      const context = await chatContext(text);
-      const response = await llm("You are Anna inside YouTube Skillbox. Answer like a calm creator strategist. Separate MEASURED facts, INFERRED explanations and RECOMMENDATION. Never invent channel numbers, never claim YouTube was edited or published, and if context contains an error say the measurement is unavailable.", context + "\n\nCreator question: " + text, 2600);
+      const context = await chatContext(userLabel, attachment);
+      const system = "You are Anna inside YouTube Skillbox. Answer like a calm creator strategist. Separate MEASURED facts, INFERRED explanations and RECOMMENDATION. Never invent channel numbers, never claim YouTube was edited or published, and if context contains an error say the measurement is unavailable. For a thumbnail image, give a transparent heuristic score out of 10 for hook clarity, hierarchy, contrast, mobile legibility and promise match; call it INFERRED, not a prediction of CTR.";
+      const response = attachment && attachment.dataUrl
+        ? await llmWithImage(system, context + "\n\nCreator question: " + userLabel + "\nScore this attached thumbnail using the requested rubric.", { type: "image", data: attachment.dataUrl.replace(/^data:[^;]+;base64,/, ""), mimeType: attachment.type }, 2800)
+        : await llm(system, context + "\n\nCreator question: " + userLabel, 2800);
       loading.remove();
       chatAdd("assistant", response);
-      chatHistory.push({ role: "user", text }, { role: "assistant", text: response });
+      chatHistory.push({ role: "user", text: userLabel, attachment: attachment ? attachment.name : undefined }, { role: "assistant", text: response });
       await storageSet(CHAT_KEY, chatHistory.slice(-12));
     } catch (error) {
       loading.remove();
@@ -259,12 +371,19 @@ function wireChat() {
   $$("[data-chat-prompt]").forEach((button) => button.addEventListener("click", () => send(button.dataset.chatPrompt)));
   byId("profile-fetch")?.addEventListener("click", () => fetchProfile());
   byId("profile-verify")?.addEventListener("click", () => verifyProfilePhrase());
+  byId("profile-copy")?.addEventListener("click", async () => {
+    const phrase = byId("profile-phrase")?.value;
+    if (!phrase) return;
+    try { await navigator.clipboard.writeText(phrase); setStatus("Verification phrase copied", true); } catch (_) { byId("profile-phrase")?.select(); }
+  });
 }
 
 async function loadWorkspaceState() {
   try { profileState = (await storageList(PROFILE_KEY))[0] || null; } catch (_) { profileState = null; }
   try { chatHistory = await storageList(CHAT_KEY); } catch (_) { chatHistory = []; }
   renderProfileState();
+  if (byId("profile-phrase")) byId("profile-phrase").value = profileState?.phrase || "";
+  if (byId("profile-copy")) byId("profile-copy").disabled = !profileState?.phrase;
   const mode = localStorage.getItem(THEME_KEY) || "system";
   applyTheme(mode);
   byId("theme-toggle")?.addEventListener("click", cycleTheme);
@@ -1285,6 +1404,85 @@ async function readZipCsvEntries(file) {
   return entries;
 }
 
+function parseCsvText(text) {
+  const rows = [];
+  let row = [], cell = "", quoted = false;
+  for (let i = 0; i < String(text || "").length; i += 1) {
+    const char = String(text || "")[i];
+    const next = String(text || "")[i + 1];
+    if (char === '"' && quoted && next === '"') { cell += '"'; i += 1; continue; }
+    if (char === '"') { quoted = !quoted; continue; }
+    if (char === ',' && !quoted) { row.push(cell.trim()); cell = ""; continue; }
+    if ((char === '\n' || char === '\r') && !quoted) {
+      if (char === '\r' && next === '\n') i += 1;
+      row.push(cell.trim()); cell = "";
+      if (row.some((value) => value !== "")) rows.push(row);
+      row = [];
+      continue;
+    }
+    cell += char;
+  }
+  row.push(cell.trim());
+  if (row.some((value) => value !== "")) rows.push(row);
+  return rows;
+}
+
+function csvLine(values) {
+  return values.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",");
+}
+
+function retentionEntryProfile(entry) {
+  const rows = parseCsvText(entry.text);
+  const headers = rows[0] || [];
+  const normalized = headers.map((header) => header.toLowerCase());
+  const positionIndex = normalized.findIndex((header) => header.includes("video position"));
+  const retentionIndex = normalized.findIndex((header) => header.includes("retention"));
+  const title = entry.name.split(/[\\/]/).pop();
+  if (positionIndex < 0 || rows.length < 2) return { title, kind: "empty", headers, series: [], summary: "No readable data rows were found in this export." };
+  if (retentionIndex >= 0) {
+    const categoryIndex = headers.length >= 3 && retentionIndex !== 1 ? 1 : -1;
+    const categories = categoryIndex >= 0 ? [...new Set(rows.slice(1).map((row) => row[categoryIndex]).filter(Boolean))] : [null];
+    const series = categories.map((category) => {
+      const points = rows.slice(1).filter((row) => row[positionIndex] !== "" && row[retentionIndex] !== "" && (!category || row[categoryIndex] === category));
+      const csv = [csvLine([headers[positionIndex], headers[retentionIndex]]), ...points.map((row) => csvLine([row[positionIndex], row[retentionIndex]]))].join("\n");
+      return { label: category || "Overall audience", csv, rows: points.length };
+    }).filter((item) => item.rows >= 2);
+    const compareIndex = normalized.findIndex((header, index) => index !== retentionIndex && header.includes("compared"));
+    const compareValues = compareIndex >= 0 ? rows.slice(1).map((row) => Number(row[compareIndex])).filter(Number.isFinite) : [];
+    return { title, kind: series.length > 1 ? "segment-retention" : "retention", headers, series, compareAverage: compareValues.length ? (compareValues.reduce((a, b) => a + b, 0) / compareValues.length).toFixed(1) : null, summary: series.length > 1 ? `Separate retention curves for ${series.map((item) => item.label).join(" and ")}.` : "Overall retention curve." };
+  }
+  const numeric = headers.map((header, index) => ({ header, index, values: rows.slice(1).map((row) => Number(row[index])).filter(Number.isFinite) })).filter((item) => item.index !== positionIndex && item.values.length);
+  return { title, kind: numeric.length ? "activity" : "empty", headers, series: [], numeric, summary: numeric.length ? "Supporting activity export; it is not an audience-retention curve." : "This export has no numeric analysis rows." };
+}
+
+async function analyzeRetentionEntries(entries, duration) {
+  const jobs = [];
+  for (const entry of entries) {
+    const profile = retentionEntryProfile(entry);
+    if (!profile.series.length) {
+      jobs.push(Promise.resolve({ entry, profile, findings: null }));
+      continue;
+    }
+    for (const series of profile.series) {
+      jobs.push(tool("retention", { csv: series.csv, duration: duration || undefined }, 180000)
+        .then((findings) => ({ entry, profile, series, findings: findings && !findings.error ? findings : null, error: findings && findings.error }))
+        .catch((error) => ({ entry, profile, series, findings: null, error: String(error.message || error) })));
+    }
+  }
+  return Promise.all(jobs);
+}
+
+async function attachmentAnalysisContext(attachment) {
+  if (attachment.dataUrl) return "An image is attached. Use the vision model for a heuristic thumbnail score; do not present it as measured CTR.";
+  const entries = attachment.entries || [{ name: attachment.name, text: attachment.text || "" }];
+  const reports = await analyzeRetentionEntries(entries, "");
+  return reports.map((report) => {
+    const label = report.series ? `${report.profile.title} · ${report.series.label}` : report.profile.title;
+    if (!report.findings) return `${label}: unavailable or supporting activity export (${report.profile.summary}).`;
+    return `${label}: ${JSON.stringify({ rows_read: report.findings.rows_read, axis: report.findings.axis, hook_leak: report.findings.hook_leak, cliffs: report.findings.cliffs, slide: report.findings.slide })}`;
+  }).join("\n").slice(0, 18000);
+}
+
 function retentionGraph(findings) {
   const points = Array.isArray(findings && findings.points) ? findings.points : [];
   if (points.length < 2) return '<div class="empty-state"><strong>Not enough points for a graph.</strong><span>The engine needs at least two numeric readings.</span></div>';
@@ -1329,6 +1527,21 @@ function renderRetentionReport(findings, recommendation, title) {
   const cliffBody = cliffs.length ? cliffs.map((cliff) => `${escapeHtml(String(cliff.from))}${cliff.axis === '%' ? '%' : 's'} → ${escapeHtml(String(cliff.to))}${cliff.axis === '%' ? '%' : 's'}: <strong>${escapeHtml(String(cliff.drop_points))} points</strong>`).join('<br />') : 'No adjacent cliff crossed the engine threshold.';
   retentionCardIndex = 0;
   return `<div class="ret-report"><div class="ret-report-hero"><div><div class="eyebrow">MEASURED · RETENTION CURVE</div><h2>${escapeHtml(title || 'Retention export')}</h2><p>${escapeHtml(String(findings.rows_read || 0))} readings · ${escapeHtml(String(findings.axis || 'axis unavailable'))}</p></div><span class="ev ev-measured">ENGINE VERIFIED</span></div>${retentionGraph(findings)}<div class="ret-card-stage"><div class="ret-card-nav"><div><span class="eyebrow">FINDING CARDS</span><span class="hint">Swipe the evidence one card at a time</span></div><button id="ret-next" class="circle-btn" type="button" aria-label="Next retention finding">›</button></div><div class="ret-card-deck">${retentionCard('The opening loses ' + (hook.loss_points ?? '—') + ' points', 'HOOK LEAK · MEASURED', `From ${escapeHtml(String(hook.start_retention_pct ?? '—'))}% to ${escapeHtml(String(hook.minimum_early_retention_pct ?? '—'))}% in the ${escapeHtml(String(hook.window || 'early window'))}. Severity: <strong>${escapeHtml(String(hook.severity || 'unavailable'))}</strong>.`, 0)}${retentionCard('Where the cliffs are', 'CLIFFS · MEASURED', cliffBody, 1)}${retentionCard('How fast the curve slides', 'SLIDE · MEASURED', slide.average_loss_points_per_minute == null ? 'Per-minute slide is unavailable until the export has elapsed seconds or a video duration is supplied.' : `Average loss: <strong>${escapeHtml(String(slide.average_loss_points_per_minute))} points/minute</strong>.`, 2)}${retentionCard('One next move', 'RECOMMENDATION · INFERRED', renderMd(recommendation || 'Review the largest measured drop before changing the whole format.'), 3)}</div><div class="ret-dots"><span class="ret-dot is-active"></span><span class="ret-dot"></span><span class="ret-dot"></span><span class="ret-dot"></span></div></div></div>`;
+}
+
+function renderRetentionBundle(reports, title) {
+  const cards = reports.map((report) => {
+    const label = report.series ? `${report.profile.title} · ${report.series.label}` : report.profile.title;
+    if (!report.findings) {
+      const details = report.error || report.profile.summary;
+      return `<article class="ret-bundle-card ret-bundle-support"><div class="eyebrow">SUPPORTING EXPORT · NOT A RETENTION CURVE</div><h3>${escapeHtml(label)}</h3><p>${escapeHtml(details)}</p>${report.profile.numeric ? `<div class="metric-pills">${report.profile.numeric.map((metric) => `<span><strong>${escapeHtml(metric.values.length)}</strong> ${escapeHtml(metric.header)} readings</span>`).join("")}</div>` : ""}</article>`;
+    }
+    const findings = report.findings;
+    const hook = findings.hook_leak || {};
+    const cliffCount = Array.isArray(findings.cliffs) ? findings.cliffs.length : 0;
+    return `<article class="ret-bundle-card"><div class="ret-report-hero"><div><div class="eyebrow">${report.profile.kind === "segment-retention" ? "SEGMENT RETENTION · MEASURED" : "RETENTION CURVE · MEASURED"}</div><h3>${escapeHtml(label)}</h3><p>${escapeHtml(String(findings.rows_read || report.series?.rows || 0))} readings · ${escapeHtml(String(findings.axis || "axis unavailable"))}</p></div><span class="ev ev-measured">ENGINE VERIFIED</span></div>${retentionGraph(findings)}<div class="metric-pills"><span><strong>${escapeHtml(String(hook.loss_points ?? "—"))}</strong> hook loss</span><span><strong>${escapeHtml(String(cliffCount))}</strong> cliffs</span><span><strong>${escapeHtml(String(findings.slide?.average_loss_points_per_minute ?? "—"))}</strong> points/min</span></div></article>`;
+  }).join("");
+  return `<div class="ret-bundle"><div class="ret-report-hero"><div><div class="eyebrow">ZIP BUNDLE · METRIC-AWARE ANALYSIS</div><h2>${escapeHtml(title || "Retention bundle")}</h2><p>${escapeHtml(String(reports.length))} analysis cards · each CSV was classified separately</p></div><span class="ev ev-inferred">NO JSON OUTPUT</span></div><p class="bundle-note">Overall retention, audience segments, traffic sources and activity exports are shown as different evidence types. Supporting exports are not forced into a retention score.</p><div class="ret-bundle-grid">${cards}</div></div>`;
 }
 
 function wireRetentionCarousel() {
@@ -1416,6 +1629,27 @@ function wireRetention() {
       wireRetentionCarousel();
     } catch (error) {
       output.innerHTML = '<div class="note err"><b>Retention analysis failed</b><span>' + escapeHtml(String(error.message || error)) + '</span></div>';
+    } finally {
+      button.disabled = false;
+    }
+  });
+  byId("ret-analyze-all")?.addEventListener("click", async () => {
+    const output = byId("ret-output");
+    const duration = byId("ret-duration").value.trim();
+    if (!retentionZipEntries.length) {
+      output.classList.remove("hidden");
+      output.innerHTML = '<div class="note warn"><b>Upload a ZIP first</b><span>This action analyzes every CSV in the selected YouTube Studio export.</span></div>';
+      return;
+    }
+    const button = byId("ret-analyze-all");
+    button.disabled = true;
+    output.classList.remove("hidden");
+    output.innerHTML = '<div class="skeleton-stack"><span class="skeleton skeleton-wide"></span><span class="skeleton"></span><span class="skeleton skeleton-short"></span></div>';
+    try {
+      const reports = await analyzeRetentionEntries(retentionZipEntries, duration);
+      output.innerHTML = renderRetentionBundle(reports, retentionTitle);
+    } catch (error) {
+      output.innerHTML = `<div class="note err"><b>Bundle analysis failed</b><span>${escapeHtml(String(error.message || error))}</span></div>`;
     } finally {
       button.disabled = false;
     }

@@ -25,11 +25,11 @@ Never invent unavailable counts, rankings, retention values, CTR, or causal expl
 - New `profile` Executa method fetches public channel identity and accepts a channel ID (`UC...`) as well as a handle/URL.
 - Audit flow now uses the fast `profile` call instead of the slow composite `snapshot` call, which was the main source of recurring partial audits.
 - Explorer rendering work replaces raw JSON with upload cards, community-post cards, home-shelf rows, and Show cards.
-- Current uncommitted redesign work adds Ask Anna chat, channel workspace/profile verification, theme cycling, session-cache clearing, CSV/ZIP retention upload, SVG retention graph, retention finding-card carousel, and shimmer states.
+- Current redesign work adds Ask Anna chat with image/CSV/ZIP attachments, metric-aware analysis for every CSV in a YouTube Studio ZIP, channel workspace/profile verification, theme cycling, session-cache clearing, smooth SVG retention graphs, retention finding-card carousel, and shimmer states.
 
 ## Honest Anna capability boundary
 
-The frontend can call `anna.llm.complete`, `anna.tools.invoke`, storage, and the bundled Executa. The outside Anna chat does not automatically discover arbitrary frontend controls; the app must explicitly orchestrate tool calls and pass evidence into the LLM. Public channel verification is intentionally manual: the creator updates the description themselves, then this app re-fetches public data and checks the phrase. No YouTube OAuth/write access is needed or requested by this flow.
+The frontend can call `anna.llm.complete`, `anna.tools.invoke`, storage, and the bundled Executa. The outside Anna chat does not automatically discover arbitrary frontend controls; the app must explicitly orchestrate tool calls and pass evidence into the LLM. Public channel verification is intentionally manual: the app generates a random read-only phrase, the creator copies it into the description themselves, then this app re-fetches public data and checks that exact phrase. No YouTube OAuth/write access is needed or requested by this flow.
 
 ## Local development
 
