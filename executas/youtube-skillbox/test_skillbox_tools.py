@@ -73,8 +73,8 @@ class CreatorToolTests(unittest.TestCase):
 
     def test_absolute_retention_does_not_get_relative_severity(self):
         csv_text = (
-            "seconds,retention_pct\\n"
-            "0,130\\n10,120\\n20,112\\n30,108\\n45,105\\n"
+            "seconds,retention_pct\n"
+            "0,130\n10,120\n20,112\n30,108\n45,105\n"
         )
         result = _parse_retention_csv(csv_text)
         self.assertTrue(result["hook_leak"]["absolute_retention_detected"])
