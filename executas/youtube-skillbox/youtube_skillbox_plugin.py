@@ -401,7 +401,7 @@ def _vtt_to_text(vtt: str) -> str:
 
 
 def _hookscore(hooks):
-    """Port of the upstream yt-script hookscore heuristic; scores copy, not outcomes."""
+    """Port of skills/yt-script/hookscore.py. A copy heuristic, not a performance prediction."""
     filler = {"basically", "actually", "literally", "just", "really", "very", "so", "kind", "sort",
               "like", "guys", "hey", "welcome", "today", "video", "subscribe", "channel"}
     vague = {"amazing", "incredible", "insane", "crazy", "huge", "massive", "game", "changer",
@@ -411,13 +411,12 @@ def _hookscore(hooks):
     stake = re.compile(r"\b(lose|lost|wasting|waste|quit|fail|broke|cost|risk|before|stop|never|die|dying|dead)\b", re.I)
     curiosity = re.compile(r"\b(why|how|what|which|until|before|but|nobody|almost|except|reason|actually)\b", re.I)
     fixes = {
-        "SPECIFICITY": "replace an adjective with a verifiable number, name or date",
-        "ADDRESS": "speak directly to the viewer in the first six words",
-        "STAKES": "make the consequence of ignoring the idea concrete",
-        "CURIOSITY": "leave an unanswered question the video can genuinely resolve",
-        "BREVITY": "aim for a clean spoken line of roughly 9–24 words",
+        "SPECIFICITY": "swap one adjective for a number, a name or a date",
+        "ADDRESS": "say 'you' in the first six words",
+        "STAKES": "name what it costs them to keep doing it the current way",
+        "CURIOSITY": "cut the half of the sentence that answers itself",
+        "BREVITY": "9 to 24 words. Read it out loud and stop where you run out of breath",
     }
-    # Exact formula classifier patterns from the upstream skills/yt-script/hooks.json.
     formulas = [
         ("The Statistic", [r"\b\d+(\.\d+)?\s?%", r"\b\d+ (out of|in) \d+\b", r"\b\d{2,}(,\d{3})+\b"]),
         ("Someone Else's Result", [r"\bthis (channel|guy|creator|account)\b", r"\bwent from .* to\b", r"\bin (a|one|two|three|\d+) (week|month|year)s?\b"]),
@@ -451,18 +450,19 @@ def _hookscore(hooks):
         if not text:
             continue
         tokens = words(text)
-        nums = len(concrete.findall(text))
-        vague_count = sum(1 for token in tokens if token in vague)
-        filler_count = sum(1 for token in tokens if token in filler)
-        named = sum(1 for token in text.split()[1:] if token[:1].isupper())
-        specificity = max(0, min(100, 34 + nums * 22 - vague_count * 16 - filler_count * 5 + min(18, 6 * named)))
+        numbers = len(concrete.findall(text))
+        vague_count = sum(1 for word in tokens if word in vague)
+        filler_count = sum(1 for word in tokens if word in filler)
+        named = sum(1 for word in text.split()[1:] if word[:1].isupper())
+        specificity = max(0, min(100, 34 + numbers * 22 - vague_count * 16 - filler_count * 5
+                                 + min(18, 6 * named)))
         direct_count = len(you.findall(text))
         first_six = 30 if you.search(" ".join(text.split()[:6])) else 0
         address = max(0, min(100, 26 + direct_count * 20 + first_six))
         stake_count = len(stake.findall(text))
         stakes = max(0, min(100, 22 + stake_count * 26 + (14 if concrete.search(text) else 0)))
         curiosity_count = len(curiosity.findall(text))
-        question_bonus = 18 if text.rstrip().endswith("?") else 0
+        question_bonus = 18 if text.strip().endswith("?") else 0
         closed_gap = -18 if re.search(r"\b(because|so that|which means)\b", text, re.I) else 0
         curiosity_score = max(0, min(100, 24 + curiosity_count * 17 + question_bonus + closed_gap))
         word_count = len(tokens)
@@ -474,6 +474,7 @@ def _hookscore(hooks):
             brevity = max(30, 100 - (9 - word_count) * 11)
         else:
             brevity = max(10, 100 - (word_count - 24) * 7)
+
         properties = {
             "SPECIFICITY": specificity,
             "ADDRESS": address,
@@ -482,31 +483,35 @@ def _hookscore(hooks):
             "BREVITY": brevity,
         }
         values = list(properties.values())
-        score = round(0.6 * (sum(values) / len(values)) + 0.4 * min(values))
-        band = "STRONG" if score >= 72 else "WORKABLE" if score >= 55 else "WEAK"
-        weakest = min(properties, key=properties.get)
+        verdict = round(0.6 * (sum(values) / len(values)) + 0.4 * min(values))
+
         formula_name, formula_hits = None, 0
         for name, patterns in formulas:
-            hits = sum(1 for pattern in patterns if re.search(pattern, text, re.I))
+            hits = sum(1 for pattern in patterns if re.search(pattern, text, re.I | re.S))
             if hits > formula_hits:
                 formula_name, formula_hits = name, hits
+
+        band = "STRONG" if verdict >= 72 else "WORKABLE" if verdict >= 55 else "WEAK"
+        weakest = min(properties, key=properties.get)
         rows.append({
             "index": index,
             "hook": text,
             "properties": properties,
-            "score": score,
+            "verdict": verdict,
+            "score": verdict,
             "band": band,
             "formula": formula_name or "Unclassified",
+            "matched": formula_hits,
             "weakest": weakest,
             "fix": fixes[weakest],
-            "score_type": "heuristic copy analysis; not a retention or performance prediction",
+            "score_type": "heuristic hook-copy diagnostic; cannot distinguish a creator's hits from misses reliably and is not a performance prediction",
         })
-    rows.sort(key=lambda row: (-row["score"], row["index"]))
+    rows.sort(key=lambda row: -row["verdict"])
     return {"count": len(rows), "scored_hooks": rows}
 
 
 def _title_lint(titles, thumbnail_text=None):
-    """Port of the upstream yt-package title checker. Scores are text heuristics."""
+    """Port of skills/yt-package/title.py; thumbnail image pixels are never evaluated."""
     vague = {"amazing", "incredible", "insane", "crazy", "huge", "massive", "ultimate", "best",
              "powerful", "secret", "revolutionary", "mindblowing", "epic", "perfect", "complete", "everything"}
     stop = {"the", "a", "an", "of", "for", "to", "in", "on", "and", "or", "is", "are", "with", "your", "you", "my",
@@ -523,55 +528,60 @@ def _title_lint(titles, thumbnail_text=None):
         length = len(title)
         issues, good = [], []
         if length > 100:
-            issues.append(("length", f"{length} characters — exceeds the 100-character hard limit"))
+            issues.append(("length", f"{length} characters - YouTube's hard limit is 100"))
         elif length > 60:
-            issues.append(("length", f"{length} characters — likely truncation around 60 characters on desktop"))
+            issues.append(("length", f"{length} characters - desktop search cuts near 60"))
         else:
-            good.append(f"{length} characters, within the approximate 60-character desktop display length")
+            good.append(f"{length} characters, inside the 60-character desktop cut")
         if length > 40:
             visible_head = title[:40].rsplit(" ", 1)[0]
-            issues.append(("mobile", f'mobile may show only "{visible_head}…" — check that the subject survives'))
+            issues.append(("mobile", f'a mobile feed shows about "{visible_head}..." - check the subject survives'))
         caps = [word for word in title.split() if len(word) > 2 and word.isupper()]
         if len(caps) > 2:
-            issues.append(("shouting", f"{len(caps)} all-caps words — more than two can read as spam"))
+            issues.append(("shouting", f"{len(caps)} all-caps words - two is the ceiling before it reads as spam"))
         elif caps:
             good.append(f"{len(caps)} all-caps word for emphasis")
         vague_words = [word for word in words(title) if word in vague]
         if vague_words:
-            issues.append(("vague", f"{', '.join(sorted(set(vague_words)))} — replace with a number, name or date"))
+            issues.append(("vague", f"{', '.join(sorted(set(vague_words)))} - swap for a number, a name or a date"))
         numbers = re.findall(r"\d[\d,.]*%?", title)
         if numbers:
-            good.append(f"contains a concrete figure ({', '.join(numbers[:3])})")
+            good.append(f"carries a concrete figure ({', '.join(numbers[:3])})")
         else:
-            issues.append(("no-number", "no number, date or named subject — consider adding a concrete anchor"))
+            issues.append(("no-number", "no number, date or name - the most reliable single fix"))
         if title.endswith("?"):
-            good.append("uses an open question")
+            good.append("open question in the title")
         front = [word for word in words(title)[:3] if word not in stop]
         if not front:
-            issues.append(("front-load", "the first three words are filler — move the subject forward"))
+            issues.append(("front-load", "the first three words are all filler - move the subject forward"))
         if thumbnail_text:
             title_words = set(words(title)) - stop
             thumbnail_words = set(words(str(thumbnail_text))) - stop
             shared = title_words & thumbnail_words
             if shared:
-                issues.append(("duplicate", f"thumbnail repeats title wording: {', '.join(sorted(shared))}"))
+                issues.append(("duplicate", f"thumbnail repeats the title on {', '.join(sorted(shared))} - the thumbnail should say what the title does not"))
             else:
-                good.append("thumbnail text and title use different wording")
-            thumb_count = len(words(str(thumbnail_text)))
-            if thumb_count > 4:
-                issues.append(("thumb-length", f"{thumb_count} words on the thumbnail — keep it to four or fewer"))
+                good.append("thumbnail and title carry different words")
+            thumbnail_word_count = len(words(str(thumbnail_text)))
+            if thumbnail_word_count > 4:
+                issues.append(("thumb-length", f"{thumbnail_word_count} words on the thumbnail - three is the ceiling at feed size"))
+
         score = max(0, min(100, 100 - 14 * len(issues) + 4 * len(good)))
+        issue_rows = [{"code": code, "detail": detail} for code, detail in issues]
         results.append({
             "index": index,
             "title": title,
+            "chars": length,
             "characters": length,
+            "score": score,
             "heuristic_score": score,
-            "issues": [{"code": code, "detail": detail} for code, detail in issues],
+            "issues": issue_rows,
             "good": good,
             "thumbnail_text": thumbnail_text or None,
-            "score_type": "heuristic title-text lint; not a CTR, ranking or view prediction",
+            "thumbnail_image_evaluated": False,
+            "score_type": "heuristic title/thumbnail-text lint, not a CTR or ranking prediction",
         })
-    results.sort(key=lambda row: (-row["heuristic_score"], row["index"]))
+    results.sort(key=lambda row: -row["score"])
     return {"count": len(results), "titles": results}
 
 
