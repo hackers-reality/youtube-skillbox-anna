@@ -65,6 +65,53 @@ MANIFEST = {
             "timeout": ENGINE_TIMEOUT,
         },
         {
+            "name": "channel",
+            "description": "List a channel's recent uploads from the videos, Shorts or livestreams tab. Optional duration and full metadata enrichment.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "handle", "type": "string", "description": "YouTube channel handle or URL.", "required": True},
+                {"name": "limit", "type": "integer", "description": "Maximum items to return.", "required": False, "default": 15},
+                {"name": "tab", "type": "string", "description": "videos, shorts or streams.", "required": False, "default": "videos"},
+                {"name": "with_duration", "type": "boolean", "description": "Enrich rows with duration in seconds.", "required": False, "default": False},
+                {"name": "full_meta", "type": "boolean", "description": "Enrich rows with full video metadata.", "required": False, "default": False},
+            ],
+            "timeout": AUDIT_TIMEOUT,
+        },
+        {
+            "name": "posts",
+            "description": "Fetch recent public YouTube Community posts from a channel, including text, author, publication label and available likes/attachments.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "handle", "type": "string", "description": "YouTube channel handle or URL.", "required": True},
+                {"name": "limit", "type": "integer", "description": "Maximum posts to return.", "required": False, "default": 10},
+            ],
+            "timeout": ENGINE_TIMEOUT,
+        },
+        {
+            "name": "shows",
+            "description": "List public YouTube Shows (episode collections) from a channel.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "handle", "type": "string", "description": "YouTube channel handle or URL.", "required": True},
+                {"name": "limit", "type": "integer", "description": "Maximum shows to return.", "required": False, "default": 20},
+            ],
+            "timeout": ENGINE_TIMEOUT,
+        },
+        {
+            "name": "playlist",
+            "description": "List public videos in a YouTube playlist.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "playlist", "type": "string", "description": "YouTube playlist URL or ID.", "required": True},
+                {"name": "limit", "type": "integer", "description": "Maximum videos to return.", "required": False, "default": 20},
+            ],
+            "timeout": ENGINE_TIMEOUT,
+        },
+        {
+            "name": "info",
+            "description": "Fetch public metadata for one YouTube video: views, likes, date, duration, tags, categories and description excerpt.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "video", "type": "string", "description": "YouTube video URL or ID.", "required": True},
+            ],
+            "timeout": ENGINE_TIMEOUT,
+        },
+        {
             "name": "outliers",
             "description": "Videos that dramatically outperform the channel's own subscribed baseline (views/subs ratio) — the best source of repeatable ideas.",
             "parameters": [CLIENT_ID_PARAM,
@@ -804,6 +851,29 @@ def invoke(method: str, args: dict) -> dict:
             }
         if method == "latest":
             return _eng("latest", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 10))), "--json", timeout=ENGINE_TIMEOUT)
+        if method == "channel":
+            tab = str(a.get("tab", "videos")).strip().lower()
+            if tab not in {"videos", "shorts", "streams"}:
+                return {"success": False, "error": "tab must be videos, shorts or streams"}
+            argv = ["channel", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 15))),
+                    "--tab", tab]
+            if a.get("with_duration"):
+                argv.append("--with-duration")
+            if a.get("full_meta"):
+                argv.append("--full-meta")
+            argv.append("--json")
+            return _eng(*argv, timeout=AUDIT_TIMEOUT)
+        if method == "posts":
+            return _eng("posts", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 10))),
+                        "--json", timeout=ENGINE_TIMEOUT)
+        if method == "shows":
+            return _eng("shows", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 20))),
+                        "--json", timeout=ENGINE_TIMEOUT)
+        if method == "playlist":
+            return _eng("playlist", _norm_video(a.get("playlist")), "--limit", str(int(a.get("limit", 20))),
+                        "--json", timeout=ENGINE_TIMEOUT)
+        if method == "info":
+            return _eng("info", _norm_video(a.get("video")), "--json", timeout=ENGINE_TIMEOUT)
         if method == "outliers":
             return _eng("outliers", _norm_handle(a.get("handle")), "--min-ratio", str(float(a.get("min_ratio", 2.0))), "--json", timeout=AUDIT_TIMEOUT)
         if method == "scorecard":
@@ -832,7 +902,11 @@ def invoke(method: str, args: dict) -> dict:
         if method == "gap":
             return _eng("gap", str(a.get("seed", "")).strip(), "--competitor", _norm_handle(a.get("competitor")), "--json", timeout=ENGINE_TIMEOUT)
         if method == "home":
-            return _eng("home", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 12))), "--json", timeout=ENGINE_TIMEOUT)
+            argv = ["home", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 12)))]
+            if a.get("verbose"):
+                argv.append("--verbose")
+            argv.append("--json")
+            return _eng(*argv, timeout=ENGINE_TIMEOUT)
         if method == "transcribe":
             return _transcribe(str(a.get("video", "")).strip(), str(a.get("language", "en")).strip() or "en")
         if method == "hookscore":
