@@ -804,31 +804,56 @@ function wireLab() {
 }
 
 /* ---------- retention analyzer ---------- */
-const RETENTION_SYSTEM = `
-You read YouTube Studio audience-retention exports and report honestly. Rules:
-- HOOK LEAK: retention at the end of the first 30 s as a fraction of peak. Below 25% is a leak; call it explicitly.
-- CLIFFS: sudden >10 percentage-point drops between adjacent points. Name the timecode.
-- SLIDE: sustained decline over 3+ consecutive points.
-- Position units: % if no duration given; seconds when duration given. Never mix.
-Label everything MEASURED / INFERRED / RECOMMENDATION. If the CSV is malformed or empty, say exactly that. Plain language. No fake numbers — if you can't measure it, say "INSUFFICIENT DATA".`;
+const RETENTION_SYSTEM = \`
+You are the YouTube Skillbox retention interpreter. The deterministic Skillbox engine has already parsed the CSV and calculated the findings.
+Rules:
+- Do not recalculate, alter or add measurements. Quote only values present in the supplied JSON.
+- Explain the hook-leak window and severity only when the engine returned them.
+- Explain cliffs using their exact before/after positions and percentage-point drops.
+- If the slide rate is unavailable, say it is unavailable; never manufacture seconds from a percentage-only axis.
+- A pasted CSV does not preserve the original export filename. Do not claim absolute-versus-relative retention unless the evidence establishes it.
+- Give at most one concrete recommendation, tied to a measured finding. If no issue was found, say so rather than forcing a fix.
+Label findings MEASURED and interpretation INFERRED; label the next action RECOMMENDATION. Plain language, no performance promises.\`;
 
 function wireRetention() {
   byId("ret-analyze").addEventListener("click", async () => {
-    const csv = byId("ret-csv").value.trim();
-    const dur = byId("ret-duration").value.trim();
-    const out = byId("ret-output");
-    const btn = byId("ret-analyze");
-    if (!csv) { out.classList.remove("hidden"); out.textContent = "Paste a retention CSV first — YouTube Studio → Analytics → Reach → audience retention → export (.csv)."; return; }
-    btn.disabled = true;
-    out.classList.remove("hidden");
-    out.textContent = "Reading the curve…";
+    const csvText = byId("ret-csv").value.trim();
+    const duration = byId("ret-duration").value.trim();
+    const output = byId("ret-output");
+    const button = byId("ret-analyze");
+    if (!csvText) {
+      output.classList.remove("hidden");
+      output.textContent = "Paste a YouTube Studio audience-retention CSV first.";
+      return;
+    }
+    button.disabled = true;
+    output.classList.remove("hidden");
+    output.textContent = "Parsing the CSV with the Skillbox retention engine…";
     try {
-      const msg = `Duration: ${dur ? dur + "s" : "not provided — percentage positions"}\nRetention CSV (first 4000 chars):\n${csv.slice(0, 4000)}`;
-      out.textContent = await llm(RETENTION_SYSTEM, msg, 3000);
-    } catch (e) {
-      out.textContent = `Error: ${e.message || e}`;
+      const findings = await tool("retention", { csv: csvText, duration: duration || undefined });
+      if (!findings || findings.error) {
+        const detail = findings && findings.error ? findings.error : "The retention engine returned no findings.";
+        const columns = findings && findings.columns ? "\nColumns found: " + findings.columns.join(", ") : "";
+        throw new Error(detail + columns);
+      }
+      const measured = JSON.stringify(findings, null, 2);
+      let recommendation = "No AI recommendation generated. The measured findings are shown above.";
+      try {
+        recommendation = await llm(
+          RETENTION_SYSTEM,
+          "Measured retention analysis (do not recalculate):\n" + measured + "\n\nExplain the findings and give no more than one evidence-linked recommendation.",
+          1800
+        );
+      } catch (llmError) {
+        recommendation = "Host LLM unavailable: " + (llmError.message || llmError)
+          + ". Use the measured findings above; no recommendation was fabricated.";
+      }
+      output.textContent = "MEASURED FINDINGS · SKILLBOX ENGINE\n" + measured
+        + "\n\nINFERRED READ + RECOMMENDATION · ANNA HOST LLM\n" + recommendation;
+    } catch (error) {
+      output.textContent = "RETENTION ANALYSIS FAILED\n" + (error.message || error);
     } finally {
-      btn.disabled = false;
+      button.disabled = false;
     }
   });
 }
