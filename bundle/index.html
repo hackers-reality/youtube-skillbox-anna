@@ -3,197 +3,266 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
     <title>YouTube Skillbox</title>
-    <meta name="description" content="Evidence-backed YouTube audits, keyword research and content fixes — inside Anna." />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect x=%228%22 y=%228%22 width=%2276%22 height=%2276%22 rx=%2224%22 fill=%22%23ff5252%22/><polygon points=%2236,32 74,50 36,68%22 fill=%22white%22/></svg>" />
+    <meta name="description" content="Evidence-backed YouTube audits, keyword research and creator workflows — inside Anna AI OS." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect x=%228%22 y=%228%22 width=%2276%22 height=%2276%22 rx=%2220%22 fill=%22%23e5383b%22/><path d=%22M39 28v44l36-22z%22 fill=%22white%22/></svg>" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="ambient" aria-hidden="true">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-      <div class="orb orb-3"></div>
-    </div>
-
     <div class="app">
       <header class="topbar">
-        <div class="brand">
-          <div class="brand-badge">
-            <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
-              <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5252"/><stop offset=".5" stop-color="#f03e3e"/><stop offset="1" stop-color="#c40000"/></linearGradient></defs>
-              <rect x="5" y="5" width="90" height="90" rx="27" fill="url(#lg)"/>
-              <polygon points="35,29 74,50 35,71" fill="#fff"/>
-            </svg>
-          </div>
-          <div>
-            <h1>YouTube Skillbox</h1>
-            <div class="tagline">Channel Audit · Keywords · Content Studio</div>
-          </div>
-        </div>
+        <a class="brand" href="#tab-audit" aria-label="YouTube Skillbox home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M8.5 5.5v13L19 12z"/></svg>
+          </span>
+          <span class="brand-copy">
+            <strong>YouTube Skillbox</strong>
+            <span class="tagline">Your channel, measured.</span>
+          </span>
+        </a>
         <div class="head-right">
-          <span class="pill pill-live"><span class="pulse"></span>ANNA LIVE</span>
-          <span class="pill">open engine · $0 · no keys</span>
+          <span class="host-pill"><span class="host-dot"></span> ANNA APP</span>
+          <span class="host-caption">OPEN ENGINE · NO USER API KEYS</span>
         </div>
       </header>
 
-      <nav class="tabs" role="tablist" aria-label="Sections">
-        <button class="tab is-active" data-tab="audit" role="tab"><span class="tab-glyph">🎯</span>Audit</button>
-        <button class="tab" data-tab="studio" role="tab"><span class="tab-glyph">✍️</span>Content Studio</button>
-        <button class="tab" data-tab="retention" role="tab"><span class="tab-glyph">📉</span>Retention Fix</button>
+      <nav class="tabs" role="tablist" aria-label="Skillbox sections">
+        <button class="tab is-active" id="tab-button-audit" data-tab="audit" role="tab" aria-controls="tab-audit" aria-selected="true" tabindex="0">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 10.5h5"/></svg>
+          <span>Audit</span>
+        </button>
+        <button class="tab" id="tab-button-studio" data-tab="studio" role="tab" aria-controls="tab-studio" aria-selected="false" tabindex="-1">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5 11.8-11.8a2.5 2.5 0 0 1 3.5 3.5L7.5 20H4z"/><path d="m13.8 6.7 3.5 3.5"/></svg>
+          <span>Content Studio</span>
+        </button>
+        <button class="tab" id="tab-button-retention" data-tab="retention" role="tab" aria-controls="tab-retention" aria-selected="false" tabindex="-1">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4v16h18"/><path d="m6 9 4 3 3-5 5 7"/></svg>
+          <span>Retention Fix</span>
+        </button>
       </nav>
 
-      <main>
-        <!-- ── Audit ───────────────────────────── -->
-        <section id="tab-audit" class="panel is-active" role="tabpanel">
-          <div class="panel-head">
-            <div>
-              <div class="kicker">Audit — 01</div>
-              <h2>Your channel, measured.</h2>
-              <p>Subs, uploads, cadence, outliers & keyword angles — then Anna writes the one-sentence fix backed by your own numbers.</p>
+      <main id="app-main">
+        <div class="wrap">
+          <section id="tab-audit" class="panel is-active" role="tabpanel" aria-labelledby="tab-button-audit">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">AUDIT / 01</p>
+                <h1>Your channel, <em>measured.</em></h1>
+                <p class="lead">A public-data snapshot, the videos that outperform your audience size, and one fix grounded in the evidence.</p>
+              </div>
+              <div class="evidence-legend" aria-label="Evidence labels">
+                <span class="ev ev-measured">MEASURED</span>
+                <span class="ev ev-inferred">INFERRED</span>
+                <span class="ev ev-hypothesis">HYPOTHESIS</span>
+              </div>
             </div>
-            <div class="evidence-legend" aria-label="Evidence labels">
-              <span class="ev ev-measured">MEASURED</span>measured
-              <span class="ev ev-inferred">INFERRED</span>reasoned
-              <span class="ev ev-hypothesis">HYPOTHESIS</span>unvalidated
+
+            <div class="audit-form">
+              <label class="sr-only" for="audit-handle">Channel handle or URL</label>
+              <div class="input-shell">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+                <input id="audit-handle" type="text" placeholder="@yourchannel or youtube.com/@yourchannel" autocomplete="off" spellcheck="false" />
+                <button id="audit-run" class="btn btn-primary" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5.5v13L19 12z"/></svg>
+                  Run audit
+                </button>
+              </div>
             </div>
-          </div>
-
-          <div class="input-row">
-            <input id="audit-handle" type="text" placeholder="@your-channel or youtube.com/@your-channel" autocomplete="off" spellcheck="false" />
-            <button id="audit-run" class="btn btn-primary">Run Full Audit →</button>
-          </div>
-          <div class="chip-row" aria-label="Quick fill">
-            <span class="lbl">Try:</span>
-            <button class="chip" data-handle="@Moments_Unscriptedorignal">@Moments_Unscriptedorignal</button>
-            <button class="chip" data-handle="@MrBeast">@MrBeast</button>
-            <button class="chip" data-handle="@MKBHD">@MKBHD</button>
-          </div>
-          <p class="hint">60–120s · YouTube throttles hard from cloud IPs — if you hit 429, wait a minute and retry.</p>
-
-          <div id="audit-progress" class="progress hidden">
-            <div class="progress-label" id="audit-stage">Queueing audit…</div>
-            <div class="bar"><div id="audit-bar" class="bar-fill"></div></div>
-          </div>
-
-          <details id="audit-raw" class="rawbox hidden"><summary>Raw engine evidence (debug)</summary><pre id="audit-raw-pre"></pre></details>
-
-          <div id="audit-result" class="result hidden"></div>
-
-          <div class="saved-wrap">
-            <div class="saved-head"><h3>Recent audits</h3></div>
-            <ul id="saved-list" class="saved-list"><li class="empty">Nothing measured yet — run your first audit above.</li></ul>
-          </div>
-        </section>
-
-        <!-- ── Studio ──────────────────────────── -->
-        <section id="tab-studio" class="panel" role="tabpanel">
-          <div class="panel-head">
-            <div>
-              <div class="kicker">Studio — 02</div>
-              <h2>Draft it like it'll actually ship.</h2>
-              <p>The same playbook Skillbox uses inside the agent — hooks, titles, chapters, Shorts — packaged for one tap.</p>
+            <div class="chip-row" aria-label="Quick-fill channel examples">
+              <span class="muted-label">TRY A CHANNEL</span>
+              <button class="chip" data-handle="@Moments_Unscriptedorignal">@Moments_Unscriptedorignal</button>
+              <button class="chip" data-handle="@MrBeast">@MrBeast</button>
+              <button class="chip" data-handle="@MKBHD">@MKBHD</button>
             </div>
-          </div>
+            <p class="hint audit-hint">Uses public YouTube data. Requests can be rate-limited by YouTube; unavailable measurements stay unavailable.</p>
 
-          <div class="studio-grid">
-            <label class="field">
-              <span>Video idea</span>
-              <input id="studio-topic" type="text" placeholder="e.g. why your Shorts flop but your pod clips don't" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>Keyword (optional)</span>
-              <input id="studio-keyword" type="text" placeholder="e.g. youtube growth" autocomplete="off" />
-            </label>
-            <label class="field field-wide">
-              <span>Context / brainstorm</span>
-              <textarea id="studio-context" rows="2" placeholder="Rough notes, transcript excerpt, anything you already know…"></textarea>
-            </label>
-            <label class="field">
-              <span>Competitor channel (for content gap)</span>
-              <input id="lab-competitor" type="text" placeholder="@mrbeast or https://youtube.com/@…" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>Video URL (for SEO scorecard)</span>
-              <input id="lab-video" type="text" placeholder="https://youtube.com/watch?v=…" autocomplete="off" />
-            </label>
-          </div>
-
-          <div class="studio-actions">
-            <button class="btn btn-primary" data-task="hooks">21 Hook Options (scored)</button>
-            <button class="btn btn-primary" data-task="titles">5 Titles (linted)</button>
-            <button class="btn btn-primary" data-task="seo">Description + Tags</button>
-            <button class="btn btn-primary" data-task="chapters">Chapters</button>
-            <button class="btn btn-primary" data-task="shorts">3 Shorts inside</button>
-            <button class="btn btn-primary" data-task="full">Full pack ✦</button>
-          </div>
-
-          <div class="output-head" style="margin-top:18px">
-            <span>Keyword lab — measured research (free, no API key)</span>
-          </div>
-          <div class="studio-actions lab-actions">
-            <button class="btn" data-lab="search">Live search</button>
-            <button class="btn" data-lab="ideas">Keyword ideas</button>
-            <button class="btn" data-lab="compete">Competition</button>
-            <button class="btn" data-lab="verdict">GO / MAYBE / SKIP</button>
-            <button class="btn" data-lab="gap">Content gap</button>
-            <button class="btn" data-lab="scorecard">SEO scorecard</button>
-            <button class="btn btn-primary" data-lab="chain">Full research chain ✦</button>
-          </div>
-
-          <div class="studio-output">
-            <div class="output-head">
-              <span id="studio-task-label">Output</span>
-              <button id="studio-copy" class="btn btn-ghost btn-small">Copy</button>
+            <div id="audit-progress" class="progress hidden" role="status" aria-live="polite">
+              <div class="progress-top"><span class="progress-label" id="audit-stage">Preparing audit…</span><span class="progress-pct" id="audit-pct">0%</span></div>
+              <div class="bar" role="progressbar" aria-label="Audit progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="5"><div id="audit-bar" class="bar-fill"></div></div>
             </div>
-            <pre id="studio-pre" class="output-pre" tabindex="0">Choose a task above — the output lands here, labelled MEASURED / INFERRED.</pre>
-          </div>
 
-          <div class="studio-output">
-            <div class="output-head">
-              <span id="lab-label">Lab output</span>
-              <button id="lab-copy" class="btn btn-ghost btn-small">Copy</button>
+            <details id="audit-raw" class="rawbox hidden">
+              <summary><span>Raw engine evidence</span><span class="raw-meta">DEBUG OUTPUT</span></summary>
+              <pre id="audit-raw-pre"></pre>
+            </details>
+
+            <div id="audit-result" class="result hidden" aria-live="polite"></div>
+
+            <div class="saved-wrap">
+              <div class="section-head">
+                <div><p class="eyebrow">WORKSPACE</p><h2>Recent audits</h2></div>
+                <span class="section-note">Saved in Anna storage when available</span>
+              </div>
+              <ul id="saved-list" class="saved-list">
+                <li class="empty">No saved audits yet. Run an audit to create your first snapshot.</li>
+              </ul>
             </div>
-            <div id="lab-result" class="lab-result" tabindex="0">Run a lab task above — measured tables land here.</div>
-          </div>
-        </section>
+          </section>
 
-        <!-- ── Retention ───────────────────────── -->
-        <section id="tab-retention" class="panel" role="tabpanel">
-          <div class="panel-head">
-            <div>
-              <div class="kicker">Retention — 03</div>
-              <h2>Where the drop happens.</h2>
-              <p>Paste a Studio audience-retention CSV — get hook leak, cliffs and slide, with the exact fix.</p>
+          <section id="tab-studio" class="panel" role="tabpanel" aria-labelledby="tab-button-studio">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">CONTENT STUDIO / 02</p>
+                <h1>Draft it like it'll <em>actually ship.</em></h1>
+                <p class="lead">Turn a rough idea into a creator-ready pack. Research stays separate from creative suggestions, and every score says what it measures.</p>
+              </div>
             </div>
-          </div>
 
-          <div class="retention-grid">
-            <label class="field">
-              <span>Retention CSV</span>
-              <textarea id="ret-csv" spellcheck="false" placeholder="Video position (%),Percentage watched&#10;0,95.0&#10;3,88.2&#10;6,74.1&#10;…"></textarea>
-            </label>
-            <label class="field">
-              <span>Video length (seconds)</span>
-              <input id="ret-duration" type="number" min="1" placeholder="e.g. 720" />
-              <span class="hint">Only used to label timestamps — leave blank for percentage-based analysis.</span>
-              <button id="ret-analyze" class="btn btn-primary" style="margin-top:8px">Analyze curve →</button>
-            </label>
-          </div>
+            <div class="card studio-input-card">
+              <div class="section-head">
+                <div><p class="eyebrow">START WITH THE IDEA</p><h2>Give the video a direction</h2></div>
+                <span class="section-note">Host LLM · Anna</span>
+              </div>
+              <div class="studio-grid">
+                <label class="field">
+                  <span>Video idea</span>
+                  <input id="studio-topic" type="text" placeholder="What is the video about?" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Target keyword <small>OPTIONAL</small></span>
+                  <input id="studio-keyword" type="text" placeholder="e.g. space facts for kids" autocomplete="off" />
+                </label>
+                <label class="field field-wide">
+                  <span>Context, notes or transcript excerpt <small>OPTIONAL</small></span>
+                  <textarea id="studio-context" rows="3" placeholder="Audience, evidence, video outline, transcript excerpt, tone or constraints…"></textarea>
+                </label>
+              </div>
+            </div>
 
-          <details class="rawbox"><summary>What the analysis checks</summary>
-            <p class="hint" style="margin-top:8px">Hook leak = retention at 30s vs peak (below 25% = leak). Cliffs = sudden &gt;10pt drops between points. Slide = sustained decline over 3+ points. Everything labelled MEASURED / INFERRED / RECOMMENDATION. No invented numbers.</p>
-          </details>
+            <div class="card mt">
+              <div class="section-head">
+                <div><p class="eyebrow">WRITE PACK</p><h2>Build the pieces</h2><p class="section-copy">Generate one asset or the complete workflow. Nothing is published automatically.</p></div>
+              </div>
+              <div class="studio-actions">
+                <button class="btn btn-primary" data-task="hooks">21 hook options</button>
+                <button class="btn" data-task="titles">5 title options</button>
+                <button class="btn" data-task="seo">Description + tags</button>
+                <button class="btn" data-task="chapters">Chapters</button>
+                <button class="btn" data-task="shorts">Shorts extraction</button>
+                <button class="btn btn-quiet" data-task="full">Generate full pack</button>
+              </div>
+              <div class="studio-output">
+                <div class="output-head">
+                  <div><span id="studio-task-label">WRITE PACK OUTPUT</span><span class="output-sub">AI-generated draft · review before publishing</span></div>
+                  <button id="studio-copy" class="btn btn-quiet btn-small" type="button">Copy output</button>
+                </div>
+                <pre id="studio-pre" class="output-pre" tabindex="0" aria-live="polite">Choose a writing task above. Your draft will appear here.</pre>
+              </div>
+            </div>
 
-          <pre id="ret-output" class="output-pre hidden"></pre>
-        </section>
+            <div class="card mt keyword-card">
+              <div class="section-head">
+                <div><p class="eyebrow">KEYWORD LAB</p><h2>Measured research, not guesswork.</h2><p class="section-copy">Live YouTube search, keyword ideas, competition, content gaps and SEO checks. Free public endpoints; no user API key.</p></div>
+              </div>
+              <div class="studio-grid lab-input-grid">
+                <label class="field">
+                  <span>Research seed</span>
+                  <input id="lab-seed" type="text" placeholder="Uses target keyword or video idea above" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Competitor channel <small>FOR CONTENT GAP</small></span>
+                  <input id="lab-competitor" type="text" placeholder="@competitor or channel URL" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Video URL <small>FOR SEO SCORECARD / RANK TRACKING</small></span>
+                  <input id="lab-video" type="text" placeholder="https://youtube.com/watch?v=…" autocomplete="off" />
+                </label>
+                <label class="field field-pair">
+                  <span>Search region</span>
+                  <select id="lab-region" aria-label="Search region">
+                    <option value="IN" selected>India</option>
+                    <option value="US">United States</option>
+                    <option value="GB">United Kingdom</option>
+                    <option value="CA">Canada</option>
+                    <option value="AU">Australia</option>
+                  </select>
+                </label>
+                <label class="field field-pair">
+                  <span>Search language</span>
+                  <select id="lab-language" aria-label="Search language">
+                    <option value="en" selected>English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="mr">Marathi</option>
+                  </select>
+                </label>
+              </div>
+              <div class="studio-actions lab-actions">
+                <button class="btn" data-lab="search">Live search</button>
+                <button class="btn" data-lab="ideas">Keyword ideas</button>
+                <button class="btn" data-lab="compete">Competition</button>
+                <button class="btn" data-lab="verdict">GO / MAYBE / SKIP</button>
+                <button class="btn" data-lab="gap">Content gap</button>
+                <button class="btn" data-lab="scorecard">SEO scorecard</button>
+                <button class="btn btn-quiet" data-lab="chain">Full research chain</button>
+              </div>
+              <div class="studio-output">
+                <div class="output-head">
+                  <div><span id="lab-label">KEYWORD LAB OUTPUT</span><span class="output-sub">Tool measurements · source-linked results</span></div>
+                  <button id="lab-copy" class="btn btn-quiet btn-small" type="button">Copy results</button>
+                </div>
+                <div id="lab-result" class="lab-result" tabindex="0" aria-live="polite">Run a research task to see measured tables and an evidence-backed read.</div>
+              </div>
+            </div>
+          </section>
+
+          <section id="tab-retention" class="panel" role="tabpanel" aria-labelledby="tab-button-retention">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">RETENTION FIX / 03</p>
+                <h1>Where the drop <em>happens.</em></h1>
+                <p class="lead">Read a YouTube Studio retention export and identify the moments worth reviewing. Analysis is based on the CSV's actual time axis.</p>
+              </div>
+            </div>
+            <div class="retention-grid">
+              <div class="card">
+                <label class="field" for="ret-csv">
+                  <span>Audience-retention CSV</span>
+                  <textarea id="ret-csv" rows="12" spellcheck="false" placeholder="Video position (%),Percentage watched&#10;0,95.0&#10;3,88.2&#10;6,74.1&#10;…"></textarea>
+                </label>
+                <div class="ret-controls">
+                  <label class="field duration-field">
+                    <span>Video duration <small>SECONDS · OPTIONAL</small></span>
+                    <input id="ret-duration" type="number" min="1" placeholder="e.g. 720" />
+                  </label>
+                  <button id="ret-analyze" class="btn btn-primary" type="button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4v16h18"/><path d="m6 9 4 3 3-5 5 7"/></svg>
+                    Analyze retention
+                  </button>
+                </div>
+                <p class="hint">Use the exported CSV from YouTube Studio. Percentage positions remain percentages unless a duration is supplied; the analyzer won't invent timestamps.</p>
+              </div>
+              <aside class="card card-muted">
+                <p class="eyebrow">WHAT THE ANALYSIS CHECKS</p>
+                <div class="rule">
+                  <span class="rule-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span>
+                  <div><strong>Hook leak</strong><p>Early retention loss in the first 30 seconds, or first 30% when the export uses a percentage axis.</p></div>
+                </div>
+                <div class="rule">
+                  <span class="rule-icon"><svg viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4.5M12 17.5v.01"/></svg></span>
+                  <div><strong>Cliffs</strong><p>Sudden drops between adjacent measurements. Every drop is shown with its actual position.</p></div>
+                </div>
+                <div class="rule">
+                  <span class="rule-icon"><svg viewBox="0 0 24 24"><path d="M3 4v16h18"/><path d="m6 8 4 3 4 3 4 2"/></svg></span>
+                  <div><strong>Slide</strong><p>Average decline across the curve. A per-minute rate is only reported when elapsed time is known.</p></div>
+                </div>
+                <p class="rule-note">MEASURED findings are calculated from the CSV. Any creative fix is labelled separately as a recommendation.</p>
+              </aside>
+            </div>
+            <div class="studio-output retention-output">
+              <div class="output-head"><div><span>RETENTION REPORT</span><span class="output-sub">CSV-derived findings</span></div></div>
+              <pre id="ret-output" class="output-pre hidden" aria-live="polite"></pre>
+            </div>
+          </section>
+        </div>
       </main>
 
       <footer class="statusbar">
         <span id="status-dot" class="dot"></span>
-        <span id="status-text">Connecting to host…</span>
+        <span id="status-text">Connecting to Anna host…</span>
         <span class="spacer"></span>
-        <a id="repo-link" href="https://github.com/hackers-reality/youtube-skillbox-anna">github.com/hackers-reality/youtube-skillbox-anna</a>
-        <span class="foot-note"> · MIT</span>
+        <a id="repo-link" href="https://github.com/hackers-reality/youtube-skillbox-anna" target="_blank" rel="noopener">SOURCE REPOSITORY</a>
+        <span class="foot-note">MIT</span>
       </footer>
     </div>
 
