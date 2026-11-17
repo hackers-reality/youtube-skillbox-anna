@@ -477,20 +477,48 @@ function wireStudio() {
     button.addEventListener("click", async () => {
       const topic = byId("studio-topic").value.trim();
       const keyword = byId("studio-keyword").value.trim();
+      const thumbnailText = byId("studio-thumb").value.trim();
       const context = byId("studio-context").value.trim();
+      const video = byId("lab-video").value.trim();
       const output = byId("studio-pre");
       const label = byId("studio-task-label");
       const task = button.dataset.task;
-      if (!topic) {
+
+      if (task === "transcript" && !video) {
+        output.textContent = "Add a video URL or ID in the Keyword Lab video field first.";
+        return;
+      }
+      if (task !== "transcript" && !topic) {
         output.textContent = "Add a video idea first. A rough sentence is enough.";
         return;
       }
+
       $$(".studio-actions [data-task]").forEach((item) => (item.disabled = true));
       label.textContent = "WORKING · " + button.textContent.trim();
-      output.textContent = "Drafting…";
+      output.textContent = task === "transcript" ? "Fetching available captions…" : "Drafting…";
       try {
+        if (task === "transcript") {
+          const transcriptResult = await tool("transcribe", {
+            video,
+            language: byId("lab-language").value || "en"
+          }, 120000);
+          if (!transcriptResult || !transcriptResult.transcript) {
+            throw new Error("No usable transcript text was returned for this video.");
+          }
+          const transcriptText = String(transcriptResult.transcript).trim();
+          byId("studio-context").value = transcriptText;
+          output.textContent = "TRANSCRIPT FETCHED · " + (transcriptResult.title || video) + "\n"
+            + "Channel: " + (transcriptResult.channel || "Not returned") + "\n"
+            + "Language: " + (transcriptResult.language || "Not returned") + "\n"
+            + "Transcript copied into the Context field so Chapters, Shorts and the full pack can use it.\n\n"
+            + transcriptText;
+          label.textContent = "TRANSCRIPT · READY FOR CREATION";
+          return;
+        }
+
         const userMessage = "Topic: " + topic + "\n"
           + (keyword ? "Target keyword: " + keyword + "\n" : "")
+          + (thumbnailText ? "Existing thumbnail text: " + thumbnailText + "\n" : "")
           + (context ? "Context and source notes:\n" + context.slice(0, 5000) + "\n" : "")
           + "\nCreate the requested asset now.";
         const generated = await llm(TASK_PROMPTS[task] || TASK_PROMPTS.full, userMessage, task === "hooks" ? 4200 : 3000);
@@ -521,7 +549,10 @@ function wireStudio() {
             return;
           }
           try {
-            const linted = await tool("title_lint", { titles });
+            const linted = await tool("title_lint", {
+              titles,
+              thumbnail_text: thumbnailText || undefined
+            });
             output.textContent = renderTitleLint(linted);
             label.textContent = "TITLES · " + (linted.count || titles.length) + " LINTED";
           } catch (lintError) {
