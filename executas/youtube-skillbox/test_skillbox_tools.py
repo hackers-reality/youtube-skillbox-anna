@@ -13,6 +13,8 @@ from youtube_skillbox_plugin import (
     _hookscore,
     _parse_retention_csv,
     _title_lint,
+    _vtt_to_segments,
+    _vtt_to_text,
     invoke,
 )
 
@@ -93,6 +95,22 @@ class CreatorToolTests(unittest.TestCase):
         self.assertIn("not applicable", result["hook_leak"]["severity"])
         self.assertTrue(result["slide"]["absolute_retention_detected"])
         self.assertIn("not applicable", result["slide"]["severity"])
+
+    def test_webvtt_parser_preserves_real_cue_timestamps(self):
+        vtt = (
+            "WEBVTT\\n\\n"
+            "00:00:01.000 --> 00:00:02.500\\n"
+            "Hello <i>world</i>!\\n\\n"
+            "00:00:03.000 --> 00:00:04.250\\n"
+            "Next cue &amp; more.\\n"
+        )
+        segments = _vtt_to_segments(vtt)
+        self.assertEqual(len(segments), 2)
+        self.assertEqual(segments[0]["start"], 1.0)
+        self.assertEqual(segments[0]["duration"], 1.5)
+        self.assertEqual(segments[0]["end"], 2.5)
+        self.assertEqual(segments[1]["start"], 3.0)
+        self.assertEqual(_vtt_to_text(vtt), "Hello world! Next cue & more.")
 
     def test_describe_manifest_exposes_full_channel_research_surface(self):
         names = {item["name"] for item in MANIFEST["tools"]}
