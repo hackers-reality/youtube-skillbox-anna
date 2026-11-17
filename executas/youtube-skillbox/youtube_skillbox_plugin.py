@@ -431,6 +431,19 @@ def _vtt_to_text(vtt: str) -> str:
     return " ".join(segment["text"] for segment in _vtt_to_segments(vtt)).strip()
 
 
+def _detect_original_caption_language(info):
+    """Mirror the upstream transcript skill's original-language heuristic."""
+    for key in ("subtitles", "automatic_captions"):
+        tracks = info.get(key) or {}
+        for lang in sorted(tracks):
+            if str(lang).endswith("-orig"):
+                return str(lang)[:-5]
+        for lang in sorted(tracks):
+            if lang == "en":
+                return "en"
+    return None
+
+
 def _transcribe(video: str, language: str) -> dict:
     if not video:
         return {"success": False, "error": "video URL or ID required"}
@@ -450,37 +463,56 @@ def _transcribe(video: str, language: str) -> dict:
         "subtitlesformat": "vtt",
     }
     try:
-        # Discover the video's language and caption tracks first. Default auto
-        # mirrors the upstream transcript skill: original language, detected
-        # spoken language, then English; never request every translated track.
+        # Enumerate available tracks first; do not silently treat English
+        # auto-translation as the original spoken language.
         with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
 
         manual = info.get("subtitles") or {}
         automatic = info.get("automatic_captions") or {}
         available = list(dict.fromkeys([*manual.keys(), *automatic.keys()]))
-        original_track = next((code for code in available if str(code).endswith("-orig")), None)
-        detected_language = info.get("language")
         if requested_language in {"", "auto", "original"}:
-            preference = [original_track, detected_language, "en"]
+            original_language = _detect_original_caption_language(info)
+            if not original_language:
+                return {
+                    "success": False,
+                    "error": "could not determine the original caption language; choose a language explicitly",
+                    "available_languages": available[:40],
+                }
+            preference = [original_language]
+            if original_language != "en":
+                preference.append("en")
         else:
-            preference = [requested_language, "en"]
-        preference = list(dict.fromkeys(code for code in preference if code))
+            original_language = None
+            preference = [requested_language]
+            if requested_language != "en":
+                preference.append("en")
 
-        if not preference:
-            return {"success": False, "error": "could not determine a caption language; choose one in the language field"}
-
-        opts["subtitleslangs"] = preference
+        opts["subtitleslangs"] = [f"{lang}.*" for lang in preference]
         with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
         caps = info.get("requested_subtitles") or {}
-        chosen = next((lang for lang in preference if caps.get(lang)), None)
+
+        chosen = None
+        for preferred in preference:
+            candidates = [
+                code for code in caps
+                if code == preferred or str(code).startswith(preferred + "-")
+            ]
+            candidates.sort(key=lambda code: (
+                0 if str(code).endswith("-orig") else 1,
+                0 if code in manual else 1,
+                str(code),
+            ))
+            if candidates:
+                chosen = candidates[0]
+                break
         if chosen is None:
             return {
                 "success": False,
                 "error": "no captions available for the requested original-language/English pair",
                 "requested_languages": preference,
-                "available_languages": available,
+                "available_languages": available[:40],
             }
 
         import urllib.request
@@ -500,6 +532,7 @@ def _transcribe(video: str, language: str) -> dict:
                 "channel": info.get("channel"),
                 "title": info.get("title"),
                 "language": chosen,
+                "original_language": original_language,
                 "generated": chosen not in manual,
                 "duration_seconds": info.get("duration"),
                 "segment_count": len(segments),
