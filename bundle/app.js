@@ -730,7 +730,7 @@ function renderSearchLab(d) {
 }
 
 function renderIdeasLab(d) {
-  const kws = (d && (d.keywords || d.ideas)) || [];
+  const kws = (d && (d.keywords || d.ideas || d.items)) || [];
   if (!kws.length) return `<p class="hint">No keyword ideas returned.</p>`;
   const rows = kws.slice(0, 15).map((k) => {
     const flags = [k.year_trend ? "YEAR TREND" : "", k.question ? "QUESTION" : ""].filter(Boolean);
@@ -821,9 +821,10 @@ async function runLab(kind) {
   const seed = labSeed();
   const competitor = byId("lab-competitor").value.trim();
   const video = byId("lab-video").value.trim();
+  const playlist = byId("lab-playlist").value.trim();
   const gl = byId("lab-region").value || "IN";
   const hl = byId("lab-language").value || "en";
-  const T = 85000;
+  const T = kind === "outliers" ? 180000 : 85000;
 
   const need = (condition, message) => {
     if (condition) return true;
@@ -834,7 +835,9 @@ async function runLab(kind) {
   if (["search", "ideas", "compete", "verdict", "chain", "trends", "track"].includes(kind)
       && !need(seed, "Enter a research seed or video idea first.")) return;
   if (kind === "gap" && !need(seed && competitor, "Content gap needs a seed and competitor channel (for example, @channel).")) return;
-  if (kind === "scorecard" && !need(video, "SEO scorecard needs a video URL or 11-character video ID.")) return;
+  if (kind === "outliers" && !need(competitor, "Competitor outliers needs a channel handle in the Competitor field.")) return;
+  if (["info", "scorecard"].includes(kind) && !need(video, "This task needs a video URL or 11-character video ID.")) return;
+  if (kind === "playlist" && !need(playlist, "Playlist contents needs a YouTube playlist URL or ID.")) return;
   if (kind === "track" && !need(video, "Rank tracking needs the video URL or ID to track.")) return;
 
   $$(".lab-actions [data-lab]").forEach((button) => (button.disabled = true));
@@ -866,6 +869,15 @@ async function runLab(kind) {
     } else if (kind === "gap") {
       step("COMPARING CHANNEL KEYWORD SETS…");
       html = renderGapLab(await tool("gap", { seed, competitor }, T));
+    } else if (kind === "outliers") {
+      step("SCANNING COMPETITOR UPLOADS FOR OUTLIERS…");
+      html = renderJsonLab("Competitor outliers · " + competitor, await tool("outliers", { handle: competitor, min_ratio: 2.0 }, T));
+    } else if (kind === "info") {
+      step("FETCHING VIDEO METADATA…");
+      html = renderJsonLab("Video metadata", await tool("info", { video }, T));
+    } else if (kind === "playlist") {
+      step("FETCHING PLAYLIST CONTENTS…");
+      html = renderJsonLab("Playlist contents", await tool("playlist", { playlist, limit: 30 }, T));
     } else if (kind === "scorecard") {
       step("FETCHING VIDEO METADATA…");
       html = renderScorecardLab(await tool("scorecard", { video, keyword: seed }, T));
