@@ -435,7 +435,7 @@ async function runExplorer(kind) {
       label: "Recent Shorts",
       method: "channel",
       args: { handle, limit: 20, tab: "shorts", with_duration: true },
-      timeout: 120000
+      timeout: 180000
     },
     posts: {
       label: "Community posts",
