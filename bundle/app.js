@@ -813,7 +813,7 @@ const RETENTION_SYSTEM = [
   "A pasted CSV does not preserve the original export filename. Do not claim absolute-versus-relative retention unless the evidence establishes it.",
   "Give at most one concrete recommendation, tied to a measured finding. If no issue was found, say so rather than forcing a fix.",
   "Label findings MEASURED and interpretation INFERRED; label the next action RECOMMENDATION. Plain language, no performance promises."
-].join("\\n");
+].join("\n");
 function wireRetention() {
   byId("ret-analyze").addEventListener("click", async () => {
     const csvText = byId("ret-csv").value.trim();
