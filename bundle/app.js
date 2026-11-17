@@ -405,7 +405,7 @@ async function renderSavedList() {
 
 /* ---------- channel explorer ---------- */
 function wireExplorer() {
-  $(".explorer-actions [data-explore]").forEach((button) => {
+  $$(".explorer-actions [data-explore]").forEach((button) => {
     button.addEventListener("click", () => runExplorer(button.dataset.explore));
   });
 }
@@ -413,7 +413,7 @@ function wireExplorer() {
 async function runExplorer(kind) {
   const handle = byId("audit-handle").value.trim();
   const output = byId("audit-explorer-result");
-  const buttons = $(".explorer-actions [data-explore]");
+  const buttons = $$(".explorer-actions [data-explore]");
   if (!handle) {
     output.textContent = "Enter a channel handle above before browsing its public surfaces.";
     return;

@@ -30,6 +30,7 @@ jobs:
           node --check /tmp/skillbox-app.mjs
           node --check bundle/anna-tool-runtime.mjs
           node bundle/anna-tool-runtime.test.mjs
+          node bundle/frontend-regression.test.mjs
           node --check bundle/anna-tool-ids.js
 
       - name: Set up Python
