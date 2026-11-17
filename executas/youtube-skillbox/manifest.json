@@ -136,6 +136,20 @@
           "description": "Max ideas to return.",
           "required": false,
           "default": 25
+        },
+        {
+          "name": "gl",
+          "type": "string",
+          "description": "Two-letter region code used for locale-pinned YouTube search.",
+          "required": false,
+          "default": "US"
+        },
+        {
+          "name": "hl",
+          "type": "string",
+          "description": "Language code used for locale-pinned YouTube search.",
+          "required": false,
+          "default": "en"
         }
       ],
       "timeout": 90
@@ -389,6 +403,64 @@
         }
       ],
       "timeout": 10
+    },
+    {
+      "name": "track",
+      "description": "Check where a video appears for a keyword in YouTube search and compare with saved position history. Results are locale-specific and only exist after a successful measurement.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "description": "Keyword to track.",
+          "required": true
+        },
+        {
+          "name": "video",
+          "type": "string",
+          "description": "Video URL or ID.",
+          "required": true
+        },
+        {
+          "name": "gl",
+          "type": "string",
+          "description": "Two-letter region code.",
+          "required": false,
+          "default": "US"
+        },
+        {
+          "name": "hl",
+          "type": "string",
+          "description": "Language code.",
+          "required": false,
+          "default": "en"
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "trends",
+      "description": "Read historical keyword-demand snapshots saved by previous keyword research runs. Returns no trend until history exists.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "seed",
+          "type": "string",
+          "description": "Keyword seed to inspect.",
+          "required": true
+        }
+      ],
+      "timeout": 90
     }
   ],
   "credentials": [],
