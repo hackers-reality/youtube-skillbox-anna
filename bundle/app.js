@@ -109,11 +109,31 @@ async function storageSet(key, value) {
 
 /* ---------- tabs ---------- */
 function wireTabs() {
-  $$(".tab").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      $$(".tab").forEach((b) => b.classList.toggle("is-active", b === btn));
-      $$(".panel").forEach((p) => p.classList.remove("is-active"));
-      byId(`tab-${btn.dataset.tab}`)?.classList.add("is-active");
+  const tabButtons = $$(".tab");
+  function activateTab(btn, moveFocus = false) {
+    tabButtons.forEach((item) => {
+      const active = item === btn;
+      item.classList.toggle("is-active", active);
+      item.setAttribute("aria-selected", String(active));
+      item.tabIndex = active ? 0 : -1;
+      const panel = byId("tab-" + item.dataset.tab);
+      if (panel) panel.classList.toggle("is-active", active);
+    });
+    if (moveFocus) btn.focus();
+    byId("app-main")?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  tabButtons.forEach((btn, index) => {
+    btn.addEventListener("click", () => activateTab(btn));
+    btn.addEventListener("keydown", (event) => {
+      let next = null;
+      if (event.key === "ArrowRight") next = tabButtons[(index + 1) % tabButtons.length];
+      if (event.key === "ArrowLeft") next = tabButtons[(index - 1 + tabButtons.length) % tabButtons.length];
+      if (event.key === "Home") next = tabButtons[0];
+      if (event.key === "End") next = tabButtons[tabButtons.length - 1];
+      if (next) {
+        event.preventDefault();
+        activateTab(next, true);
+      }
     });
   });
 }
@@ -154,7 +174,14 @@ async function runAudit(handle) {
   btn.disabled = true;
   rawBox.classList.add("hidden");
 
-  const setStage = (pct, text) => { bar.style.width = pct + "%"; stage.textContent = text; };
+  const pctLabel = byId("audit-pct");
+  const setStage = (pct, text) => {
+    bar.style.width = pct + "%";
+    stage.textContent = text;
+    if (pctLabel) pctLabel.textContent = pct + "%";
+    const progressBar = progress.querySelector('[role="progressbar"]');
+    if (progressBar) progressBar.setAttribute("aria-valuenow", String(pct));
+  };
   setStage(5, "Fetching channel snapshot…");
 
   const jobs = [
@@ -191,8 +218,8 @@ async function runAudit(handle) {
       <div class="audit-report" style="margin-top:8px">
         <strong>MEASURED:</strong> 0 of ${jobs.length} tool calls succeeded.<br><br>
         <strong>Errors:</strong><br>${Object.entries(errors).map(([k,v]) => `• <strong>${escapeHtml(k)}</strong> — ${escapeHtml(v.slice(0,300))}`).join("<br>")}<br><br>
-        <strong>Likely cause:</strong> YouTube throttles datacenter IPs (HTTP 429). The Anna agent in this region is being treated as a bot.<br><br>
-        <strong>This is not a fabricated verdict.</strong> The app refuses to invent numbers. If Anna's cloud is blocked for this host, the same audit works fine from your own machine (<code>pip install youtube-skillbox</code>).
+        <strong>What to check:</strong> inspect the raw tool responses, confirm the Executa is available to this Anna host, and retry later if the provider rate-limited the request.<br><br>
+        <strong>No verdict was generated.</strong> Missing measurements are never replaced with sample numbers.
       </div>
     </div>`;
     result.classList.remove("hidden");
@@ -265,17 +292,17 @@ function renderAuditCards(handle, ev, verdict) {
 
   return `
   <div class="card">
-    <h3>📊 MEASURED — Channel snapshot <span class="ev ev-measured">MEASURED</span></h3>
+    <h3>MEASURED — Channel snapshot <span class="ev ev-measured">MEASURED</span></h3>
     <div class="grid-2">
       <div class="stat"><div class="n">${escapeHtml(String(subs))}</div><div class="k">Subs</div></div>
       <div class="stat"><div class="n">${escapeHtml(String(videos))}<span style="color:var(--text-dim);font-size:15px"> / ${escapeHtml(String(shorts))}</span></div><div class="k">Long-form / Shorts</div></div>
     </div>
   </div>
 
-  ${outliers.length ? `<div class="card"><h3>🚀 Outliers — what's breaking <span class="ev ev-measured">MEASURED</span></h3>
+  ${outliers.length ? `<div class="card"><h3>Outliers — what's breaking <span class="ev ev-measured">MEASURED</span></h3>
     <table class="tbl"><thead><tr><th>Video</th><th>Views</th><th>Views/Subs</th></tr></thead><tbody>${outRows}</tbody></table></div>` : ""}
 
-  ${kwRows ? `<div class="card"><h3>🔑 Keyword angles <span class="ev ev-measured">MEASURED</span> · <span class="hint" style="margin:0">verdicts are INFERRED</span></h3>
+  ${kwRows ? `<div class="card"><h3>Keyword angles <span class="ev ev-measured">MEASURED</span> · <span class="hint" style="margin:0">verdicts are INFERRED</span></h3>
     <table class="tbl"><thead><tr><th>Idea</th><th>Opportunity</th><th>Competition</th><th>Call</th></tr></thead><tbody>${kwRows}</tbody></table></div>` : ""}
 
   <div class="card bigfix">
@@ -459,8 +486,9 @@ function renderIdeasLab(d) {
   const kws = (d && (d.keywords || d.ideas)) || [];
   if (!kws.length) return `<p class="hint">No keyword ideas returned.</p>`;
   const rows = kws.slice(0, 15).map((k) => {
-    const flags = (k.year_trend ? " 📈" : "") + (k.question ? " ❓" : "");
-    return `<tr><td>${escapeHtml(String(k.keyword || ""))}${flags}</td><td>${Number(k.opportunity_score ?? k.score ?? 0)}</td></tr>`;
+    const flags = [k.year_trend ? "YEAR TREND" : "", k.question ? "QUESTION" : ""].filter(Boolean);
+    const annotation = flags.length ? ` <span class="hint">${escapeHtml(flags.join(" · "))}</span>` : "";
+    return `<tr><td>${escapeHtml(String(k.keyword || ""))}${annotation}</td><td>${Number(k.opportunity_score ?? k.score ?? 0)}</td></tr>`;
   }).join("");
   const meta = d.seed ? `<div class="hint" style="margin:0 0 6px">seed “${escapeHtml(d.seed)}” · ${escapeHtml(String(d.unique ?? kws.length))} unique from ${escapeHtml(String(d.queries ?? "?"))} queries · 📈 year in keyword · ❓ question-form</div>` : "";
   return `<div class="lab-sec">Keyword ideas (suggest + DDG demand) <span class="ev ev-measured">MEASURED</span></div>${meta}` + labTable(["Keyword", "Opportunity"], rows);
@@ -513,7 +541,7 @@ function renderGapLab(d) {
 
 function renderScorecardLab(d) {
   if (!d || d.score === undefined) return `<p class="hint">No scorecard returned.</p>`;
-  const rows = (d.checks || []).map((c) => `<tr><td>${c.pass ? "✅" : "❌"}</td><td>${escapeHtml(String(c.name || ""))}</td><td>${escapeHtml(String(c.weight ?? ""))}</td><td>${escapeHtml(String(c.detail || "").slice(0, 110))}</td></tr>`).join("");
+  const rows = (d.checks || []).map((c) => `<tr><td>${c.pass ? "PASS" : "FAIL"}</td><td>${escapeHtml(String(c.name || ""))}</td><td>${escapeHtml(String(c.weight ?? ""))}</td><td>${escapeHtml(String(c.detail || "").slice(0, 110))}</td></tr>`).join("");
   return `
   <div class="lab-sec">SEO scorecard — ${escapeHtml(String(d.video_id || ""))}${d.target_keyword ? ` · target “${escapeHtml(String(d.target_keyword))}”` : ""} <span class="ev ev-measured">MEASURED</span></div>
   <div class="stat" style="margin-bottom:8px"><div class="n">${escapeHtml(String(d.score))}<span style="font-size:13px;color:var(--text-dim)">/100</span></div><div class="k">seo score</div></div>
