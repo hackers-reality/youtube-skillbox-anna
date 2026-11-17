@@ -7,6 +7,7 @@
  */
 
 import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
+import { invokeAnnaTool } from "./anna-tool-runtime.mjs";
 
 const TOOL_ID = (typeof window !== "undefined" && window.__ANNA_TOOL_IDS__ && window.__ANNA_TOOL_IDS__["youtube-skillbox"]) || "bundled:youtube-skillbox";
 const AUDITS_KEY = "youtube-skillbox:audits";
@@ -55,13 +56,7 @@ async function tool(method, args, timeoutMs, options = {}) {
   const request = { tool_id: TOOL_ID, method, args: args || {} };
   if (Number.isFinite(timeoutMs) && timeoutMs > 0) request.timeoutMs = timeoutMs;
 
-  // Anna's synchronous invoke path is capped at 90 seconds. Long engine
-  // operations (notably channel outlier scans) must use the durable job API.
-  const res = timeoutMs > 90000
-    ? (typeof anna.tools.invokeAsyncAwait === "function"
-        ? await anna.tools.invokeAsyncAwait(request, options)
-        : (() => { throw new Error("This Anna host SDK does not expose invokeAsyncAwait; update the Anna app runtime before running this long task."); })())
-    : await anna.tools.invoke(request);
+  const res = await invokeAnnaTool(anna, request, options);
 
   if (res === undefined || res === null) throw new Error("tool returned no data");
   if (typeof res !== "object") return res;
