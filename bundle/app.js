@@ -219,7 +219,15 @@ async function runAudit(handle) {
   for (const job of jobs) {
     setStage(15 + okSteps * 18, `Running ${job.label}…`);
     try {
-      evidence[job.key] = await tool(job.key, job.args, job.timeoutMs);
+      evidence[job.key] = await tool(job.key, job.args, job.timeoutMs, {
+        onProgress: (event) => {
+          const phase = event && typeof event.type === "string" ? event.type : "working";
+          const detail = event && event.data && typeof event.data === "object"
+            ? event.data.message || event.data.stage || event.data.phase
+            : event && event.data;
+          setStage(15 + okSteps * 18, `Running ${job.label} · ${String(detail || phase)}…`);
+        }
+      });
       anyOk = true;
     } catch (e) {
       const msg = String(e.message || e);
@@ -421,7 +429,7 @@ async function runExplorer(kind) {
       label: "Recent channel uploads",
       method: "channel",
       args: { handle, limit: 20, tab: "videos", with_duration: true },
-      timeout: 120000
+      timeout: 180000
     },
     shorts: {
       label: "Recent Shorts",
@@ -454,7 +462,16 @@ async function runExplorer(kind) {
   buttons.forEach((button) => (button.disabled = true));
   output.innerHTML = '<p class="hint">Fetching ' + escapeHtml(request.label.toLowerCase()) + '…</p>';
   try {
-    const data = await tool(request.method, request.args, request.timeout);
+    const data = await tool(request.method, request.args, request.timeout, {
+      onProgress: (event) => {
+        const phase = event && typeof event.type === "string" ? event.type : "working";
+        const detail = event && event.data && typeof event.data === "object"
+          ? event.data.message || event.data.stage || event.data.phase
+          : event && event.data;
+        output.innerHTML = '<p class="hint">' + escapeHtml(request.label) + ' · '
+          + escapeHtml(String(detail || phase)) + '…</p>';
+      }
+    });
     output.innerHTML = renderJsonLab(request.label + " · " + handle, data);
   } catch (error) {
     output.innerHTML = '<p class="hint">Channel research failed: '
@@ -905,7 +922,15 @@ async function runLab(kind) {
       html = renderGapLab(await tool("gap", { seed, competitor }, T));
     } else if (kind === "outliers") {
       step("SCANNING COMPETITOR UPLOADS FOR OUTLIERS…");
-      html = renderJsonLab("Competitor outliers · " + competitor, await tool("outliers", { handle: competitor, min_ratio: 2.0 }, T));
+      html = renderJsonLab("Competitor outliers · " + competitor, await tool("outliers", { handle: competitor, min_ratio: 2.0 }, T, {
+        onProgress: (event) => {
+          const phase = event && typeof event.type === "string" ? event.type : "working";
+          const detail = event && event.data && typeof event.data === "object"
+            ? event.data.message || event.data.stage || event.data.phase
+            : event && event.data;
+          step("SCANNING COMPETITOR UPLOADS · " + String(detail || phase).toUpperCase() + "…");
+        }
+      }));
     } else if (kind === "info") {
       step("FETCHING VIDEO METADATA…");
       html = renderJsonLab("Video metadata", await tool("info", { video }, T));
