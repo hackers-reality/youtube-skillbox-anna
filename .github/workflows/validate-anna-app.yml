@@ -35,6 +35,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install Anna CLI
+        run: npm install --global @anna-ai/cli
+
+      - name: Validate Anna manifests, tool IDs and Host API calls
+        run: anna-app validate --strict
+
       - name: Run deterministic creator-tool tests
         run: python -m unittest discover -s executas/youtube-skillbox -p "test_*.py" -v
 
