@@ -399,38 +399,144 @@ const HOOK_FORMULAS = `21 proven hook formulas (use a small, deliberately-scoped
 21. Direct question — "What would you do with 100 subs and zero views?"`;
 
 const TASK_PROMPTS = {
-  hooks: `Task: generate 6 hook options for this idea using the hook formulas below. Score each hook honestly (0–100) against first-15-seconds survival: clarity ≥ curiosity gap > emotional stake > specificity. No inflated scores; if an option is meh, mark RED and say why.
-${HOOK_FORMULAS}`,
-  titles: `Task: write 5 title options. Constraints: ≤ 60 characters, keyword near the front, promise > clever, no clickbait the video can't cash. Then score each against clarity/promise/keyword-fit, mark any truncation risk on mobile (>43 chars). For each, show a thumbnail-text counterpart (2–4 words).`,
-  seo: `Task: write the description (first 2 lines must re-state the promise with the keyword), 8–12 tags ordered by specificity, then a 6-point SEO sweep where you list what's missing with the exact fix. No fluff.`,
-  chapters: `Task: from the transcript provided (or the idea), propose chapters. First entry must be 0:00, ≥3 chapters, ≥10 s each, titles ≤ 40 chars that work as search results. If the transcript isn't given, say what you need and produce the chapter skeleton with placeholders.`,
-  shorts: `Task: find 3 self-contained Shorts inside this video (or idea). For each: the hook (≤ 2 lines), what to cut, the retention beat, and the payoff line at the end. Explain why each works as a standalone.`,
-  full: `Task: produce the full pack. (1) the strongest of 6 hook options (scored), (2) one final title + thumbnail text, (3) description (first 2 lines + keyword) + 8 tags, (4) chapters skeleton, (5) one Short concept. Keep it tight.`,
+  hooks: "Generate exactly 21 distinct opening-hook options for the supplied idea. Return ONLY a valid JSON array of objects with keys hook, formula and rationale. Each hook must be speakable, confirm the video's actual promise, open a genuine curiosity gap and avoid unsupported numbers, personal claims or fake evidence. Do not reuse examples verbatim. The app scores the copy with the deterministic Skillbox hookscore engine; do not invent scores.",
+  titles: "Write exactly 5 distinct YouTube title options. Return ONLY a valid JSON array of strings. Keep each title under 100 characters, front-load the topic, avoid unsupported claims and do not overpromise. The app runs the deterministic Skillbox title linter; do not invent scores or CTR predictions.",
+  seo: "Write a YouTube description whose first two lines restate the actual video promise and target keyword, then provide 8–12 specific tags and a short SEO checklist. Never invent sources, stats or claims. Label recommendations as recommendations, not measured outcomes.",
+  chapters: "Write chapters only from the supplied transcript or detailed outline. The first chapter must be 0:00. If there is no transcript or timecoded outline, ask for it instead of inventing timestamps.",
+  shorts: "Identify up to 3 self-contained Shorts only from the supplied transcript or detailed outline. Provide source timecodes only when supplied. If there is no transcript, ask for one instead of inventing clip boundaries.",
+  full: "Produce a practical creator pack: hook directions, title options, description and tags, chapter plan only when timestamps are supported by a transcript, and a Shorts angle only when source content is supplied. Separate creative hypotheses from measured facts. No fake performance scores or CTR predictions."
 };
 
+
+function parseJsonArray(raw) {
+  const text = String(raw || "").trim();
+  try {
+    const value = JSON.parse(text);
+    return Array.isArray(value) ? value : null;
+  } catch (_) {
+    const start = text.indexOf("[");
+    const end = text.lastIndexOf("]");
+    if (start < 0 || end <= start) return null;
+    try {
+      const value = JSON.parse(text.slice(start, end + 1));
+      return Array.isArray(value) ? value : null;
+    } catch (_) { return null; }
+  }
+}
+
+function renderHookScores(result, generated) {
+  const rows = (result && result.scored_hooks) || [];
+  if (!rows.length) return "No hook scores were returned by the Skillbox engine.";
+  const sourceByText = new Map((generated || []).map((item) => [
+    typeof item === "string" ? item : String(item.hook || ""),
+    item
+  ]));
+  const output = [
+    "SKILLBOX HOOK SCORECARD",
+    "Heuristic copy analysis only — not a retention, CTR or performance prediction.",
+    String(rows.length) + " hooks scored.",
+    ""
+  ];
+  rows.forEach((row, index) => {
+    const source = sourceByText.get(row.hook) || {};
+    const formula = source.formula ? " · " + source.formula : "";
+    const properties = Object.entries(row.properties || {}).map(([key, value]) => key + " " + value).join(" · ");
+    output.push(
+      String(index + 1).padStart(2, "0") + "  " + row.score + "/100 · " + row.band + formula,
+      "   " + row.hook,
+      "   " + properties,
+      "   Weakest: " + (row.weakest || "—") + " — " + (row.fix || "Review manually."),
+      source.rationale ? "   Angle: " + source.rationale : ""
+    );
+  });
+  return output.filter(Boolean).join("\n");
+}
+
+function renderTitleLint(result) {
+  const rows = (result && result.titles) || [];
+  if (!rows.length) return "No title lint results were returned by the Skillbox engine.";
+  const output = [
+    "SKILLBOX TITLE LINT",
+    "Heuristic title-text checks — not CTR, ranking or view predictions.",
+    ""
+  ];
+  rows.forEach((row, index) => {
+    output.push(
+      String(index + 1).padStart(2, "0") + "  " + row.heuristic_score + "/100 · " + row.characters + " characters",
+      "   " + row.title
+    );
+    (row.issues || []).forEach((item) => output.push("   FIX · " + item.code + ": " + item.detail));
+    (row.good || []).forEach((item) => output.push("   PASS · " + item));
+    output.push("");
+  });
+  return output.join("\n");
+}
+
 function wireStudio() {
-  const btn = byId("studio-task-pre-btn"); // reserved, unused
-  $$(".studio-actions [data-task]").forEach((b) => {
-    b.addEventListener("click", async () => {
+  $$(".studio-actions [data-task]").forEach((button) => {
+    button.addEventListener("click", async () => {
       const topic = byId("studio-topic").value.trim();
-      const kw = byId("studio-keyword").value.trim();
+      const keyword = byId("studio-keyword").value.trim();
       const context = byId("studio-context").value.trim();
-      const out = byId("studio-pre");
+      const output = byId("studio-pre");
       const label = byId("studio-task-label");
-      if (!topic) { out.textContent = "Give me a topic/idea first — even a rough one."; return; }
-      $$(".studio-actions [data-task]").forEach((x) => (x.disabled = true));
-      label.textContent = `Working — ${b.textContent.trim()}…`;
-      out.textContent = "…";
+      const task = button.dataset.task;
+      if (!topic) {
+        output.textContent = "Add a video idea first. A rough sentence is enough.";
+        return;
+      }
+      $$(".studio-actions [data-task]").forEach((item) => (item.disabled = true));
+      label.textContent = "WORKING · " + button.textContent.trim();
+      output.textContent = "Drafting…";
       try {
-        const userMsg = `Topic: ${topic}\n${kw ? `Keyword: ${kw}\n` : ""}${context ? `Context/notes:\n${context.slice(0, 3500)}\n` : ""}\nProduce it now.`;
-        const text = await llm(TASK_PROMPTS[b.dataset.task] || TASK_PROMPTS.full, userMsg, 3600);
-        out.textContent = text;
-        label.textContent = b.textContent.trim();
-      } catch (e) {
-        out.textContent = `Error: ${e.message || e}`;
-        label.textContent = "Failed";
+        const userMessage = "Topic: " + topic + "\n"
+          + (keyword ? "Target keyword: " + keyword + "\n" : "")
+          + (context ? "Context and source notes:\n" + context.slice(0, 5000) + "\n" : "")
+          + "\nCreate the requested asset now.";
+        const generated = await llm(TASK_PROMPTS[task] || TASK_PROMPTS.full, userMessage, task === "hooks" ? 4200 : 3000);
+        if (task === "hooks") {
+          const parsed = parseJsonArray(generated);
+          const hooks = (parsed || []).map((item) => typeof item === "string" ? item : item && item.hook)
+            .filter((item) => typeof item === "string" && item.trim());
+          if (!hooks.length) {
+            output.textContent = "The model did not return the required hook JSON structure, so no scores were fabricated.\n\nGenerated response:\n" + generated;
+            label.textContent = "DRAFT RETURNED · SCORING NOT RUN";
+            return;
+          }
+          try {
+            const scored = await tool("hookscore", { hooks });
+            output.textContent = renderHookScores(scored, parsed);
+            label.textContent = "HOOKS · " + (scored.count || hooks.length) + " SCORED";
+          } catch (scoreError) {
+            output.textContent = "HOOKS GENERATED · SCORING UNAVAILABLE\n" + (scoreError.message || scoreError) + "\n\nGenerated response:\n" + generated;
+            label.textContent = "HOOKS GENERATED · SCORING FAILED";
+          }
+        } else if (task === "titles") {
+          const parsed = parseJsonArray(generated);
+          const titles = (parsed || []).map((item) => typeof item === "string" ? item : item && item.title)
+            .filter((item) => typeof item === "string" && item.trim());
+          if (!titles.length) {
+            output.textContent = "The model did not return the required title JSON structure, so no lint scores were fabricated.\n\nGenerated response:\n" + generated;
+            label.textContent = "DRAFT RETURNED · LINT NOT RUN";
+            return;
+          }
+          try {
+            const linted = await tool("title_lint", { titles });
+            output.textContent = renderTitleLint(linted);
+            label.textContent = "TITLES · " + (linted.count || titles.length) + " LINTED";
+          } catch (lintError) {
+            output.textContent = "TITLES GENERATED · LINT UNAVAILABLE\n" + (lintError.message || lintError) + "\n\nGenerated response:\n" + generated;
+            label.textContent = "TITLES GENERATED · LINT FAILED";
+          }
+        } else {
+          output.textContent = generated;
+          label.textContent = button.textContent.trim();
+        }
+      } catch (error) {
+        output.textContent = "Error: " + (error.message || error);
+        label.textContent = "FAILED";
       } finally {
-        $$(".studio-actions [data-task]").forEach((x) => (x.disabled = false));
+        $$(".studio-actions [data-task]").forEach((item) => (item.disabled = false));
       }
     });
   });
