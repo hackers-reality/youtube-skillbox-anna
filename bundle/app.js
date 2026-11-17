@@ -370,7 +370,15 @@ document.head.appendChild(styleTag);
 
 async function renderSavedList() {
   const list = byId("saved-list");
-  const audits = await storageList(AUDITS_KEY);
+  let audits = [];
+  try {
+    audits = await storageList(AUDITS_KEY);
+  } catch (error) {
+    list.innerHTML = '<li class="empty">Saved audits could not be loaded from Anna storage: '
+      + escapeHtml(String(error.message || error)) + '</li>';
+    setStatus("Anna storage unavailable", false, true);
+    return;
+  }
   if (!audits.length) {
     list.innerHTML = '<li class="empty">No saved audits yet — run one above.</li>';
     return;
