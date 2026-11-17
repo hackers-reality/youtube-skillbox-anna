@@ -210,7 +210,7 @@ MANIFEST = {
         },
         {
             "name": "transcribe",
-            "description": "Spoken text of any video (auto/human captions). Returns plain text. Original language + English when available.",
+            "description": "Fetch manual or auto captions, preferring the original spoken language plus English. Returns plain transcript text and timestamped caption segments.",
             "parameters": [CLIENT_ID_PARAM,
                 {"name": "video", "type": "string", "description": "Video URL or 11-char ID.", "required": True},
                 {"name": "language", "type": "string", "description": "Preferred language code(s), e.g. 'en' or 'es,en'.", "required": False, "default": "en"},
