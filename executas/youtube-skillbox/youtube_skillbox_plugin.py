@@ -417,6 +417,30 @@ def _hookscore(hooks):
         "CURIOSITY": "leave an unanswered question the video can genuinely resolve",
         "BREVITY": "aim for a clean spoken line of roughly 9–24 words",
     }
+    # Exact formula classifier patterns from the upstream skills/yt-script/hooks.json.
+    formulas = [
+        ("The Statistic", [r"\b\d+(\.\d+)?\s?%", r"\b\d+ (out of|in) \d+\b", r"\b\d{2,}(,\d{3})+\b"]),
+        ("Someone Else's Result", [r"\bthis (channel|guy|creator|account)\b", r"\bwent from .* to\b", r"\bin (a|one|two|three|\d+) (week|month|year)s?\b"]),
+        ("The Mistake", [r"\byou('re| are) (probably |still )?(doing|making)\b", r"\bthe (mistake|reason) (everyone|most people|nobody)\b", r"\bstop (doing )?\b"]),
+        ("Contrarian Flip", [r"\beveryone (says|thinks|tells you)\b", r"\bis (actually )?wrong\b", r"\bnobody (tells|talks about)\b"]),
+        ("The Reveal", [r"\bI('m| am) going to show you\b", r"\bhere('s| is) (the|exactly)\b", r"\bon screen\b"]),
+        ("The Superlative", [r"\bthe (best|worst|fastest|easiest|only)\b", r"\bnumber one\b"]),
+        ("The Clock", [r"\bin (the next )?\d+ (seconds|minutes|hours)\b", r"\bby the end of this video\b", r"\bunder \d+\b"]),
+        ("I Tried It", [r"\bI (tried|spent|tested|let|gave)\b", r"\bfor \d+ (days|weeks|months)\b", r"\bso you don'?t have to\b"]),
+        ("The Question", [r"^(why|how|what|when|should|can|do|does|is)\b", r"\?\s*$"]),
+        ("Before and After", [r"\bbefore\b.*\bafter\b", r"\bthis was\b.*\bthis is\b", r"\bused to\b"]),
+        ("The Teardown", [r"\b(broke|break|breaking) (it )?down\b", r"\bteardown\b", r"\banalys(ed|ed|is|e)\b", r"\bI pulled\b"]),
+        ("The Stack", [r"\b\w+ (plus|\+) \w+\b", r"\bcombine\b", r"\btogether\b"]),
+        ("The Warning", [r"\bdo not\b", r"\bdon'?t (upload|post|publish|start)\b", r"\bbefore you\b", r"\bstop\b"]),
+        ("The List", [r"^\d+ \w+", r"\b(here are|these are) \d+\b"]),
+        ("The Receipt", [r"\bthis is (the|my)\b", r"\bscreenshot\b", r"\bproof\b", r"\breceipts?\b"]),
+        ("The Insider", [r"\b(nobody|almost nobody|most people) (knows?|opens?|uses?)\b", r"\bhidden\b", r"\bburied\b"]),
+        ("The Impossible Claim", [r"\bwithout\b", r"\bnever\b", r"\bin one\b", r"\bzero\b"]),
+        ("The Comparison", [r"\bvs\.?\b", r"\bversus\b", r"\bwhich (one )?(is|wins)\b", r"\bsame .* (three|two) ways\b"]),
+        ("The Origin", [r"\bevery (video|post) .* starts\b", r"\bit all (starts|started)\b", r"\bthe (real )?reason\b"]),
+        ("The Deadline", [r"\b(this|next) (week|month|year)\b", r"\bis changing\b", r"\bno longer\b", r"\bas of\b"]),
+        ("The Direct Address", [r"^if you\b", r"\bfor (anyone|everyone|people) who\b", r"\byou specifically\b"]),
+    ]
 
     def words(text):
         return re.findall(r"[a-z0-9'%$.]+", text.lower())
@@ -461,12 +485,18 @@ def _hookscore(hooks):
         score = round(0.6 * (sum(values) / len(values)) + 0.4 * min(values))
         band = "STRONG" if score >= 72 else "WORKABLE" if score >= 55 else "WEAK"
         weakest = min(properties, key=properties.get)
+        formula_name, formula_hits = None, 0
+        for name, patterns in formulas:
+            hits = sum(1 for pattern in patterns if re.search(pattern, text, re.I))
+            if hits > formula_hits:
+                formula_name, formula_hits = name, hits
         rows.append({
             "index": index,
             "hook": text,
             "properties": properties,
             "score": score,
             "band": band,
+            "formula": formula_name or "Unclassified",
             "weakest": weakest,
             "fix": fixes[weakest],
             "score_type": "heuristic copy analysis; not a retention or performance prediction",
