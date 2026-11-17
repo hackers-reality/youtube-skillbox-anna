@@ -9,4 +9,7 @@ assert.equal(lines.some((line) => line.startsWith('$(".explorer-actions [data-ex
 assert.equal(lines.some((line) => line.startsWith('$$(".explorer-actions [data-explore]").forEach')), true);
 assert.equal(lines.some((line) => line.startsWith('const buttons = $$(".explorer-actions [data-explore]")')), true);
 
+const index = await readFile(new URL("./index.html", import.meta.url), "utf8");
+assert.equal((index.match(/id="lab-playlist"/g) || []).length, 1);
+
 console.log("Frontend selector regression tests passed");
