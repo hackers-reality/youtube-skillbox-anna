@@ -9,6 +9,7 @@ so the exact same code path works everywhere.
 """
 
 import csv
+import html
 import io
 import json
 import re
@@ -375,39 +376,123 @@ def _verdict(opp, comp):
     }
 
 
+def _parse_vtt_clock(value: str):
+    """Convert a WebVTT timestamp to seconds without guessing missing fields."""
+    raw = str(value or "").strip().split()[0]
+    parts = raw.split(":")
+    try:
+        if len(parts) == 3:
+            hours, minutes, seconds = parts
+            return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+        if len(parts) == 2:
+            minutes, seconds = parts
+            return int(minutes) * 60 + float(seconds)
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def _vtt_to_segments(vtt: str):
+    """Parse WebVTT caption cues into timestamped transcript segments."""
+    lines = vtt.lstrip("\ufeff").splitlines()
+    segments = []
+    index = 0
+    while index < len(lines):
+        line = lines[index].strip()
+        if "-->" not in line:
+            index += 1
+            continue
+
+        left, right = line.split("-->", 1)
+        start = _parse_vtt_clock(left)
+        end = _parse_vtt_clock(right)
+        index += 1
+        cue_lines = []
+        while index < len(lines) and lines[index].strip():
+            cue_lines.append(lines[index].strip())
+            index += 1
+        text = " ".join(cue_lines)
+        text = re.sub(r"<[^>]+>", "", text)
+        text = html.unescape(re.sub(r"\s+", " ", text)).strip()
+        if start is None or end is None or end <= start or not text:
+            continue
+        if segments and segments[-1]["text"] == text and abs(segments[-1]["start"] - start) < 0.05:
+            continue
+        segments.append({
+            "text": text,
+            "start": round(start, 3),
+            "duration": round(end - start, 3),
+            "end": round(end, 3),
+        })
+    return segments
+
+
+def _vtt_to_text(vtt: str) -> str:
+    return " ".join(segment["text"] for segment in _vtt_to_segments(vtt)).strip()
+
+
 def _transcribe(video: str, language: str) -> dict:
     if not video:
         return {"success": False, "error": "video URL or ID required"}
     try:
-        import yt_dlp
         from yt_dlp import YoutubeDL
     except ImportError:
         return {"success": False, "error": "yt-dlp not installed in this runtime"}
+
     url = video if video.startswith("http") else f"https://www.youtube.com/watch?v={video}"
+    requested_language = str(language or "auto").strip().lower()
     opts = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
         "writesubtitles": True,
         "writeautomaticsub": True,
-        "subtitleslangs": [language, "en"] if language != "en" else ["en"],
         "subtitlesformat": "vtt",
     }
     try:
+        # Discover the video's language and caption tracks first. Default auto
+        # mirrors the upstream transcript skill: original language, detected
+        # spoken language, then English; never request every translated track.
+        with YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        manual = info.get("subtitles") or {}
+        automatic = info.get("automatic_captions") or {}
+        available = list(dict.fromkeys([*manual.keys(), *automatic.keys()]))
+        original_track = next((code for code in available if str(code).endswith("-orig")), None)
+        detected_language = info.get("language")
+        if requested_language in {"", "auto", "original"}:
+            preference = [original_track, detected_language, "en"]
+        else:
+            preference = [requested_language, "en"]
+        preference = list(dict.fromkeys(code for code in preference if code))
+
+        if not preference:
+            return {"success": False, "error": "could not determine a caption language; choose one in the language field"}
+
+        opts["subtitleslangs"] = preference
         with YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
         caps = info.get("requested_subtitles") or {}
-        chosen = None
-        for lang in [language, "en"] + list(caps):
-            if caps.get(lang):
-                chosen = lang
-                break
+        chosen = next((lang for lang in preference if caps.get(lang)), None)
         if chosen is None:
-            return {"success": False, "error": "no captions available for this video"}
-        import urllib.request
+            return {
+                "success": False,
+                "error": "no captions available for the requested original-language/English pair",
+                "requested_languages": preference,
+                "available_languages": available,
+            }
 
-        raw = urllib.request.urlopen(caps[chosen].get("url"), timeout=30).read().decode("utf-8", "replace")
-        text = _vtt_to_text(raw)
+        import urllib.request
+        subtitle_url = caps[chosen].get("url")
+        if not subtitle_url:
+            return {"success": False, "error": "the selected caption track did not include a download URL"}
+        raw = urllib.request.urlopen(subtitle_url, timeout=30).read().decode("utf-8", "replace")
+        segments = _vtt_to_segments(raw)
+        transcript = " ".join(segment["text"] for segment in segments).strip()
+        if not transcript:
+            return {"success": False, "error": "the selected caption track contained no readable cues"}
+
         return {
             "success": True,
             "data": {
@@ -415,35 +500,15 @@ def _transcribe(video: str, language: str) -> dict:
                 "channel": info.get("channel"),
                 "title": info.get("title"),
                 "language": chosen,
-                "generated": chosen not in (info.get("subtitles") or {}),
-                "transcript": text.strip(),
+                "generated": chosen not in manual,
+                "duration_seconds": info.get("duration"),
+                "segment_count": len(segments),
+                "transcript": transcript,
+                "segments": segments,
             },
         }
     except Exception as e:
         return {"success": False, "error": f"transcribe failed: {e}"}
-
-
-def _vtt_to_text(vtt: str) -> str:
-    import re
-
-    lines = []
-    for line in vtt.splitlines():
-        line = line.strip()
-        if not line or line.startswith(("WEBVTT", "Kind:", "Language:", "NOTE")):
-            continue
-        if "-->" in line:
-            continue
-        if re.match(r"^\d{2}:\d{2}|^\d+$", line):
-            continue
-        line = re.sub(r"<[^>]+>", "", line)
-        lines.append(line)
-    out = []
-    for ln in lines:
-        if out and out[-1] == ln:
-            continue
-        out.append(ln)
-    return " ".join(out)
-
 
 
 def _hookscore(hooks):
