@@ -299,6 +299,13 @@
           "description": "Items per shelf.",
           "required": false,
           "default": 12
+        },
+        {
+          "name": "verbose",
+          "type": "boolean",
+          "description": "Include the shelf item lists in the response.",
+          "required": false,
+          "default": false
         }
       ],
       "timeout": 90
@@ -461,10 +468,153 @@
         }
       ],
       "timeout": 90
+    },
+    {
+      "name": "channel",
+      "description": "List a channel's recent uploads from the videos, Shorts or livestreams tab. Optional duration and full metadata enrichment.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "YouTube channel handle or URL.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Maximum items to return.",
+          "required": false,
+          "default": 15
+        },
+        {
+          "name": "tab",
+          "type": "string",
+          "description": "videos, shorts or streams.",
+          "required": false,
+          "default": "videos"
+        },
+        {
+          "name": "with_duration",
+          "type": "boolean",
+          "description": "Enrich rows with duration in seconds.",
+          "required": false,
+          "default": false
+        },
+        {
+          "name": "full_meta",
+          "type": "boolean",
+          "description": "Enrich rows with full video metadata.",
+          "required": false,
+          "default": false
+        }
+      ],
+      "timeout": 150
+    },
+    {
+      "name": "posts",
+      "description": "Fetch recent public YouTube Community posts from a channel, including text, author, publication label and available likes/attachments.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "YouTube channel handle or URL.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Maximum posts to return.",
+          "required": false,
+          "default": 10
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "shows",
+      "description": "List public YouTube Shows (episode collections) from a channel.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "YouTube channel handle or URL.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Maximum shows to return.",
+          "required": false,
+          "default": 20
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "playlist",
+      "description": "List public videos in a YouTube playlist.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "playlist",
+          "type": "string",
+          "description": "YouTube playlist URL or ID.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Maximum videos to return.",
+          "required": false,
+          "default": 20
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "info",
+      "description": "Fetch public metadata for one YouTube video: views, likes, date, duration, tags, categories and description excerpt.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "video",
+          "type": "string",
+          "description": "YouTube video URL or ID.",
+          "required": true
+        }
+      ],
+      "timeout": 90
     }
   ],
   "credentials": [],
-  "host_capabilities": [],
   "runtime": {
     "type": "python"
   }
