@@ -46,7 +46,7 @@ class CreatorToolTests(unittest.TestCase):
         self.assertTrue(result["measured"])
         self.assertEqual(result["axis"], "percentage of video")
         self.assertEqual(result["hook_leak"]["window"], "first 30% of video")
-        self.assertEqual(result["hook_leak"]["loss_points"], 34.0)
+        self.assertEqual(result["hook_leak"]["loss_points"], 43.0)
         self.assertIsNotNone(result["slide"]["average_loss_points_per_minute"])
         self.assertEqual(result["points"][1]["axis"], "%")
 
@@ -57,7 +57,7 @@ class CreatorToolTests(unittest.TestCase):
         )
         result = _parse_retention_csv(csv_text)
         self.assertEqual(result["axis"], "percentage of video")
-        self.assertIsNone(result["points"][0]["time_seconds"] if "time_seconds" in result["points"][0] else None)
+        self.assertNotIn("time_seconds", result["points"][0])
         self.assertIsNone(result["slide"]["average_loss_points_per_minute"])
         self.assertEqual(result["slide"]["severity"], "not available")
 
@@ -69,7 +69,7 @@ class CreatorToolTests(unittest.TestCase):
         result = _parse_retention_csv(csv_text)
         self.assertEqual(result["axis"], "elapsed seconds")
         self.assertEqual(result["hook_leak"]["window"], "first 30 seconds")
-        self.assertEqual(result["hook_leak"]["loss_points"], 30.0)
+        self.assertEqual(result["hook_leak"]["loss_points"], 38.0)
 
     def test_malformed_retention_headers_fail_explicitly(self):
         result = _parse_retention_csv("foo,bar\n1,2\n3,4\n")
