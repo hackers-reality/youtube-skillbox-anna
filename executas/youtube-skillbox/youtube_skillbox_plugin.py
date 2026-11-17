@@ -57,6 +57,14 @@ MANIFEST = {
             "timeout": ENGINE_TIMEOUT,
         },
         {
+            "name": "profile",
+            "description": "Fetch the public channel identity: name, handle, channel URL, avatar/profile metadata, subscriber count, description and tags.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "handle", "type": "string", "description": "Channel handle (with or without @), channel URL or channel ID.", "required": True},
+            ],
+            "timeout": ENGINE_TIMEOUT,
+        },
+        {
             "name": "latest",
             "description": "Most recent uploads (reverse chronological), with durations and view counts.",
             "parameters": [CLIENT_ID_PARAM,
@@ -341,6 +349,8 @@ def _norm_handle(h):
         return h
     if h.startswith("http"):
         return h
+    if re.fullmatch(r"UC[\w-]{10,}", h):
+        return "https://www.youtube.com/channel/" + h
     if not h.startswith("@"):
         h = "@" + h
     return h
@@ -946,6 +956,8 @@ def invoke(method: str, args: dict) -> dict:
                 "success": False,
                 "error": f"sections: {_err_str(sections)} | profile: {_err_str(profile)}",
             }
+        if method == "profile":
+            return _eng("profile", _norm_handle(a.get("handle")), "--json", timeout=ENGINE_TIMEOUT)
         if method == "latest":
             return _eng("latest", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 10))), "--json", timeout=ENGINE_TIMEOUT)
         if method == "channel":

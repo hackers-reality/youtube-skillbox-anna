@@ -115,12 +115,19 @@ class CreatorToolTests(unittest.TestCase):
     def test_describe_manifest_exposes_full_channel_research_surface(self):
         names = {item["name"] for item in MANIFEST["tools"]}
         self.assertTrue({
-            "snapshot", "latest", "channel", "posts", "home", "shows",
+            "snapshot", "profile", "latest", "channel", "posts", "home", "shows",
             "playlist", "info", "outliers", "keywords", "compete", "gap",
             "scorecard", "track", "trends", "transcribe", "hookscore",
             "title_lint", "retention",
         }.issubset(names))
         self.assertNotIn("host_capabilities", MANIFEST)
+
+    @patch("youtube_skillbox_plugin._eng")
+    def test_profile_dispatch_fetches_public_identity(self, engine):
+        engine.return_value = {"success": True, "data": {"name": "Sample"}}
+        result = invoke("profile", {"handle": "UC12345678901234567890"})
+        self.assertTrue(result["success"])
+        self.assertEqual(engine.call_args.args, ("profile", "https://www.youtube.com/channel/UC12345678901234567890", "--json"))
 
     @patch("youtube_skillbox_plugin._eng")
     def test_channel_dispatch_supports_shorts_with_duration(self, engine):

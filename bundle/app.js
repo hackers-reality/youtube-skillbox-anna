@@ -124,6 +124,159 @@ async function storageSet(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+const PROFILE_KEY = "youtube-skillbox:profile";
+const CHAT_KEY = "youtube-skillbox:chat";
+const THEME_KEY = "youtube-skillbox:theme";
+let profileState = null;
+let chatHistory = [];
+
+function profileName(profile) { return profile && (profile.name || profile.title || profile.channel_name || profile.author || "Channel"); }
+function profileHandle(profile) { return profile && (profile.handle || profile.custom_url || profile.channel || profile.channel_url || ""); }
+function profileAvatar(profile) { return profile && (profile.avatar || profile.avatar_url || profile.thumbnail || profile.image); }
+
+function renderProfileState() {
+  const preview = byId("profile-preview");
+  const verify = byId("profile-verify");
+  const name = byId("nav-profile-name");
+  const handle = byId("nav-profile-handle");
+  const avatar = byId("nav-avatar");
+  if (!profileState || !profileState.profile) {
+    if (preview) preview.innerHTML = '<span class="hint">No channel loaded yet.</span>';
+    if (verify) verify.disabled = true;
+    if (name) name.textContent = "No channel yet";
+    if (handle) handle.textContent = "Set up your workspace";
+    if (avatar) avatar.textContent = "?";
+    return;
+  }
+  const profile = profileState.profile;
+  const displayName = profileName(profile);
+  const displayHandle = profileHandle(profile) || profileState.handle;
+  const image = profileAvatar(profile);
+  if (name) name.textContent = displayName;
+  if (handle) handle.textContent = profileState.verified ? displayHandle + " · verified" : displayHandle;
+  if (avatar) avatar.innerHTML = image ? `<img src="${escapeHtml(image)}" alt="" />` : escapeHtml(String(displayName).slice(0, 1).toUpperCase());
+  if (preview) preview.innerHTML = `<div class="profile-identity">${image ? `<img src="${escapeHtml(image)}" alt="" />` : `<div class="profile-avatar-fallback">${escapeHtml(String(displayName).slice(0, 1).toUpperCase())}</div>`}<div><strong>${escapeHtml(displayName)}</strong><span>${escapeHtml(displayHandle)}</span></div></div><p>${escapeHtml(String(profile.description || profile.about || "No public description returned."))}</p><div class="profile-status ${profileState.verified ? 'is-verified' : ''}">${profileState.verified ? '✓ Phrase verified in latest public description' : 'Identity found · verify the phrase after updating your description'}</div>`;
+  if (verify) verify.disabled = false;
+}
+
+async function fetchProfile(handleValue, silent = false) {
+  const handle = String(handleValue || byId("profile-handle").value || "").trim();
+  const preview = byId("profile-preview");
+  if (!handle) { if (preview) preview.innerHTML = '<div class="note err"><b>Enter a channel handle, URL or channel ID.</b></div>'; return; }
+  if (preview && !silent) preview.innerHTML = '<div class="skeleton-stack"><span class="skeleton skeleton-wide"></span><span class="skeleton"></span><span class="skeleton skeleton-short"></span></div>';
+  try {
+    const profile = await tool("profile", { handle }, 85000);
+    profileState = { handle, profile, phrase: byId("profile-phrase").value.trim(), verified: false };
+    await storageSet(PROFILE_KEY, [profileState]);
+    byId("profile-handle").value = handle;
+    renderProfileState();
+    setStatus("Channel workspace ready", true);
+    return profileState;
+  } catch (error) {
+    if (preview) preview.innerHTML = `<div class="note err"><b>Could not find that channel</b><span>${escapeHtml(String(error.message || error))}</span><button class="btn btn-small" id="profile-retry" type="button">Retry</button></div>`;
+    byId("profile-retry")?.addEventListener("click", () => fetchProfile(handle));
+    throw error;
+  }
+}
+
+async function verifyProfilePhrase() {
+  if (!profileState) return;
+  const phrase = byId("profile-phrase").value.trim();
+  if (!phrase) return;
+  const refreshed = await fetchProfile(profileState.handle, true);
+  const description = String(refreshed.profile.description || refreshed.profile.about || "");
+  profileState.phrase = phrase;
+  profileState.verified = description.toLocaleLowerCase().includes(phrase.toLocaleLowerCase());
+  await storageSet(PROFILE_KEY, [profileState]);
+  renderProfileState();
+  if (!profileState.verified) byId("profile-preview").insertAdjacentHTML("beforeend", '<div class="note warn"><b>Phrase not found yet</b><span>Update the public description in YouTube Studio, then retry verification.</span></div>');
+}
+
+function applyTheme(mode) {
+  const value = mode === "light" || mode === "dark" ? mode : "system";
+  document.documentElement.dataset.theme = value;
+  const button = byId("theme-toggle");
+  if (button) { button.textContent = value === "light" ? "☼" : value === "dark" ? "☾" : "◐"; button.title = "Theme: " + value; button.setAttribute("aria-label", "Theme: " + value); }
+  return value;
+}
+
+function cycleTheme() {
+  const current = document.documentElement.dataset.theme || "system";
+  const next = current === "system" ? "light" : current === "light" ? "dark" : "system";
+  applyTheme(next);
+  localStorage.setItem(THEME_KEY, next);
+}
+
+function chatAdd(role, text, loading = false) {
+  const thread = byId("chat-thread");
+  if (!thread) return null;
+  const node = document.createElement("div");
+  node.className = "chat-message " + role + (loading ? " is-loading" : "");
+  node.innerHTML = `<span class="chat-avatar">${role === "assistant" ? "A" : "Y"}</span><div><strong>${role === "assistant" ? "Anna" : "You"}</strong><p>${loading ? '<span class="typing-dots"><i></i><i></i><i></i></span>' : renderMd(text)}</p></div>`;
+  thread.appendChild(node);
+  thread.scrollTop = thread.scrollHeight;
+  return node;
+}
+
+async function chatContext(message) {
+  const lower = message.toLowerCase();
+  let evidence = "";
+  if (profileState && /(audit|channel|outlier|upload|short|why|views|perform)/.test(lower)) {
+    const handle = profileState.handle;
+    const calls = await Promise.allSettled([
+      tool("latest", { handle, limit: 8 }, 180000),
+      tool("outliers", { handle, min_ratio: 2 }, 180000),
+      tool("profile", { handle }, 85000)
+    ]);
+    evidence = JSON.stringify({ latest: calls[0].status === "fulfilled" ? calls[0].value : { error: String(calls[0].reason) }, outliers: calls[1].status === "fulfilled" ? calls[1].value : { error: String(calls[1].reason) }, profile: calls[2].status === "fulfilled" ? calls[2].value : { error: String(calls[2].reason) } }).slice(0, 16000);
+  }
+  return `Current workspace profile: ${profileState ? JSON.stringify(profileState.profile) : "not configured"}\nMeasured context (may contain explicit errors; never replace them): ${evidence || "No tool call was needed for this question."}`;
+}
+
+function wireChat() {
+  const form = byId("chat-form");
+  if (!form) return;
+  const send = async (message) => {
+    const text = String(message || byId("chat-input").value || "").trim();
+    if (!text || !anna || standalone) { if (!anna || standalone) chatAdd("assistant", "Open this app inside Anna to use the live guide."); return; }
+    byId("chat-input").value = "";
+    chatAdd("user", text);
+    const loading = chatAdd("assistant", "", true);
+    byId("chat-send").disabled = true;
+    try {
+      const context = await chatContext(text);
+      const response = await llm("You are Anna inside YouTube Skillbox. Answer like a calm creator strategist. Separate MEASURED facts, INFERRED explanations and RECOMMENDATION. Never invent channel numbers, never claim YouTube was edited or published, and if context contains an error say the measurement is unavailable.", context + "\n\nCreator question: " + text, 2600);
+      loading.remove();
+      chatAdd("assistant", response);
+      chatHistory.push({ role: "user", text }, { role: "assistant", text: response });
+      await storageSet(CHAT_KEY, chatHistory.slice(-12));
+    } catch (error) {
+      loading.remove();
+      chatAdd("assistant", "I couldn’t finish that request: " + (error.message || error));
+    } finally { byId("chat-send").disabled = false; }
+  };
+  form.addEventListener("submit", (event) => { event.preventDefault(); send(); });
+  $$("[data-chat-prompt]").forEach((button) => button.addEventListener("click", () => send(button.dataset.chatPrompt)));
+  byId("profile-fetch")?.addEventListener("click", () => fetchProfile());
+  byId("profile-verify")?.addEventListener("click", () => verifyProfilePhrase());
+}
+
+async function loadWorkspaceState() {
+  try { profileState = (await storageList(PROFILE_KEY))[0] || null; } catch (_) { profileState = null; }
+  try { chatHistory = await storageList(CHAT_KEY); } catch (_) { chatHistory = []; }
+  renderProfileState();
+  const mode = localStorage.getItem(THEME_KEY) || "system";
+  applyTheme(mode);
+  byId("theme-toggle")?.addEventListener("click", cycleTheme);
+  byId("profile-clear")?.addEventListener("click", async () => {
+    profileState = null; chatHistory = [];
+    localStorage.removeItem(PROFILE_KEY); localStorage.removeItem(CHAT_KEY);
+    try { await storageSet(PROFILE_KEY, null); await storageSet(CHAT_KEY, []); } catch (_) {}
+    renderProfileState();
+    byId("chat-thread").innerHTML = '<div class="chat-message assistant"><span class="chat-avatar">A</span><div><strong>Anna</strong><p>Session cache cleared. Set up a channel when you’re ready.</p></div></div>';
+  });
+}
+
 /* ---------- tabs ---------- */
 function wireTabs() {
   const tabButtons = $$(".tab");
@@ -160,8 +313,8 @@ const AUDIT_SYSTEM = `
 You are the YouTube Skillbox analyst. You receive hard tool data (channel counts, subs, videos, outliers, keywords, scorecards) — never invent numbers.
 ABSOLUTE RULES (not suggestions):
 1. Any \`error\` key or empty array in evidence = that data does NOT exist. State it verbatim as "MEASURED: unavailable — <reason>"; NEVER fill it in.
-2. If ALL core fields (subs, videos, outliers) are missing/empty, your ENTIRE verdict is exactly this sentence: "ENGINE BLOCKED: insufficient measured data from this host. No verdict will be invented." Nothing more.
-3. If partial data exists, build verdict ONLY from it, label it clearly, and open with "PARTIAL AUDIT".
+2. If ALL three core tool calls (profile, latest uploads, outliers) fail or return empty data, your ENTIRE verdict is exactly this sentence: "ENGINE BLOCKED: insufficient measured data from this host. No verdict will be invented." Nothing more.
+3. Use "PARTIAL AUDIT" only when all three core tool calls are unavailable. If one measurement is unavailable but any of the other core calls contains real data, open with "AUDIT · ONE MEASUREMENT UNAVAILABLE" and continue from the measured fields.
 4. MEASURED/INFERRED/HYPOTHESIS tags mandatory, one per claim. Numbers must trace to evidence fields.
 
 Write with a creator's directness: specific fixes, no filler, no "great job". Structure:
@@ -199,10 +352,10 @@ async function runAudit(handle) {
     const progressBar = progress.querySelector('[role="progressbar"]');
     if (progressBar) progressBar.setAttribute("aria-valuenow", String(pct));
   };
-  setStage(5, "Fetching channel snapshot…");
+  setStage(5, "Fetching channel identity…");
 
   const jobs = [
-    { key: "snapshot", label: "snapshot", args: { handle }, timeoutMs: 85000 },
+    { key: "profile", label: "channel identity", args: { handle }, timeoutMs: 85000 },
     { key: "latest", label: "latest uploads", args: { handle, limit: 8 }, timeoutMs: 85000 },
     { key: "outliers", label: "outliers", args: { handle, min_ratio: 2.0 }, timeoutMs: 180000 },
   ];
@@ -256,7 +409,7 @@ async function runAudit(handle) {
   setStage(70, "Scoring keyword opportunity…");
   try {
     const seed = (() => {
-      const d = evidence.snapshot && evidence.snapshot.profile && evidence.snapshot.profile.description;
+      const d = (evidence.profile && evidence.profile.description) || (evidence.snapshot && evidence.snapshot.profile && evidence.snapshot.profile.description);
       if (d) { const first = String(d).split(/[.\n]/)[0].trim(); if (first) return first.slice(0, 60); }
       return handle;
     })();
@@ -307,14 +460,25 @@ async function runAudit(handle) {
 
 function renderAuditCards(handle, ev, verdict) {
   const sec = (ev.snapshot && ev.snapshot.sections) || {};
-  const prof = (ev.snapshot && ev.snapshot.profile) || {};
+  const prof = ev.profile || (ev.snapshot && ev.snapshot.profile) || {};
   const latest = (ev.latest && (Array.isArray(ev.latest) ? ev.latest : (ev.latest.videos || ev.latest.items || []))) || [];
   const outliers = (ev.outliers && (Array.isArray(ev.outliers) ? ev.outliers : (ev.outliers.outliers || ev.outliers.videos || []))) || [];
   const kw = (ev.keywords && (Array.isArray(ev.keywords) ? ev.keywords : (ev.keywords.keywords || ev.keywords.ideas || []))) || [];
 
   const subs = prof.subscribers ?? sec.subs ?? "?";
-  const videos = sec.videos ?? "?";
+  const videos = sec.videos ?? prof.video_count ?? "?";
   const shorts = sec.shorts ?? "?";
+  const hasBreakdown = sec.videos != null || sec.shorts != null;
+  const contentCount = hasBreakdown
+    ? `${escapeHtml(String(videos))}<span style="color:var(--text-dim);font-size:15px"> / ${escapeHtml(String(shorts))}</span>`
+    : escapeHtml(String(videos));
+  const contentLabel = hasBreakdown ? "Long-form / Shorts" : "Total public videos";
+  const unavailable = Object.entries(ev)
+    .filter(([key, value]) => value && value.error && ["profile", "latest", "outliers", "keywords"].includes(key))
+    .map(([key, value]) => `${key}: ${String(value.error).slice(0, 180)}`);
+  const availabilityNote = unavailable.length
+    ? `<div class="note warn audit-availability"><b>One measurement unavailable</b><span>${unavailable.map(escapeHtml).join(" · ")}</span></div>`
+    : "";
 
   const outRows = outliers.slice(0, 6).map((v) =>
     `<tr><td>${escapeHtml(String(v.title || v.id || "").slice(0, 90))}</td><td>${escapeHtml(String(v.views ?? v.view_count ?? "?"))}</td><td>${escapeHtml(String(v.ratio ?? "—"))}</td></tr>`
@@ -329,12 +493,12 @@ function renderAuditCards(handle, ev, verdict) {
     return `<tr><td>${escapeHtml(String(k.keyword || k.seed || ""))}</td><td>${opp}</td><td>${comp}</td><td>${escapeHtml(verdict2)}</td></tr>`;
   }).join("");
 
-  return `
+  return `${availabilityNote}
   <div class="card">
     <h3>MEASURED — Channel snapshot <span class="ev ev-measured">MEASURED</span></h3>
     <div class="grid-2">
       <div class="stat"><div class="n">${escapeHtml(String(subs))}</div><div class="k">Subs</div></div>
-      <div class="stat"><div class="n">${escapeHtml(String(videos))}<span style="color:var(--text-dim);font-size:15px"> / ${escapeHtml(String(shorts))}</span></div><div class="k">Long-form / Shorts</div></div>
+      <div class="stat"><div class="n">${contentCount}</div><div class="k">${contentLabel}</div></div>
     </div>
   </div>
 
@@ -455,7 +619,7 @@ async function runExplorer(kind) {
   if (!request) return;
 
   buttons.forEach((button) => (button.disabled = true));
-  output.innerHTML = '<p class="hint">Fetching ' + escapeHtml(request.label.toLowerCase()) + '…</p>';
+  output.innerHTML = '<div class="skeleton-stack"><span class="skeleton skeleton-wide"></span><span class="skeleton"></span><span class="skeleton skeleton-short"></span></div>';
   try {
     const data = await tool(request.method, request.args, request.timeout, {
       onProgress: (event) => {
@@ -463,17 +627,65 @@ async function runExplorer(kind) {
         const detail = event && event.data && typeof event.data === "object"
           ? event.data.message || event.data.stage || event.data.phase
           : event && event.data;
-        output.innerHTML = '<p class="hint">' + escapeHtml(request.label) + ' · '
-          + escapeHtml(String(detail || phase)) + '…</p>';
+        output.innerHTML = '<div class="loading-line"><span class="spinner"></span>' + escapeHtml(request.label) + ' · '
+          + escapeHtml(String(detail || phase)) + '…</div>';
       }
     });
-    output.innerHTML = renderJsonLab(request.label + " · " + handle, data);
+    output.innerHTML = renderExplorer(request.label, kind, handle, data);
   } catch (error) {
     output.innerHTML = '<p class="hint">Channel research failed: '
       + escapeHtml(String(error.message || error)) + '</p>';
   } finally {
     buttons.forEach((button) => (button.disabled = false));
   }
+}
+
+function listFrom(data, keys = []) {
+  if (Array.isArray(data)) return data;
+  for (const key of keys) if (Array.isArray(data && data[key])) return data[key];
+  return [];
+}
+
+function explorerThumb(item) {
+  const src = item && (item.thumbnail || item.thumbnail_url || item.thumb || item.image);
+  return src ? `<img class="yt-thumb" loading="lazy" src="${escapeHtml(src)}" alt="" />` : '<div class="yt-thumb yt-thumb-empty">▶</div>';
+}
+
+function explorerLink(item) {
+  const url = item && (item.url || item.video_url || item.channel_url || item.link);
+  return url ? `<a class="yt-open" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open on YouTube ↗</a>` : '';
+}
+
+function renderVideoCards(items, label) {
+  if (!items.length) return `<div class="empty-state"><strong>No ${escapeHtml(label.toLowerCase())} returned.</strong><span>YouTube did not expose any public items for this surface.</span></div>`;
+  return `<div class="yt-feed">${items.slice(0, 20).map((item) => `<article class="yt-video-card">
+    ${explorerThumb(item)}<div class="yt-video-body"><div class="yt-card-kicker">${escapeHtml(item.published || item.uploaded || item.date || 'PUBLIC VIDEO')}</div>
+    <h3>${escapeHtml(String(item.title || item.name || item.id || 'Untitled video'))}</h3>
+    <div class="yt-meta"><span>${fmtViews(item.views ?? item.view_count)} views</span><span>${fmtLen(item.duration ?? item.duration_seconds)}</span><span>${escapeHtml(String(item.channel || ''))}</span></div>${explorerLink(item)}</div></article>`).join('')}</div>`;
+}
+
+function renderPosts(items, label) {
+  if (!items.length) return `<div class="empty-state"><strong>No community posts returned.</strong><span>This channel may not expose public posts right now.</span></div>`;
+  return `<div class="yt-post-feed">${items.slice(0, 15).map((item) => `<article class="yt-post-card"><div class="yt-post-head"><div class="post-avatar">${escapeHtml(String(item.author || 'C').slice(0, 1).toUpperCase())}</div><div><strong>${escapeHtml(item.author || 'Channel')}</strong><span>${escapeHtml(item.published || item.date || 'Public post')}</span></div></div><p>${escapeHtml(item.text || item.body || item.title || '')}</p><div class="yt-post-foot"><span>♡ ${escapeHtml(String(item.likes ?? item.like_count ?? 0))}</span>${explorerLink(item)}</div></article>`).join('')}</div>`;
+}
+
+function renderShelves(data) {
+  const shelves = data && (data.shelves || data.sections || data);
+  if (!shelves || typeof shelves !== 'object') return '<div class="empty-state"><strong>No home shelves returned.</strong><span>Try again later if YouTube rate-limited the public home page.</span></div>';
+  const blocks = Object.entries(shelves).filter(([, value]) => Array.isArray(value) && value.length).map(([name, items]) => `<section class="yt-shelf"><div class="shelf-head"><h3>${escapeHtml(name.replace(/[_-]/g, ' '))}</h3><span>${items.length} public items</span></div><div class="shelf-row">${items.slice(0, 8).map((item) => `<article class="shelf-item">${explorerThumb(item)}<strong>${escapeHtml(String(item.title || item.name || item.id || 'Untitled'))}</strong>${explorerLink(item)}</article>`).join('')}</div></section>`);
+  return blocks.length ? blocks.join('') : '<div class="empty-state"><strong>No populated shelves returned.</strong><span>The channel may have a minimal public home layout.</span></div>';
+}
+
+function renderShows(data) {
+  const items = listFrom(data, ['shows', 'items', 'playlists']);
+  if (!items.length) return '<div class="empty-state"><strong>No public Shows returned.</strong><span>YouTube only exposes this surface for channels with public collections.</span></div>';
+  return `<div class="yt-show-grid">${items.slice(0, 15).map((item) => `<article class="yt-show-card"><div class="show-art">▤</div><div><div class="yt-card-kicker">SHOW / COLLECTION</div><h3>${escapeHtml(String(item.title || item.name || item.id || 'Untitled show'))}</h3><p>${escapeHtml(String(item.description || item.count || 'Public episode collection'))}</p>${explorerLink(item)}</div></article>`).join('')}</div>`;
+}
+
+function renderExplorer(label, kind, handle, data) {
+  const items = listFrom(data, ['items', 'videos', 'uploads', 'shorts']);
+  const body = kind === 'posts' ? renderPosts(items, label) : kind === 'home' ? renderShelves(data) : kind === 'shows' ? renderShows(data) : renderVideoCards(items, label);
+  return `<div class="explorer-report"><div class="explorer-report-head"><div><div class="lab-sec">${escapeHtml(label)} <span class="ev ev-measured">MEASURED</span></div><p class="hint">${escapeHtml(handle)} · public YouTube surface</p></div><span class="source-badge">SOURCE LINKED</span></div>${body}</div>`;
 }
 
 /* ---------- content studio ---------- */
@@ -634,6 +846,7 @@ function wireStudio() {
 
         const contextLimit = ["chapters", "shorts", "edit", "script", "full"].includes(task) ? 20000 : 8000;
         const userMessage = "Topic: " + topic + "\n"
+          + (profileState ? "Creator channel context: " + JSON.stringify(profileState.profile).slice(0, 6000) + "\n" : "")
           + (keyword ? "Target keyword: " + keyword + "\n" : "")
           + (workingTitle ? "Current title / click promise: " + workingTitle + "\n" : "")
           + (thumbnailText ? "Existing thumbnail text: " + thumbnailText + "\n" : "")
@@ -1026,7 +1239,147 @@ const RETENTION_SYSTEM = [
   "Give at most one concrete recommendation, tied to a measured finding. If no issue was found, say so rather than forcing a fix.",
   "Label findings MEASURED and interpretation INFERRED; label the next action RECOMMENDATION. Plain language, no performance promises."
 ].join("\n");
+
+let retentionTitle = "Retention export";
+let retentionZipEntries = [];
+let retentionCardIndex = 0;
+
+async function readZipCsvEntries(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes.length < 22) throw new Error("This file is too small to be a ZIP export.");
+  const view = new DataView(bytes.buffer);
+  const u32 = (at) => view.getUint32(at, true);
+  let eocd = -1;
+  for (let at = bytes.length - 22; at >= Math.max(0, bytes.length - 65557); at -= 1) {
+    if (u32(at) === 0x06054b50) { eocd = at; break; }
+  }
+  if (eocd < 0) throw new Error("This ZIP export could not be read in the browser.");
+  const count = view.getUint16(eocd + 10, true);
+  const centralOffset = u32(eocd + 16);
+  const decoder = new TextDecoder();
+  const entries = [];
+  let at = centralOffset;
+  for (let i = 0; i < count; i += 1) {
+    if (u32(at) !== 0x02014b50) break;
+    const method = view.getUint16(at + 10, true);
+    const compressedSize = u32(at + 20);
+    const uncompressedSize = u32(at + 24);
+    const nameLength = view.getUint16(at + 28, true);
+    const extraLength = view.getUint16(at + 30, true);
+    const commentLength = view.getUint16(at + 32, true);
+    const localOffset = u32(at + 42);
+    const name = decoder.decode(bytes.slice(at + 46, at + 46 + nameLength));
+    at += 46 + nameLength + extraLength + commentLength;
+    if (!/\.csv$/i.test(name) || !compressedSize || compressedSize > 30 * 1024 * 1024) continue;
+    const localNameLength = view.getUint16(localOffset + 26, true);
+    const localExtraLength = view.getUint16(localOffset + 28, true);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    const compressed = bytes.slice(dataStart, dataStart + compressedSize);
+    let raw;
+    if (method === 0) raw = compressed;
+    else if (method === 8 && typeof DecompressionStream === "function") raw = new Uint8Array(await new Response(new Blob([compressed]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+    else continue;
+    if (uncompressedSize && raw.length !== uncompressedSize) continue;
+    entries.push({ name, text: decoder.decode(raw) });
+  }
+  return entries;
+}
+
+function retentionGraph(findings) {
+  const points = Array.isArray(findings && findings.points) ? findings.points : [];
+  if (points.length < 2) return '<div class="empty-state"><strong>Not enough points for a graph.</strong><span>The engine needs at least two numeric readings.</span></div>';
+  const xs = points.map((point) => Number(point.time));
+  const ys = points.map((point) => Number(point.retention_pct));
+  const minX = Math.min(...xs), maxX = Math.max(...xs), spanX = Math.max(1, maxX - minX);
+  const minY = Math.min(0, ...ys), maxY = Math.max(100, ...ys), spanY = Math.max(1, maxY - minY);
+  const coords = points.map((point) => {
+    const x = 26 + ((Number(point.time) - minX) / spanX) * 94;
+    const y = 12 + (1 - ((Number(point.retention_pct) - minY) / spanY)) * 58;
+    return [x, y];
+  });
+  const smoothPath = (items) => {
+    if (items.length === 2) return `M ${items[0][0].toFixed(1)} ${items[0][1].toFixed(1)} L ${items[1][0].toFixed(1)} ${items[1][1].toFixed(1)}`;
+    let d = `M ${items[0][0].toFixed(1)} ${items[0][1].toFixed(1)}`;
+    for (let i = 0; i < items.length - 1; i += 1) {
+      const p0 = items[i - 1] || items[i];
+      const p1 = items[i];
+      const p2 = items[i + 1];
+      const p3 = items[i + 2] || p2;
+      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+      const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+      d += ` C ${c1[0].toFixed(1)} ${c1[1].toFixed(1)}, ${c2[0].toFixed(1)} ${c2[1].toFixed(1)}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+    }
+    return d;
+  };
+  const curve = smoothPath(coords);
+  const area = `${curve} L ${coords[coords.length - 1][0].toFixed(1)} 70 L ${coords[0][0].toFixed(1)} 70 Z`;
+  const pointSummary = points.map((point) => `${point.time}${point.axis === '%' ? '%' : 's'} · ${point.retention_pct}% retained`).join('; ');
+  const axis = points[0].axis === '%' ? '% of video' : 'elapsed seconds';
+  return `<div class="ret-chart"><div class="chart-labels"><span>100%</span><span>50%</span><span>0%</span></div><svg viewBox="0 0 132 82" preserveAspectRatio="none" role="img" aria-label="Audience retention curve"><desc>${escapeHtml(pointSummary)}</desc><path class="chart-grid" d="M26 12h94M26 41h94M26 70h94M26 12v58h94"/><path class="ret-area" d="${area}"/><path class="ret-line" d="${curve}"/></svg><div class="chart-axis"><span>${escapeHtml(String(minX))}${points[0].axis === '%' ? '%' : 's'}</span><span>${escapeHtml(String(maxX))}${points[0].axis === '%' ? '%' : 's'} · ${escapeHtml(axis)}</span></div></div>`;
+}
+
+function retentionCard(title, label, body, index) {
+  return `<article class="ret-card ${index === 0 ? 'is-active' : ''}" data-ret-card="${index}"><div class="ret-card-kicker">${escapeHtml(label)}</div><h3>${escapeHtml(title)}</h3><p>${body}</p></article>`;
+}
+
+function renderRetentionReport(findings, recommendation, title) {
+  const hook = findings.hook_leak || {};
+  const slide = findings.slide || {};
+  const cliffs = Array.isArray(findings.cliffs) ? findings.cliffs : [];
+  const cliffBody = cliffs.length ? cliffs.map((cliff) => `${escapeHtml(String(cliff.from))}${cliff.axis === '%' ? '%' : 's'} → ${escapeHtml(String(cliff.to))}${cliff.axis === '%' ? '%' : 's'}: <strong>${escapeHtml(String(cliff.drop_points))} points</strong>`).join('<br />') : 'No adjacent cliff crossed the engine threshold.';
+  retentionCardIndex = 0;
+  return `<div class="ret-report"><div class="ret-report-hero"><div><div class="eyebrow">MEASURED · RETENTION CURVE</div><h2>${escapeHtml(title || 'Retention export')}</h2><p>${escapeHtml(String(findings.rows_read || 0))} readings · ${escapeHtml(String(findings.axis || 'axis unavailable'))}</p></div><span class="ev ev-measured">ENGINE VERIFIED</span></div>${retentionGraph(findings)}<div class="ret-card-stage"><div class="ret-card-nav"><div><span class="eyebrow">FINDING CARDS</span><span class="hint">Swipe the evidence one card at a time</span></div><button id="ret-next" class="circle-btn" type="button" aria-label="Next retention finding">›</button></div><div class="ret-card-deck">${retentionCard('The opening loses ' + (hook.loss_points ?? '—') + ' points', 'HOOK LEAK · MEASURED', `From ${escapeHtml(String(hook.start_retention_pct ?? '—'))}% to ${escapeHtml(String(hook.minimum_early_retention_pct ?? '—'))}% in the ${escapeHtml(String(hook.window || 'early window'))}. Severity: <strong>${escapeHtml(String(hook.severity || 'unavailable'))}</strong>.`, 0)}${retentionCard('Where the cliffs are', 'CLIFFS · MEASURED', cliffBody, 1)}${retentionCard('How fast the curve slides', 'SLIDE · MEASURED', slide.average_loss_points_per_minute == null ? 'Per-minute slide is unavailable until the export has elapsed seconds or a video duration is supplied.' : `Average loss: <strong>${escapeHtml(String(slide.average_loss_points_per_minute))} points/minute</strong>.`, 2)}${retentionCard('One next move', 'RECOMMENDATION · INFERRED', renderMd(recommendation || 'Review the largest measured drop before changing the whole format.'), 3)}</div><div class="ret-dots"><span class="ret-dot is-active"></span><span class="ret-dot"></span><span class="ret-dot"></span><span class="ret-dot"></span></div></div></div>`;
+}
+
+function wireRetentionCarousel() {
+  const next = byId('ret-next');
+  if (!next) return;
+  next.addEventListener('click', () => {
+    const cards = $$('.ret-card');
+    const dots = $$('.ret-dot');
+    if (!cards.length) return;
+    cards[retentionCardIndex].classList.remove('is-active');
+    dots[retentionCardIndex]?.classList.remove('is-active');
+    retentionCardIndex = (retentionCardIndex + 1) % cards.length;
+    cards[retentionCardIndex].classList.add('is-active');
+    dots[retentionCardIndex]?.classList.add('is-active');
+  });
+}
+
 function wireRetention() {
+  const file = byId('ret-file');
+  const entrySelect = byId('ret-file-entry');
+  const dropzone = byId('ret-dropzone');
+  const loadFile = async (selected) => {
+    if (!selected) return;
+    try {
+      retentionTitle = selected.name.replace(/\.(zip|csv)$/i, '').replace(/[_-]+/g, ' ');
+      if (/\.zip$/i.test(selected.name)) {
+        retentionZipEntries = await readZipCsvEntries(selected);
+        if (!retentionZipEntries.length) throw new Error('No readable CSV files were found inside this ZIP.');
+        entrySelect.innerHTML = retentionZipEntries.map((entry, index) => `<option value="${index}">${escapeHtml(entry.name)}</option>`).join('');
+        byId('ret-file-entry-wrap').classList.remove('hidden');
+        byId('ret-csv').value = retentionZipEntries[0].text;
+      } else {
+        retentionZipEntries = [];
+        byId('ret-file-entry-wrap').classList.add('hidden');
+        byId('ret-csv').value = await selected.text();
+      }
+      dropzone.classList.add('has-file');
+      dropzone.querySelector('strong').textContent = selected.name;
+    } catch (error) {
+      byId('ret-output').classList.remove('hidden');
+      byId('ret-output').innerHTML = `<div class="note err"><b>Could not read export</b><span>${escapeHtml(String(error.message || error))}</span></div>`;
+    }
+  };
+  file.addEventListener('change', () => loadFile(file.files && file.files[0]));
+  entrySelect.addEventListener('change', () => {
+    const entry = retentionZipEntries[Number(entrySelect.value)];
+    if (entry) byId('ret-csv').value = entry.text;
+  });
+  ['dragenter', 'dragover'].forEach((eventName) => dropzone.addEventListener(eventName, (event) => { event.preventDefault(); dropzone.classList.add('is-dragging'); }));
+  ['dragleave', 'drop'].forEach((eventName) => dropzone.addEventListener(eventName, (event) => { event.preventDefault(); dropzone.classList.remove('is-dragging'); }));
+  dropzone.addEventListener('drop', (event) => loadFile(event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]));
   byId("ret-analyze").addEventListener("click", async () => {
     const csvText = byId("ret-csv").value.trim();
     const duration = byId("ret-duration").value.trim();
@@ -1039,7 +1392,7 @@ function wireRetention() {
     }
     button.disabled = true;
     output.classList.remove("hidden");
-    output.textContent = "Parsing the CSV with the Skillbox retention engine…";
+    output.innerHTML = '<div class="skeleton-stack"><span class="skeleton skeleton-wide"></span><span class="skeleton"></span><span class="skeleton skeleton-short"></span></div>';
     try {
       const findings = await tool("retention", { csv: csvText, duration: duration || undefined });
       if (!findings || findings.error) {
@@ -1059,10 +1412,10 @@ function wireRetention() {
         recommendation = "Host LLM unavailable: " + (llmError.message || llmError)
           + ". Use the measured findings above; no recommendation was fabricated.";
       }
-      output.textContent = "MEASURED FINDINGS · SKILLBOX ENGINE\n" + measured
-        + "\n\nINFERRED READ + RECOMMENDATION · ANNA HOST LLM\n" + recommendation;
+      output.innerHTML = renderRetentionReport(findings, recommendation, retentionTitle);
+      wireRetentionCarousel();
     } catch (error) {
-      output.textContent = "RETENTION ANALYSIS FAILED\n" + (error.message || error);
+      output.innerHTML = '<div class="note err"><b>Retention analysis failed</b><span>' + escapeHtml(String(error.message || error)) + '</span></div>';
     } finally {
       button.disabled = false;
     }
@@ -1072,11 +1425,13 @@ function wireRetention() {
 /* ---------- boot ---------- */
 async function main() {
   wireTabs();
+  wireChat();
   wireExplorer();
   wireStudio();
   wireLab();
   wireRetention();
   const ok = await connect();
+  await loadWorkspaceState();
   byId("audit-run").addEventListener("click", () => runAudit(byId("audit-handle").value));
   byId("audit-handle").addEventListener("keydown", (e) => { if (e.key === "Enter") runAudit(byId("audit-handle").value); });
   $$(".chip[data-handle]").forEach((chip) => {
