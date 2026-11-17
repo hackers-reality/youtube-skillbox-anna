@@ -26,15 +26,18 @@
         "name": "main",
         "title": "YouTube Skillbox",
         "default": true,
-        "default_size": { "w": 1080, "h": 720 },
-        "min_size": { "w": 720, "h": 480 },
+        "default_size": {
+          "w": 1080,
+          "h": 720
+        },
+        "min_size": {
+          "w": 720,
+          "h": 480
+        },
         "resizable": true,
         "movable": true,
         "single_instance": true
       }
-    ],
-    "browser_permissions": [
-      "clipboard-read"
     ],
     "state_merge": "last_writer_wins"
   },
