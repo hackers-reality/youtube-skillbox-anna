@@ -468,18 +468,31 @@ async function runExplorer(kind) {
 // Formula classification and hook scoring are owned by the original Skillbox Python engine.
 const TASK_PROMPTS = {
   hooks: "Generate exactly 21 distinct opening-hook options for the supplied idea. Return ONLY a valid JSON array of objects with keys hook, formula and rationale. Use the 21 Skillbox formula families where appropriate: The Statistic, Someone Else's Result, The Mistake, Contrarian Flip, The Reveal, The Superlative, The Clock, I Tried It, The Question, Before and After, The Teardown, The Stack, The Warning, The List, The Receipt, The Insider, The Impossible Claim, The Comparison, The Origin, The Deadline, The Direct Address. Each hook must be speakable, confirm the video's actual promise, open a genuine curiosity gap and avoid unsupported numbers, personal claims or fake evidence. Do not reuse examples verbatim. The app scores the copy with the deterministic Skillbox hookscore engine; do not invent scores.",
+  script_hooks: "Generate exactly 5 distinct opening-hook candidates for the video idea. Return ONLY a valid JSON array of objects with keys hook, formula and rationale. Use different fits from the 21 Skillbox formula families. Follow the video's actual title promise, create a genuine curiosity gap and show that the payoff exists. Never invent a personal result, source, statistic or experience. The app will score all five with the original Skillbox hookscore engine; do not add scores.",
+  script: "Write the full spoken script using the two top-ranked hook candidates supplied in the request. First 15 seconds must confirm the click promised by the title, open a question the viewer cannot close, and prove the payoff exists. The 0:15–0:45 turn explains what the video will do and starts doing it—no channel intro, 'before we get started' or subscribe pitch. Body: one idea per beat and add [ON SCREEN: ...] to every beat. Explicitly deliver the promised payoff. Close with one ask, not three. Estimate runtime at 150 spoken words per minute. Never invent facts, numbers, sources or personal experience; mark unsupported factual claims [SOURCE NEEDED]. If no creator voice sample was supplied, state that voice fit is not calibrated and use a natural, clear spoken voice.",
   titles: "Write exactly 5 distinct YouTube title options. Return ONLY a valid JSON array of strings. Keep each title under 100 characters, front-load the topic, avoid unsupported claims and do not overpromise. The app runs the deterministic Skillbox title linter; do not invent scores or CTR predictions.",
-  script: "Write a complete spoken YouTube script for the supplied idea and source notes. Structure it with the exact opening hook, story progression, proof/payoff, transitions and close. Separate spoken words from on-screen/production cues. Do not invent personal experience, stats, research, sources or outcomes. Mark facts that need verification as [SOURCE NEEDED]; label any proposed framing as INFERRED. Make the script sound natural aloud, not like an essay.",
-  seo: "Write a YouTube description whose first two lines restate the actual video promise and target keyword, then provide 8–12 specific tags and a short SEO checklist. Never invent sources, stats or claims. Label recommendations as recommendations, not measured outcomes.",
-  chapters: "Write chapters only from the supplied transcript or detailed outline. The first chapter must be 0:00. Use only timestamps explicitly present in the source. If there is no transcript or timecoded outline, ask for it instead of inventing timestamps.",
-  shorts: "Identify up to 3 self-contained Shorts only from the supplied transcript or detailed outline. Provide source timecodes only when supplied. If there is no transcript, ask for one instead of inventing clip boundaries. Each candidate needs its own hook, standalone payoff and reason it survives outside the long video.",
-  edit: "Create an edit decision list from the supplied transcript. Use exact timecodes only when the source contains them; otherwise provide ordered editorial cues without timestamps. Separate CUT, RETAKE, FILLER, PAUSE and KEEP suggestions, quote the source fragment that justifies each suggestion, and never claim to have inspected the video or audio.",
-  comments: "Triage the supplied YouTube comments into: answer, heart/acknowledge, escalate/moderate, and leave alone. Draft concise replies in the creator's voice using only facts supplied in the context. Do not claim replies were posted, do not invent a creator opinion, and flag questions that need the creator's input.",
-  plan: "Create a practical one-week or one-month content plan using the creator's stated capacity and source notes. If cadence, available hours or format mix are missing, state the assumption as INFERRED and keep the plan adjustable. Do not invent trending topics or promise growth. Connect each idea to an audience question, channel outlier or measured keyword only when such evidence is supplied.",
-  thumbnail: "Create three distinct thumbnail-text and visual-direction briefs for the supplied video idea. For each, specify the central subject, composition, contrast, 1–4 word text option, and what the title should say that the thumbnail does not. These are creative hypotheses, not tested concepts. Do not claim the actual thumbnail image was evaluated.",
-  full: "Produce a practical creator pack: a script outline, hook directions, title options, description and tags, chapter plan only when timestamps are supported by a transcript, and Shorts angles only when source content is supplied. Separate creative hypotheses from measured facts. No fake performance scores or CTR predictions."
+  seo: "Write a search-facing YouTube package using only supplied keyword research. Start with a description whose first two lines state the video promise in the target query's language, then add any supplied link/resource, chapters only when real timecodes exist, and a concise longer description. Provide 8–12 relevant tags (never more than 15); use tags for disambiguation, spelling variants and real topic terms, not unrelated reach bait. If no keyword research was supplied, say the query still needs measuring. Do not invent search volume, sources, results or ranking claims.",
+  chapters: "Write YouTube chapters only from the timestamped transcript or timecoded outline supplied. The first entry must be 00:00; provide at least three chapters; every chapter must be at least 10 seconds apart. Give each chapter a clear three-to-five-word promise in natural creator voice, not a transcript topic dump. Never invent or interpolate timestamps. If there are not enough source timestamps for valid chapters, explain what is missing and ask for a timecoded transcript.",
+  shorts: "Find up to 3 self-contained Shorts from the timestamped transcript. A candidate should run 20–55 seconds, open on a complete thought, contain a turn (claim then complication or proof), and end on a line rather than trail off. For each candidate provide source start/end timecodes, the original first line, a NEW context-free hook, on-screen text for the first two seconds (different wording from the spoken line), a loop point, vertical-crop framing note, and why it survives without the long video. If source timestamps are absent, do not invent them.",
+  edit: "Create an edit decision list from the timestamped transcript. Identify candidate pauses from gaps between adjacent caption cues, filler phrases and repeated/restarted sentences. Cite the exact cue timecodes and source words for every recommendation. Caption gaps are candidate pauses, not proof of silence; label them for footage review. Do not claim to have inspected media or apply edits. If timestamps are missing, do not invent them.",
+  comments: "Triage the supplied YouTube comments into four piles: QUESTIONS, CORRECTIONS, PRAISE and BAIT. State the count in each pile before drafting. Answer the actual question first; acknowledge praise briefly and specifically; check corrections against supplied evidence and mark unverified claims for creator review; do not reply to bait. Keep each drafted reply under 30 words, use no emoji unless the creator's supplied voice notes use them, and never promise a future video. Recommend ONE comment to pin and explain why. Drafts only; do not claim anything was posted or hearted.",
+  plan: "Plan one realistic week, sized to the creator's real capacity. Before building the calendar, require two inputs: available hours this week and what content is already half-made. If either is missing, ask for it instead of inventing a schedule. When supplied, plan one anchor video, one low-effort post built from existing material, and up to three Shorts cut from the anchor—not seven uploads in seven days. Use the channel's own best day only if measured analytics were supplied; otherwise leave the day flexible. Return a table with day, format, working title, one-sentence promise, existing assets and estimated hours; state total hours and what to drop first if the week goes wrong.",
+  thumbnail: "Create three distinct title/thumbnail pairing briefs for the supplied video. For each, specify the subject/expression, framing, foreground/background contrast, no more than three words of thumbnail text, and what the title should communicate that the thumbnail does not. Do not invent thumbnail text as though the creator already supplied it. These are untested creative hypotheses; thumbnail image pixels have not been evaluated and no CTR or performance prediction is allowed.",
+  full: "Produce a practical creator pack: a concise script outline with a strong opening, title options, description and tags, chapters only when timestamps are supported by a transcript, and Shorts angles only when source content and timestamps are supplied. Separate measured facts, inference and creative hypotheses. No fake performance scores or CTR predictions."
 };
 
+
+
+
+function formatCueTime(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return hours
+    ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0")
+    : String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
+}
 
 function parseJsonArray(raw) {
   const text = String(raw || "").trim();
@@ -583,18 +596,25 @@ function wireStudio() {
         if (task === "transcript") {
           const transcriptResult = await tool("transcribe", {
             video,
-            language: byId("lab-language").value || "en"
+            language: byId("lab-language").value || "auto"
           }, 85000);
           if (!transcriptResult || !transcriptResult.transcript) {
             throw new Error("No usable transcript text was returned for this video.");
           }
           const transcriptText = String(transcriptResult.transcript).trim();
-          byId("studio-context").value = transcriptText;
+          const segments = Array.isArray(transcriptResult.segments) ? transcriptResult.segments : [];
+          const timestamped = segments.length
+            ? segments.map((segment) => "[" + formatCueTime(segment.start) + "] " + segment.text).join("\n")
+            : transcriptText;
+          byId("studio-context").value = timestamped;
           output.textContent = "TRANSCRIPT FETCHED · " + (transcriptResult.title || video) + "\n"
             + "Channel: " + (transcriptResult.channel || "Not returned") + "\n"
             + "Language: " + (transcriptResult.language || "Not returned") + "\n"
-            + "Transcript copied into the Context field so Chapters, Shorts and the full pack can use it.\n\n"
-            + transcriptText;
+            + "Caption cues: " + (transcriptResult.segment_count ?? segments.length) + "\n"
+            + (segments.length
+              ? "Real caption timecodes were preserved in the Context field."
+              : "This track returned text without parseable cue timecodes; timestamp-dependent tasks must not invent them.") + "\n\n"
+            + timestamped;
           label.textContent = "TRANSCRIPT · READY FOR CREATION";
           return;
         }
