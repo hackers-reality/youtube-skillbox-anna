@@ -47,26 +47,40 @@ function setStatus(text, ok, warn = false) {
 }
 
 /* ---------- helpers: tools / llm / storage ---------- */
-async function tool(method, args, timeoutMs) {
+async function tool(method, args, timeoutMs, options = {}) {
   if (standalone || !anna) {
     throw new Error("Anna host is not connected. Open this app inside Anna AI OS to run live Skillbox tools; no sample measurements were substituted.");
   }
-  const res = await anna.tools.invoke(
-    { tool_id: TOOL_ID, method, args: args || {} },
-    timeoutMs ? { timeoutMs } : undefined
-  );
-  // The SDK resolves with the BARE payload (msg.result) — no envelope.
-  // Only reject on explicit failure shapes.
+
+  const request = { tool_id: TOOL_ID, method, args: args || {} };
+  if (Number.isFinite(timeoutMs) && timeoutMs > 0) request.timeoutMs = timeoutMs;
+
+  // Anna's synchronous invoke path is capped at 90 seconds. Long engine
+  // operations (notably channel outlier scans) must use the durable job API.
+  const res = timeoutMs > 90000
+    ? (typeof anna.tools.invokeAsyncAwait === "function"
+        ? await anna.tools.invokeAsyncAwait(request, options)
+        : (() => { throw new Error("This Anna host SDK does not expose invokeAsyncAwait; update the Anna app runtime before running this long task."); })())
+    : await anna.tools.invoke(request);
+
   if (res === undefined || res === null) throw new Error("tool returned no data");
   if (typeof res !== "object") return res;
-  if (res.success === false || res.ok === false || res.error) {
+
+  // The current SDK normally resolves the plugin payload directly. Accept
+  // the explicit RPC envelope as well so older hosts fail transparently.
+  if (res.ok === false) {
     const e = res.error;
-    throw new Error(typeof e === "string" ? e : (e && (e.message || e.code)) || "tool failed");
+    throw new Error(typeof e === "string" ? e : (e && (e.message || e.code)) || "Anna host request failed");
   }
-  // Defensive envelope handling in case a host passes one through:
-  if (res.ok === true && "result" in res) return res.result;
-  if (res.success === true && "data" in res) return res.data;
-  return res;
+  const payload = res.ok === true && "result" in res ? res.result : res;
+  if (payload && typeof payload === "object") {
+    if (payload.success === false || payload.error) {
+      const e = payload.error;
+      throw new Error(typeof e === "string" ? e : (e && (e.message || e.code)) || "Skillbox tool failed");
+    }
+    if (payload.success === true && "data" in payload) return payload.data;
+  }
+  return payload;
 }
 
 async function llm(systemPrompt, userMessage, maxTokens = 3200) {
@@ -74,7 +88,7 @@ async function llm(systemPrompt, userMessage, maxTokens = 3200) {
     throw new Error("Anna's hosted LLM is unavailable outside the Anna app runtime. No generated result was substituted.");
   }
   const r = await anna.llm.complete({
-    messages: [{ role: "user", content: userMessage }],
+    messages: [{ role: "user", content: { type: "text", text: userMessage } }],
     systemPrompt,
     maxTokens,
     temperature: 0.35,
@@ -83,26 +97,36 @@ async function llm(systemPrompt, userMessage, maxTokens = 3200) {
 }
 
 async function storageList(key) {
-  try {
-    if (anna && !standalone) {
-      const r = await anna.storage.get({ key });
-      if (!r) return [];
-      const v = typeof r === "string" ? r : r.value ?? r;
-      return JSON.parse(v || "[]");
+  if (anna && !standalone) {
+    const response = await anna.storage.get({ key });
+    const value = response && response.value;
+    if (value == null) return [];
+    // Older bundle versions stored JSON as a string; accept both that format
+    // and native JSON values written by the current app.
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
     }
-  } catch (_) { /* fall through */ }
-  try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+    return Array.isArray(value) ? value : [];
+  }
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch (_) {
+    return [];
+  }
 }
 
 async function storageSet(key, value) {
-  const serialized = JSON.stringify(value);
   if (anna && !standalone) {
-    try {
-      await anna.storage.set({ key, value: serialized });
-      return;
-    } catch (_) { /* fall through */ }
+    await anna.storage.set({ key, value });
+    return;
   }
-  localStorage.setItem(key, serialized);
+  localStorage.setItem(key, JSON.stringify(value));
 }
 
 /* ---------- tabs ---------- */
@@ -183,9 +207,9 @@ async function runAudit(handle) {
   setStage(5, "Fetching channel snapshot…");
 
   const jobs = [
-    { key: "snapshot", label: "snapshot", args: { handle } },
-    { key: "latest", label: "latest uploads", args: { handle, limit: 8 } },
-    { key: "outliers", label: "outliers", args: { handle, min_ratio: 2.0 } },
+    { key: "snapshot", label: "snapshot", args: { handle }, timeoutMs: 85000 },
+    { key: "latest", label: "latest uploads", args: { handle, limit: 8 }, timeoutMs: 85000 },
+    { key: "outliers", label: "outliers", args: { handle, min_ratio: 2.0 }, timeoutMs: 180000 },
   ];
 
   const evidence = {};
@@ -195,7 +219,7 @@ async function runAudit(handle) {
   for (const job of jobs) {
     setStage(15 + okSteps * 18, `Running ${job.label}…`);
     try {
-      evidence[job.key] = await tool(job.key, job.args);
+      evidence[job.key] = await tool(job.key, job.args, job.timeoutMs);
       anyOk = true;
     } catch (e) {
       const msg = String(e.message || e);
@@ -233,7 +257,7 @@ async function runAudit(handle) {
       if (d) { const first = String(d).split(/[.\n]/)[0].trim(); if (first) return first.slice(0, 60); }
       return handle;
     })();
-    evidence.keywords = await tool("keywords", { seed, limit: 12 });
+    evidence.keywords = await tool("keywords", { seed, limit: 12 }, 85000);
   } catch (e) {
     evidence.keywords = { error: String(e.message || e) };
   }
@@ -254,7 +278,9 @@ async function runAudit(handle) {
     const audits = await storageList(AUDITS_KEY);
     audits.unshift({ ts: Date.now(), handle, evidence, verdict });
     await storageSet(AUDITS_KEY, audits.slice(0, 15));
-  } catch (_) { /* non-fatal */ }
+  } catch (storageError) {
+    setStatus("Audit complete · saved-audit storage unavailable", true, true);
+  }
 
   rawPre.textContent = JSON.stringify({ evidence, verdict }, null, 2);
   rawBox.classList.remove("hidden");
@@ -282,9 +308,11 @@ function renderAuditCards(handle, ev, verdict) {
   ).join("");
 
   const kwRows = kw.slice(0, 8).map((k) => {
-    const opp = Number(k.opportunity_score ?? k.score ?? 0);
-    const comp = Number(k.competition_score ?? k.competition ?? 0);
-    const verdict2 = /^[A-Z]/.test(String(k.verdict || "")) ? String(k.verdict) : "MAYBE";
+    const oppRaw = k.opportunity_score ?? k.score;
+    const compRaw = k.competition_score ?? k.competition;
+    const opp = oppRaw == null || !isFinite(Number(oppRaw)) ? "—" : Number(oppRaw);
+    const comp = compRaw == null || !isFinite(Number(compRaw)) ? "—" : Number(compRaw);
+    const verdict2 = /^[A-Z]/.test(String(k.verdict || "")) ? String(k.verdict) : "—";
     return `<tr><td>${escapeHtml(String(k.keyword || k.seed || ""))}</td><td>${opp}</td><td>${comp}</td><td>${escapeHtml(verdict2)}</td></tr>`;
   }).join("");
 
@@ -481,7 +509,7 @@ function wireStudio() {
           const transcriptResult = await tool("transcribe", {
             video,
             language: byId("lab-language").value || "en"
-          }, 120000);
+          }, 85000);
           if (!transcriptResult || !transcriptResult.transcript) {
             throw new Error("No usable transcript text was returned for this video.");
           }
@@ -607,7 +635,9 @@ function renderIdeasLab(d) {
   const rows = kws.slice(0, 15).map((k) => {
     const flags = [k.year_trend ? "YEAR TREND" : "", k.question ? "QUESTION" : ""].filter(Boolean);
     const annotation = flags.length ? ` <span class="hint">${escapeHtml(flags.join(" · "))}</span>` : "";
-    return `<tr><td>${escapeHtml(String(k.keyword || ""))}${annotation}</td><td>${Number(k.opportunity_score ?? k.score ?? 0)}</td></tr>`;
+    const score = k.opportunity_score ?? k.score;
+    const scoreLabel = score == null || !isFinite(Number(score)) ? "—" : String(Number(score));
+    return `<tr><td>${escapeHtml(String(k.keyword || ""))}${annotation}</td><td>${scoreLabel}</td></tr>`;
   }).join("");
   const meta = d.seed ? `<div class="hint" style="margin:0 0 6px">seed “${escapeHtml(d.seed)}” · ${escapeHtml(String(d.unique ?? kws.length))} unique from ${escapeHtml(String(d.queries ?? "?"))} queries · YEAR TREND / QUESTION labels where returned</div>` : "";
   return `<div class="lab-sec">Keyword ideas (suggest + DDG demand) <span class="ev ev-measured">MEASURED</span></div>${meta}` + labTable(["Keyword", "Opportunity"], rows);
@@ -647,7 +677,7 @@ function renderGapLab(d) {
   const both = (d.both || []).slice(0, 15);
   const kwRow = (k) => typeof k === "string"
     ? `<tr><td>${escapeHtml(k)}</td><td>—</td></tr>`
-    : `<tr><td>${escapeHtml(String(k.keyword || ""))}</td><td>${Number(k.score ?? 0)}${k.year_trend ? " · YEAR TREND" : ""}${k.question ? " · QUESTION" : ""}</td></tr>`;
+    : `<tr><td>${escapeHtml(String(k.keyword || ""))}</td><td>${k.score == null ? "—" : Number(k.score)}${k.year_trend ? " · YEAR TREND" : ""}${k.question ? " · QUESTION" : ""}</td></tr>`;
   return `
   <div class="lab-sec">Content gap — “${escapeHtml(String(d.seed || ""))}” vs ${escapeHtml(String(d.competitor || ""))} <span class="ev ev-measured">MEASURED</span></div>
   <div class="lab-sec">They cover, you don't (${them.length})</div>
@@ -690,7 +720,7 @@ async function runLab(kind) {
   const video = byId("lab-video").value.trim();
   const gl = byId("lab-region").value || "IN";
   const hl = byId("lab-language").value || "en";
-  const T = 120000;
+  const T = 85000;
 
   const need = (condition, message) => {
     if (condition) return true;
