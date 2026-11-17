@@ -558,7 +558,8 @@ def _parse_retention_csv(csv_text, duration_seconds=None):
         return {"error": "CSV header row is missing."}
 
     def normalize(value):
-        return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower())).strip("_")
+        raw = str(value or "").strip().lower().replace("%", "pct")
+        return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", raw)).strip("_")
 
     headers = {normalize(name): name for name in reader.fieldnames}
     time_col = None
