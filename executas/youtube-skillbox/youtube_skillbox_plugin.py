@@ -244,7 +244,6 @@ MANIFEST = {
         },
     ],
     "credentials": [],
-    "host_capabilities": [],
     "runtime": {"type": "python"},
 }
 
