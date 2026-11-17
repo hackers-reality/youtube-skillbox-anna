@@ -649,19 +649,26 @@ def _parse_retention_csv(csv_text, duration_seconds=None):
         return {"error": "At least two numeric retention readings are required.", "rows_read": len(points)}
     points.sort(key=lambda point: point["axis_value"])
     time_is_pct = points[0]["original_time_is_pct"]
+    absolute_retention = any(point["retention_pct"] > 100 for point in points)
     early_limit = 30.0
     early = [point for point in points if point["axis_value"] <= early_limit]
     if early:
         start_retention = points[0]["retention_pct"]
         min_early = min(point["retention_pct"] for point in early)
         leak = round(start_retention - min_early, 1)
+        severity = (
+            "not applicable (absolute retention can exceed 100% through loops/replays)"
+            if absolute_retention
+            else "healthy" if leak < 25 else "moderate" if leak < 40 else "severe"
+        )
         hook_leak = {
             "loss_points": leak,
             "start_retention_pct": start_retention,
             "minimum_early_retention_pct": min_early,
             "window": "first 30% of video" if time_is_pct else "first 30 seconds",
             "axis": "%" if time_is_pct else "seconds",
-            "severity": "healthy" if leak < 25 else "moderate" if leak < 40 else "severe",
+            "severity": severity,
+            "absolute_retention_detected": absolute_retention,
         }
     else:
         hook_leak = {
@@ -670,6 +677,7 @@ def _parse_retention_csv(csv_text, duration_seconds=None):
             "axis": "%" if time_is_pct else "seconds",
             "severity": "unknown",
             "note": "No readings inside the early-retention window.",
+            "absolute_retention_detected": absolute_retention,
         }
 
     cliffs = []
@@ -692,9 +700,15 @@ def _parse_retention_csv(csv_text, duration_seconds=None):
             slopes.append((previous["retention_pct"] - current["retention_pct"]) / ((t1 - t0) / 60.0))
     if slopes:
         average_slide = round(sum(slopes) / len(slopes), 2)
+        slide_severity = (
+            "not applicable (absolute retention can exceed 100% through loops/replays)"
+            if absolute_retention
+            else "healthy" if average_slide < 1 else "moderate" if average_slide < 3 else "severe"
+        )
         slide = {
             "average_loss_points_per_minute": average_slide,
-            "severity": "healthy" if average_slide < 1 else "moderate" if average_slide < 3 else "severe",
+            "severity": slide_severity,
+            "absolute_retention_detected": absolute_retention,
         }
     else:
         slide = {
