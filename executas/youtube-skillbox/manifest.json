@@ -312,7 +312,7 @@
     },
     {
       "name": "transcribe",
-      "description": "Spoken text of any video (auto/human captions). Returns plain text. Original language + English when available.",
+      "description": "Fetch manual or auto captions, preferring the original spoken language plus English. Returns transcript text and timestamped caption segments for script, chapter, Shorts and edit workflows.",
       "parameters": [
         {
           "name": "client_id",
