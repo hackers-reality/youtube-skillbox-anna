@@ -596,7 +596,7 @@ function wireStudio() {
         if (task === "transcript") {
           const transcriptResult = await tool("transcribe", {
             video,
-            language: byId("lab-language").value || "auto"
+            language: byId("transcript-language").value || "auto"
           }, 85000);
           if (!transcriptResult || !transcriptResult.transcript) {
             throw new Error("No usable transcript text was returned for this video.");
