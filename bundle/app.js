@@ -598,7 +598,7 @@ function renderIdeasLab(d) {
     const annotation = flags.length ? ` <span class="hint">${escapeHtml(flags.join(" · "))}</span>` : "";
     return `<tr><td>${escapeHtml(String(k.keyword || ""))}${annotation}</td><td>${Number(k.opportunity_score ?? k.score ?? 0)}</td></tr>`;
   }).join("");
-  const meta = d.seed ? `<div class="hint" style="margin:0 0 6px">seed “${escapeHtml(d.seed)}” · ${escapeHtml(String(d.unique ?? kws.length))} unique from ${escapeHtml(String(d.queries ?? "?"))} queries · 📈 year in keyword · ❓ question-form</div>` : "";
+  const meta = d.seed ? `<div class="hint" style="margin:0 0 6px">seed “${escapeHtml(d.seed)}” · ${escapeHtml(String(d.unique ?? kws.length))} unique from ${escapeHtml(String(d.queries ?? "?"))} queries · YEAR TREND / QUESTION labels where returned</div>` : "";
   return `<div class="lab-sec">Keyword ideas (suggest + DDG demand) <span class="ev ev-measured">MEASURED</span></div>${meta}` + labTable(["Keyword", "Opportunity"], rows);
 }
 
@@ -636,7 +636,7 @@ function renderGapLab(d) {
   const both = (d.both || []).slice(0, 15);
   const kwRow = (k) => typeof k === "string"
     ? `<tr><td>${escapeHtml(k)}</td><td>—</td></tr>`
-    : `<tr><td>${escapeHtml(String(k.keyword || ""))}</td><td>${Number(k.score ?? 0)}${k.year_trend ? " 📈" : ""}${k.question ? " ❓" : ""}</td></tr>`;
+    : `<tr><td>${escapeHtml(String(k.keyword || ""))}</td><td>${Number(k.score ?? 0)}${k.year_trend ? " · YEAR TREND" : ""}${k.question ? " · QUESTION" : ""}</td></tr>`;
   return `
   <div class="lab-sec">Content gap — “${escapeHtml(String(d.seed || ""))}” vs ${escapeHtml(String(d.competitor || ""))} <span class="ev ev-measured">MEASURED</span></div>
   <div class="lab-sec">They cover, you don't (${them.length})</div>
