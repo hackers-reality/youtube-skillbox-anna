@@ -5,7 +5,16 @@ Run with:
 """
 import unittest
 
-from youtube_skillbox_plugin import _hookscore, _parse_retention_csv, _title_lint
+from unittest.mock import patch
+
+from youtube_skillbox_plugin import (
+    AUDIT_TIMEOUT,
+    MANIFEST,
+    _hookscore,
+    _parse_retention_csv,
+    _title_lint,
+    invoke,
+)
 
 
 class CreatorToolTests(unittest.TestCase):
@@ -22,6 +31,8 @@ class CreatorToolTests(unittest.TestCase):
         self.assertIn("CURIOSITY", row["properties"])
         self.assertIn("BREVITY", row["properties"])
         self.assertEqual(row["formula"], "The Question")
+        self.assertEqual(row["verdict"], row["score"])
+        self.assertEqual(row["matched"], 2)
         self.assertIn(row["band"], {"STRONG", "WORKABLE", "WEAK"})
         self.assertIn("not a retention", row["score_type"])
 
@@ -82,6 +93,55 @@ class CreatorToolTests(unittest.TestCase):
         self.assertIn("not applicable", result["hook_leak"]["severity"])
         self.assertTrue(result["slide"]["absolute_retention_detected"])
         self.assertIn("not applicable", result["slide"]["severity"])
+
+    def test_describe_manifest_exposes_full_channel_research_surface(self):
+        names = {item["name"] for item in MANIFEST["tools"]}
+        self.assertTrue({
+            "snapshot", "latest", "channel", "posts", "home", "shows",
+            "playlist", "info", "outliers", "keywords", "compete", "gap",
+            "scorecard", "track", "trends", "transcribe", "hookscore",
+            "title_lint", "retention",
+        }.issubset(names))
+        self.assertNotIn("host_capabilities", MANIFEST)
+
+    @patch("youtube_skillbox_plugin._eng")
+    def test_channel_dispatch_supports_shorts_with_duration(self, engine):
+        engine.return_value = {"success": True, "data": {"items": []}}
+        invoke("channel", {
+            "handle": "@sample",
+            "limit": 6,
+            "tab": "shorts",
+            "with_duration": True,
+        })
+        args, kwargs = engine.call_args
+        self.assertEqual(args[:6], ("channel", "@sample", "--limit", "6", "--tab", "shorts"))
+        self.assertIn("--with-duration", args)
+        self.assertEqual(args[-1], "--json")
+        self.assertEqual(kwargs["timeout"], AUDIT_TIMEOUT)
+
+    @patch("youtube_skillbox_plugin._eng")
+    def test_posts_dispatch_uses_channel_and_limit(self, engine):
+        engine.return_value = {"success": True, "data": {"items": []}}
+        invoke("posts", {"handle": "@sample", "limit": 12})
+        args, kwargs = engine.call_args
+        self.assertEqual(args, ("posts", "@sample", "--limit", "12", "--json"))
+        self.assertIn("timeout", kwargs)
+
+    @patch("youtube_skillbox_plugin._eng")
+    def test_home_dispatch_can_return_verbose_shelves(self, engine):
+        engine.return_value = {"success": True, "data": {}}
+        invoke("home", {"handle": "@sample", "limit": 8, "verbose": True})
+        args, _ = engine.call_args
+        self.assertIn("--verbose", args)
+        self.assertEqual(args[-1], "--json")
+
+    @patch("youtube_skillbox_plugin._eng")
+    def test_video_info_and_playlist_dispatch(self, engine):
+        engine.return_value = {"success": True, "data": {}}
+        invoke("info", {"video": "abc123"})
+        self.assertEqual(engine.call_args.args, ("info", "abc123", "--json"))
+        invoke("playlist", {"playlist": "PLabc123", "limit": 25})
+        self.assertEqual(engine.call_args.args, ("playlist", "PLabc123", "--limit", "25", "--json"))
 
     def test_malformed_retention_headers_fail_explicitly(self):
         result = _parse_retention_csv("foo,bar\n1,2\n3,4\n")
