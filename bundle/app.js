@@ -465,29 +465,7 @@ async function runExplorer(kind) {
 }
 
 /* ---------- content studio ---------- */
-const HOOK_FORMULAS = `21 proven hook formulas (use a small, deliberately-scoped subset, pick by fit, score honestly 0–100):
-1. Opposing beliefs — "Everyone says X. Here's why they're wrong."
-2. Odd one out — "If you can spot the difference…"
-3. Personal stakes — "I lost $40k doing this."
-4. Future flash — show the end result, rewind.
-5. Numbers list — "7 things nobody tells you about…"
-6. Quiet confession — "I'm not proud of this, but…"
-7. Myth bust — "YouTube's most repeated lie…"
-8. Time-box — "In 10 minutes I'll show you…"
-9. Curiosity gap — "Nobody talks about the part after…"
-10. Direct callout — "If you're a creator with <1k subs, this is for you."
-11. Before/after — "This is my channel 90 days apart."
-12. Villain — "The algorithm cheated me and here's the receipt."
-13. Stakes escalation — "If you don't fix this, here's what happens next."
-14. Contrarian "unpopular opinion" — "Stop doing X. It's killing your retention."
-15. Visual prediction — "Watch what happens when I upload this."
-16. Credibility hybrid — "3 years of posting, here's what actually worked."
-17. Pattern interrupt — open mid-scene, no context.
-18. Social proof — "The #6 video did 40× views. Here's the hook."
-19. Regret frame — "I wasted 2 years on this. Don't."
-20. Mechanism tease — "The one dial that decides if a video lives or dies."
-21. Direct question — "What would you do with 100 subs and zero views?"`;
-
+// Formula classification and hook scoring are owned by the original Skillbox Python engine.
 const TASK_PROMPTS = {
   hooks: "Generate exactly 21 distinct opening-hook options for the supplied idea. Return ONLY a valid JSON array of objects with keys hook, formula and rationale. Use the 21 Skillbox formula families where appropriate: The Statistic, Someone Else's Result, The Mistake, Contrarian Flip, The Reveal, The Superlative, The Clock, I Tried It, The Question, Before and After, The Teardown, The Stack, The Warning, The List, The Receipt, The Insider, The Impossible Claim, The Comparison, The Origin, The Deadline, The Direct Address. Each hook must be speakable, confirm the video's actual promise, open a genuine curiosity gap and avoid unsupported numbers, personal claims or fake evidence. Do not reuse examples verbatim. The app scores the copy with the deterministic Skillbox hookscore engine; do not invent scores.",
   titles: "Write exactly 5 distinct YouTube title options. Return ONLY a valid JSON array of strings. Keep each title under 100 characters, front-load the topic, avoid unsupported claims and do not overpromise. The app runs the deterministic Skillbox title linter; do not invent scores or CTR predictions.",
