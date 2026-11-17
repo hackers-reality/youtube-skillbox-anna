@@ -504,7 +504,7 @@ def _hookscore(hooks):
             "matched": formula_hits,
             "weakest": weakest,
             "fix": fixes[weakest],
-            "score_type": "heuristic hook-copy diagnostic; cannot distinguish a creator's hits from misses reliably and is not a performance prediction",
+            "score_type": "heuristic hook-copy diagnostic; not a retention or performance prediction. The upstream validation found weak separation between a creator's own hits and misses.",
         })
     rows.sort(key=lambda row: -row["verdict"])
     return {"count": len(rows), "scored_hooks": rows}
