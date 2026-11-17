@@ -690,7 +690,9 @@ function renderScorecardLab(d) {
 /* Opportunity for verdict = mean of the top-5 measured keyword scores, clamped to 0-100.
  * The aggregation step is INFERRED; every input is MEASURED by the keywords tool. */
 function renderJsonLab(title, data) {
-  return \`<div class="lab-sec">\${escapeHtml(title)} <span class="ev ev-measured">MEASURED</span></div><pre class="output-pre">\${escapeHtml(JSON.stringify(data, null, 2))}</pre>\`;
+  return '<div class="lab-sec">' + escapeHtml(title)
+    + ' <span class="ev ev-measured">MEASURED</span></div><pre class="output-pre">'
+    + escapeHtml(JSON.stringify(data, null, 2)) + '</pre>';
 }
 
 function opportunityFrom(kw) {
