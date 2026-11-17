@@ -83,7 +83,7 @@
           "type": "number",
           "description": "Minimum views/subs multiple.",
           "required": false,
-          "default": 2.0
+          "default": 2
         }
       ],
       "timeout": 150
@@ -314,6 +314,81 @@
         }
       ],
       "timeout": 90
+    },
+    {
+      "name": "hookscore",
+      "description": "Deterministically score generated hook copy using the upstream five-property heuristic. Scores are copy diagnostics, not retention or performance predictions.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "hooks",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Hook lines to score (maximum 30).",
+          "required": true
+        }
+      ],
+      "timeout": 10
+    },
+    {
+      "name": "title_lint",
+      "description": "Lint title text against the upstream Skillbox title checks: length, mobile truncation, wording, concrete anchors and optional thumbnail duplication. Scores are heuristics, not CTR predictions.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "titles",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Title candidates to lint (maximum 30).",
+          "required": true
+        },
+        {
+          "name": "thumbnail_text",
+          "type": "string",
+          "description": "Optional thumbnail copy to check for repeated wording.",
+          "required": false
+        }
+      ],
+      "timeout": 10
+    },
+    {
+      "name": "retention",
+      "description": "Parse a pasted YouTube Studio retention CSV and calculate hook leak, cliffs and average slide from the actual axis. Does not invent timestamps from percent-only data.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "csv",
+          "type": "string",
+          "description": "Raw CSV text from the YouTube Studio audience-retention export.",
+          "required": true
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "description": "Video duration in seconds; required for seconds-based slide rates from percentage-position exports.",
+          "required": false
+        }
+      ],
+      "timeout": 10
     }
   ],
   "credentials": [],
