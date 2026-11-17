@@ -277,7 +277,17 @@ async function runAudit(handle) {
   try {
     const audits = await storageList(AUDITS_KEY);
     audits.unshift({ ts: Date.now(), handle, evidence, verdict });
-    await storageSet(AUDITS_KEY, audits.slice(0, 15));
+    const history = audits.slice(0, 5);
+    // runtime_state is capped at 256 KB by Anna; keep margin for metadata
+    // and UTF-8 encoding rather than allowing a silent oversize write.
+    while (history.length > 1
+      && new TextEncoder().encode(JSON.stringify(history)).byteLength > 180 * 1024) {
+      history.pop();
+    }
+    if (new TextEncoder().encode(JSON.stringify(history)).byteLength > 180 * 1024) {
+      throw new Error("This audit is too large to fit in the 256 KB Anna window-state store.");
+    }
+    await storageSet(AUDITS_KEY, history);
   } catch (storageError) {
     setStatus("Audit complete · saved-audit storage unavailable", true, true);
   }
@@ -919,7 +929,7 @@ async function main() {
   await renderSavedList();
   if (anna && anna.window) {
     try { await anna.window.set_title({ title: "YouTube Skillbox" }); } catch (_) {}
-    try { await anna.window.ready({}); } catch (_) {}
+    // AnnaAppRuntime.connect() already emits window.ready after the handshake.
   }
   if (!ok) setStatus("Standalone preview — open via `anna-app dev` for the real host.", false, true);
 }
