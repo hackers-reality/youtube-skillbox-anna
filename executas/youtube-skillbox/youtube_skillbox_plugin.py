@@ -111,6 +111,25 @@ MANIFEST = {
             "timeout": 10,
         },
         {
+            "name": "track",
+            "description": "Check where a video appears for a keyword in YouTube search and compare with saved position history. Results are locale-specific and only exist after a successful measurement.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "query", "type": "string", "description": "Keyword to track.", "required": True},
+                {"name": "video", "type": "string", "description": "Video URL or ID.", "required": True},
+                {"name": "gl", "type": "string", "description": "Two-letter region code.", "required": False, "default": "US"},
+                {"name": "hl", "type": "string", "description": "Language code.", "required": False, "default": "en"},
+            ],
+            "timeout": ENGINE_TIMEOUT,
+        },
+        {
+            "name": "trends",
+            "description": "Read historical keyword-demand snapshots saved by previous keyword research runs. Returns no trend until history exists.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "seed", "type": "string", "description": "Keyword seed to inspect.", "required": True},
+            ],
+            "timeout": ENGINE_TIMEOUT,
+        },
+        {
             "name": "search",
             "description": "Search YouTube videos matching a query (locale-pinnable).",
             "parameters": [CLIENT_ID_PARAM,
@@ -738,13 +757,21 @@ def invoke(method: str, args: dict) -> dict:
             args2.append("--json")
             return _eng(*args2, timeout=ENGINE_TIMEOUT)
         if method == "keywords":
-            return _eng("keywords", str(a.get("seed", "")).strip(), "--limit", str(int(a.get("limit", 25))), "--json", timeout=ENGINE_TIMEOUT)
+            return _eng("keywords", str(a.get("seed", "")).strip(), "--limit", str(int(a.get("limit", 25))),
+                        "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en")),
+                        "--json", timeout=ENGINE_TIMEOUT)
         if method == "compete":
             return _eng("compete", str(a.get("query", "")).strip(), "--top", "10", "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en")), "--json", timeout=ENGINE_TIMEOUT)
         if method == "verdict":
             return {"success": True, "data": _verdict(float(a.get("opportunity", 0)), float(a.get("competition", 0)))}
         if method == "search":
             return _eng("search", str(a.get("query", "")).strip(), "--limit", str(int(a.get("limit", 10))), "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en")), "--json", timeout=ENGINE_TIMEOUT)
+        if method == "track":
+            return _eng("track", str(a.get("query", "")).strip(), "--video", _norm_video(a.get("video")),
+                        "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en")),
+                        "--json", timeout=ENGINE_TIMEOUT)
+        if method == "trends":
+            return _eng("trends", str(a.get("seed", "")).strip(), "--json", timeout=ENGINE_TIMEOUT)
         if method == "gap":
             return _eng("gap", str(a.get("seed", "")).strip(), "--competitor", _norm_handle(a.get("competitor")), "--json", timeout=ENGINE_TIMEOUT)
         if method == "home":
