@@ -489,12 +489,17 @@ const HOOK_FORMULAS = `21 proven hook formulas (use a small, deliberately-scoped
 21. Direct question — "What would you do with 100 subs and zero views?"`;
 
 const TASK_PROMPTS = {
-  hooks: "Generate exactly 21 distinct opening-hook options for the supplied idea. Return ONLY a valid JSON array of objects with keys hook, formula and rationale. Each hook must be speakable, confirm the video's actual promise, open a genuine curiosity gap and avoid unsupported numbers, personal claims or fake evidence. Do not reuse examples verbatim. The app scores the copy with the deterministic Skillbox hookscore engine; do not invent scores.",
+  hooks: "Generate exactly 21 distinct opening-hook options for the supplied idea. Return ONLY a valid JSON array of objects with keys hook, formula and rationale. Use the 21 Skillbox formula families where appropriate: The Statistic, Someone Else's Result, The Mistake, Contrarian Flip, The Reveal, The Superlative, The Clock, I Tried It, The Question, Before and After, The Teardown, The Stack, The Warning, The List, The Receipt, The Insider, The Impossible Claim, The Comparison, The Origin, The Deadline, The Direct Address. Each hook must be speakable, confirm the video's actual promise, open a genuine curiosity gap and avoid unsupported numbers, personal claims or fake evidence. Do not reuse examples verbatim. The app scores the copy with the deterministic Skillbox hookscore engine; do not invent scores.",
   titles: "Write exactly 5 distinct YouTube title options. Return ONLY a valid JSON array of strings. Keep each title under 100 characters, front-load the topic, avoid unsupported claims and do not overpromise. The app runs the deterministic Skillbox title linter; do not invent scores or CTR predictions.",
+  script: "Write a complete spoken YouTube script for the supplied idea and source notes. Structure it with the exact opening hook, story progression, proof/payoff, transitions and close. Separate spoken words from on-screen/production cues. Do not invent personal experience, stats, research, sources or outcomes. Mark facts that need verification as [SOURCE NEEDED]; label any proposed framing as INFERRED. Make the script sound natural aloud, not like an essay.",
   seo: "Write a YouTube description whose first two lines restate the actual video promise and target keyword, then provide 8–12 specific tags and a short SEO checklist. Never invent sources, stats or claims. Label recommendations as recommendations, not measured outcomes.",
-  chapters: "Write chapters only from the supplied transcript or detailed outline. The first chapter must be 0:00. If there is no transcript or timecoded outline, ask for it instead of inventing timestamps.",
-  shorts: "Identify up to 3 self-contained Shorts only from the supplied transcript or detailed outline. Provide source timecodes only when supplied. If there is no transcript, ask for one instead of inventing clip boundaries.",
-  full: "Produce a practical creator pack: hook directions, title options, description and tags, chapter plan only when timestamps are supported by a transcript, and a Shorts angle only when source content is supplied. Separate creative hypotheses from measured facts. No fake performance scores or CTR predictions."
+  chapters: "Write chapters only from the supplied transcript or detailed outline. The first chapter must be 0:00. Use only timestamps explicitly present in the source. If there is no transcript or timecoded outline, ask for it instead of inventing timestamps.",
+  shorts: "Identify up to 3 self-contained Shorts only from the supplied transcript or detailed outline. Provide source timecodes only when supplied. If there is no transcript, ask for one instead of inventing clip boundaries. Each candidate needs its own hook, standalone payoff and reason it survives outside the long video.",
+  edit: "Create an edit decision list from the supplied transcript. Use exact timecodes only when the source contains them; otherwise provide ordered editorial cues without timestamps. Separate CUT, RETAKE, FILLER, PAUSE and KEEP suggestions, quote the source fragment that justifies each suggestion, and never claim to have inspected the video or audio.",
+  comments: "Triage the supplied YouTube comments into: answer, heart/acknowledge, escalate/moderate, and leave alone. Draft concise replies in the creator's voice using only facts supplied in the context. Do not claim replies were posted, do not invent a creator opinion, and flag questions that need the creator's input.",
+  plan: "Create a practical one-week or one-month content plan using the creator's stated capacity and source notes. If cadence, available hours or format mix are missing, state the assumption as INFERRED and keep the plan adjustable. Do not invent trending topics or promise growth. Connect each idea to an audience question, channel outlier or measured keyword only when such evidence is supplied.",
+  thumbnail: "Create three distinct thumbnail-text and visual-direction briefs for the supplied video idea. For each, specify the central subject, composition, contrast, 1–4 word text option, and what the title should say that the thumbnail does not. These are creative hypotheses, not tested concepts. Do not claim the actual thumbnail image was evaluated.",
+  full: "Produce a practical creator pack: a script outline, hook directions, title options, description and tags, chapter plan only when timestamps are supported by a transcript, and Shorts angles only when source content is supplied. Separate creative hypotheses from measured facts. No fake performance scores or CTR predictions."
 };
 
 
@@ -578,8 +583,18 @@ function wireStudio() {
         output.textContent = "Add a video URL or ID in the Keyword Lab video field first.";
         return;
       }
-      if (task !== "transcript" && !topic) {
+      if (!["transcript", "comments", "plan"].includes(task) && !topic) {
         output.textContent = "Add a video idea first. A rough sentence is enough.";
+        return;
+      }
+      if (["comments", "edit"].includes(task) && !context) {
+        output.textContent = task === "comments"
+          ? "Paste the comment thread into Context first."
+          : "Fetch a transcript or paste one into Context before building an edit decision list.";
+        return;
+      }
+      if (task === "plan" && !topic && !context) {
+        output.textContent = "Add a channel direction or recent research in Context before planning.";
         return;
       }
 
@@ -611,7 +626,8 @@ function wireStudio() {
           + (thumbnailText ? "Existing thumbnail text: " + thumbnailText + "\n" : "")
           + (context ? "Context and source notes:\n" + context.slice(0, 5000) + "\n" : "")
           + "\nCreate the requested asset now.";
-        const generated = await llm(TASK_PROMPTS[task] || TASK_PROMPTS.full, userMessage, task === "hooks" ? 4200 : 3000);
+        const maxTokens = task === "hooks" ? 4600 : task === "script" || task === "full" ? 4600 : 3000;
+        const generated = await llm(TASK_PROMPTS[task] || TASK_PROMPTS.full, userMessage, maxTokens);
         if (task === "hooks") {
           const parsed = parseJsonArray(generated);
           const hooks = (parsed || []).map((item) => typeof item === "string" ? item : item && item.hook)
