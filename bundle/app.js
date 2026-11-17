@@ -49,8 +49,7 @@ function setStatus(text, ok, warn = false) {
 /* ---------- helpers: tools / llm / storage ---------- */
 async function tool(method, args, timeoutMs) {
   if (standalone || !anna) {
-    // deterministic demo payloads so the demo is still demonstrable
-    return demoPayload(method, args);
+    throw new Error("Anna host is not connected. Open this app inside Anna AI OS to run live Skillbox tools; no sample measurements were substituted.");
   }
   const res = await anna.tools.invoke(
     { tool_id: TOOL_ID, method, args: args || {} },
@@ -72,8 +71,7 @@ async function tool(method, args, timeoutMs) {
 
 async function llm(systemPrompt, userMessage, maxTokens = 3200) {
   if (standalone || !anna) {
-    await new Promise((r) => setTimeout(r, 650));
-    return demoLLM(userMessage);
+    throw new Error("Anna's hosted LLM is unavailable outside the Anna app runtime. No generated result was substituted.");
   }
   const r = await anna.llm.complete({
     messages: [{ role: "user", content: userMessage }],
@@ -355,24 +353,6 @@ async function renderSavedList() {
     }
   }));
 }
-
-/* ---------- demo payloads (standalone preview only) ---------- */
-function demoPayload(method, args) {
-  const H = args.handle || "@demo";
-  switch (method) {
-    case "snapshot": return { sections: { videos: 2, shorts: 16, shows: "no tab", playlists: 4, community: 3 }, profile: { subscribers: 131, description: "Demo channel (standalone preview — install the app for live data)." } };
-    case "latest": return { videos: [{ title: "Why Earth spins", duration: "24", views: 8437 }] };
-    case "outliers": return { videos: [{ title: "Why Earth spins", views: 8437, ratio: 64.4 }] };
-    case "keywords": return { ideas: [{ keyword: `${H.replace("@","")} seo`, opportunity_score: 61, competition_score: 35, verdict: "MAYBE" }] };
-    case "search": return { items: [{ id: "dQw4w9WgXcQ", title: "Demo SERP result — install the app for live data", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", duration: 482, duration_string: "8:02", views: 128433, channel: "DemoChannel" }] };
-    case "compete": return { keyword: args.query || "demo", score: 42, band: "MEDIUM", scored: 10, signals: [{ name: "title density", weight: 3, value: 0.4, detail: "4/10 top titles carry the keyword" }], advice: "Beat-able: mid band, weak title density in the top 10." };
-    case "verdict": return { verdict: "GO", opportunity: 61, competition: 42, label: "heuristic — not a ranking prediction" };
-    case "gap": return { seed: args.seed || "demo", competitor: args.competitor || "@demo", only_me: [{ keyword: "my unique angle", score: 71, year_trend: true, question: false }], only_them: ["their keyword one", "their keyword two"], both: [{ keyword: "shared topic", score: 55, year_trend: false, question: false }] };
-    case "scorecard": return { video_id: "demo1234567", target_keyword: args.keyword || "", score: 68, checks: [{ name: "title_keyword", weight: 20, pass: true, detail: "Keyword present in title" }, { name: "description_len", weight: 10, pass: false, detail: "Description under 100 chars" }] };
-    default: return {};
-  }
-}
-function demoLLM() { return "STANDALONE PREVIEW\n\nMEASURED: ~131 subs · snapshot returned demo data.\n\nHYPOTHESIS: Install the app on Anna to get real numbers — the demo proves the UI, not your channel.\n\nOne fix: publish one tight niche per week for 6 weeks and measure the watch-time retention of each drop."; }
 
 /* ---------- content studio ---------- */
 const HOOK_FORMULAS = `21 proven hook formulas (use a small, deliberately-scoped subset, pick by fit, score honestly 0–100):
