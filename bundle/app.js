@@ -419,7 +419,7 @@ function renderHookScores(result, generated) {
   ];
   rows.forEach((row, index) => {
     const source = sourceByText.get(row.hook) || {};
-    const formula = source.formula ? " · " + source.formula : "";
+    const formula = row.formula ? " · " + row.formula : "";
     const properties = Object.entries(row.properties || {}).map(([key, value]) => key + " " + value).join(" · ");
     output.push(
       String(index + 1).padStart(2, "0") + "  " + row.score + "/100 · " + row.band + formula,
