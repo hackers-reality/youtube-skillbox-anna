@@ -51,3 +51,18 @@ test("the public preview uses a versioned standalone application bundle", () => 
   assert.match(html, /app\.js\?v=skillbox-full-parity-/);
   assert.doesNotMatch(html, /ANNA APP|HOST LLM|Connecting to Anna host/);
 });
+
+test("copy controls use the Clipboard API with a textarea fallback and visible feedback", () => {
+  for (const [label, source] of [["source bundle", originalApp], ["standalone preview", app]]) {
+    assert.match(source, /async function copyTextToClipboard\\(/, `${label} should expose the shared clipboard helper`);
+    assert.match(source, /navigator\\.clipboard && typeof navigator\\.clipboard\\.writeText === ["']function["']/, `${label} should try the modern Clipboard API`);
+    assert.match(source, /document\\.execCommand\\(["']copy["']\\)/, `${label} should fall back when clipboard permission is unavailable`);
+    assert.match(source, /Clipboard access was blocked/, `${label} should report a real copy failure`);
+    assert.match(source, /async function copyWithFeedback\\(/, `${label} should provide button feedback`);
+    assert.match(source, /copyWithFeedback\\(byId\\(["']studio-pre["']\\)\\.textContent/, `${label} studio copy should use the helper`);
+    assert.match(source, /copyWithFeedback\\(byId\\(["']lab-result["']\\)\\.innerText/, `${label} keyword copy should use the helper`);
+  }
+  assert.match(app, /onboarding-copy["']\\)\\?\\.addEventListener\\(["']click["'], async \\(\\) => \\{ const copied = await copyWithFeedback/);
+  assert.match(app, /copyWithFeedback\\(original, byId\\(["']copy-description["']\\)\\)/);
+  assert.doesNotMatch(app, /navigator\\.clipboard\\.writeText\\(profileState\\.phrase\\)/);
+});
