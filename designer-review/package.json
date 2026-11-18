@@ -3,6 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": {"dev":"next dev","sync":"node scripts/sync-bundle.mjs","sync:engine":"node scripts/sync-engine.mjs","postinstall":"node scripts/sync-engine.mjs","build":"next build","start":"next start","test":"node --test app/api/nvidia/chat/route.test.mjs tests/standalone-preview.test.mjs && python -m unittest discover -s tests -p test_*.py -v"},
-  "dependencies": {"next":"16.4.6","react":"19.3.1","react-dom":"19.3.1"}
+  "scripts": {
+    "dev": "next dev",
+    "sync": "node scripts/sync-bundle.mjs",
+    "sync:engine": "node scripts/sync-engine.mjs",
+    "postinstall": "node scripts/sync-engine.mjs",
+    "build": "npm test && next build",
+    "start": "next start",
+    "test": "node --test app/api/nvidia/chat/route.test.mjs tests/standalone-preview.test.mjs && python -m unittest discover -s tests -p test_*.py -v"
+  },
+  "dependencies": {
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  }
 }
