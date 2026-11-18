@@ -20,8 +20,8 @@
         </a>
         <div class="head-right">
           <button id="theme-toggle" class="icon-btn" type="button" aria-label="Theme: system" title="Theme: system">◐</button>
-          <span class="host-pill"><span class="host-dot"></span> ANNA APP</span>
-          <span class="host-caption">OPEN ENGINE · NO USER API KEYS</span>
+          <span class="host-pill"><span class="host-dot"></span> <span id="runtime-pill">ANNA APP</span></span>
+          <span class="host-caption" id="runtime-caption">OPEN ENGINE · NO USER API KEYS</span>
         </div>
       </header>
 
@@ -30,7 +30,7 @@
         <div class="nav-caption">WORKSPACE</div>
         <button class="tab is-active" id="tab-button-chat" data-tab="chat" role="tab" aria-controls="tab-chat" aria-selected="true" tabindex="0">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v11H9l-5 3v-14z"/><path d="M8 9.5h8M8 13h5"/></svg>
-          <span>Ask Anna</span>
+          <span id="chat-tab-label">Ask Anna</span>
         </button>
         <button class="tab" id="tab-button-audit" data-tab="audit" role="tab" aria-controls="tab-audit" aria-selected="false" tabindex="-1">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 10.5h5"/></svg>
@@ -56,16 +56,16 @@
           <section id="tab-chat" class="panel is-active" role="tabpanel" aria-labelledby="tab-button-chat">
             <div class="panel-head chat-head">
               <div>
-                <p class="eyebrow">ANNA GUIDE / 00</p>
+                <p class="eyebrow" id="chat-eyebrow">ANNA GUIDE / 00</p>
                 <h1>Tell me what your <em>channel needs.</em></h1>
                 <p class="lead">Ask for an audit, a content idea, a transcript read or a next move. The workspace profile keeps the conversation grounded in your own public data.</p>
               </div>
-              <span class="ev ev-inferred">HOST LLM · TOOL-AWARE</span>
+              <span class="ev ev-inferred" id="llm-caption">HOST LLM · TOOL-AWARE</span>
             </div>
             <div class="chat-layout">
               <div class="card chat-card">
                 <div id="chat-thread" class="chat-thread" aria-live="polite">
-                    <div class="chat-message assistant"><span class="chat-avatar">A</span><div class="chat-message-body"><strong>Anna</strong><div class="chat-prose"><p>Set up your channel workspace or ask me where to start. I’ll label measured facts separately from recommendations.</p></div></div></div>
+                    <div class="chat-message assistant"><span class="chat-avatar" id="initial-assistant-avatar">A</span><div class="chat-message-body"><strong id="initial-assistant-name">Anna</strong><div class="chat-prose"><p>Set up your channel workspace or ask me where to start. I’ll label measured facts separately from recommendations.</p></div></div></div>
                 </div>
                 <div class="chat-suggestions" aria-label="Suggested questions">
                   <button class="chip" data-chat-prompt="What should I fix first on my channel?">What should I fix first?</button>
@@ -80,7 +80,7 @@
                   <button id="chat-send" class="btn btn-primary" type="submit">Send <span aria-hidden="true">↗</span></button>
                 </form>
               </div>
-              <div id="chat-guest-note" class="note warn hidden"><b>Personal Anna is available after channel verification.</b><span>Connect your channel to unlock creator-specific chat. Guest mode still includes public research and creator tools.</span><button class="btn btn-small" data-open-onboarding type="button">Connect a channel</button></div>
+              <div id="chat-guest-note" class="note warn hidden"><b>Channel-aware chat unlocks after channel setup.</b><span>Audit, Content Studio, and Retention Fix remain available for public research and creator workflows.</span><button class="btn btn-small" data-open-onboarding type="button">Connect a channel</button></div>
             </div>
           </section>
           <section id="tab-audit" class="panel" role="tabpanel" aria-labelledby="tab-button-audit">
@@ -146,7 +146,7 @@
             <div class="saved-wrap">
               <div class="section-head">
                 <div><p class="eyebrow">WORKSPACE</p><h2>Recent audits</h2></div>
-                <span class="section-note">Saved in Anna storage when available</span>
+                <span class="section-note" id="audit-storage-note">Saved in Anna storage when available</span>
               </div>
               <ul id="saved-list" class="saved-list">
                 <li class="empty">No saved audits yet. Run an audit to create your first snapshot.</li>
@@ -166,7 +166,7 @@
             <div class="card studio-input-card">
               <div class="section-head">
                 <div><p class="eyebrow">START WITH THE IDEA</p><h2>Give the video a direction</h2></div>
-                <span class="section-note">Host LLM · Anna</span>
+                <span class="section-note" id="studio-llm-note">Host LLM · Anna</span>
               </div>
               <div class="studio-grid">
                 <label class="field">
@@ -356,7 +356,7 @@
               <div id="ret-output" class="retention-report hidden" aria-live="polite"></div>
             </div>
             </div>
-            <div id="ret-view-history" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Analysis history</h2><p class="section-copy">Reopen previous retention reports saved in this Anna workspace.</p></div></div><div id="ret-history-list" class="ret-history-list"></div></div>
+            <div id="ret-view-history" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Analysis history</h2><p class="section-copy">Reopen previous retention reports saved in this browser workspace.</p></div></div><div id="ret-history-list" class="ret-history-list"></div></div>
             <div id="ret-view-cache" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Saved analysis cache</h2><p class="section-copy">Previously analyzed exports are kept for quick reopening. Logging out clears this cache.</p></div></div><div id="ret-cache-list" class="ret-history-list"></div></div>
           </section>
         </div>

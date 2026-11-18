@@ -9,11 +9,18 @@ export default function DesignerReview() {
 
   useEffect(() => {
     try {
-      // Start clean: no fictional creator identity or scripted conversation.
-      localStorage.setItem("youtube-skillbox:profile", "[]");
-      localStorage.setItem("youtube-skillbox:guest", "[true]");
-      localStorage.setItem("youtube-skillbox:chat", "[]");
-      localStorage.setItem("youtube-skillbox:theme", "dark");
+      // Migrate the earlier design-only preview once, then preserve real
+      // workspace state so onboarding is shown only on the first visit.
+      const previewVersion = "full-app-v1";
+      if (localStorage.getItem("youtube-skillbox:preview-version") !== previewVersion) {
+        localStorage.setItem("youtube-skillbox:profile", "[]");
+        localStorage.setItem("youtube-skillbox:guest", "[false]");
+        localStorage.setItem("youtube-skillbox:chat", "[]");
+        localStorage.setItem("youtube-skillbox:preview-version", previewVersion);
+      }
+      if (localStorage.getItem("youtube-skillbox:theme") === null) {
+        localStorage.setItem("youtube-skillbox:theme", "system");
+      }
       setReady(true);
     } catch { setReady(false); }
 
