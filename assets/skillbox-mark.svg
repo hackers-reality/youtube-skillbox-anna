@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="t"><title id="t">Skillbox</title>
+  <defs>
+    <linearGradient id="bgm" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26221f"/><stop offset="1" stop-color="#0f0d0c"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bgm)"/>
+  <rect x="1.5" y="1.5" width="509" height="509" rx="114.5" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="3"/>
+  <!-- fanned deck: two cards behind, one in front -->
+  <rect x="108" y="104" width="296" height="232" rx="34" fill="#4a443e" transform="rotate(-11 256 430)"/>
+  <rect x="108" y="104" width="296" height="232" rx="34" fill="#8a8177" transform="rotate(11 256 430)"/>
+  <rect x="108" y="104" width="296" height="232" rx="34" fill="#f3ede5"/>
+  <!-- baseline -->
+  <path d="M146 304H366" stroke="#d6ccbf" stroke-width="6" stroke-linecap="round"/>
+  <!-- retention curve: steady, then the drop -->
+  <path d="M148 160C202 162 232 180 264 194C298 209 312 222 328 250C340 272 356 278 370 278" fill="none" stroke="#e5383b" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="370" cy="278" r="17" fill="#e5383b" stroke="#f3ede5" stroke-width="8"/>
+</svg>

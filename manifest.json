@@ -25,6 +25,7 @@
       {
         "name": "main",
         "title": "YouTube Skillbox",
+        "icon": "assets/skillbox-mark.svg",
         "default": true,
         "default_size": {
           "w": 1080,

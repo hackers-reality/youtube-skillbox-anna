@@ -4,6 +4,8 @@ Run with:
     python -m unittest discover -s executas/youtube-skillbox -p "test_*.py" -v
 """
 import unittest
+import sys
+from types import ModuleType
 
 from unittest.mock import patch
 
@@ -12,7 +14,11 @@ from youtube_skillbox_plugin import (
     MANIFEST,
     _hookscore,
     _parse_retention_csv,
+    _engine_script,
+    _run_engine,
     _title_lint,
+    _with_public_avatar,
+    _with_public_home_avatars,
     _vtt_to_segments,
     _vtt_to_text,
     invoke,
@@ -20,6 +26,58 @@ from youtube_skillbox_plugin import (
 
 
 class CreatorToolTests(unittest.TestCase):
+    @patch("youtube_skillbox_plugin._engine_script", return_value="/fake/engine")
+    def test_engine_preserves_stderr_when_cli_exits_nonzero(self, _engine_path):
+        fake_engine = ModuleType("ytdata")
+
+        def fail_with_diagnostic():
+            print("ERROR: suggest returned nothing (rate-limited?)", file=sys.stderr)
+            raise SystemExit(1)
+
+        fake_engine.main = fail_with_diagnostic
+        with patch.dict("sys.modules", {"ytdata": fake_engine}):
+            result, raw, error = _run_engine("keywords", "space facts", "--json")
+
+        self.assertIsNone(result)
+        self.assertEqual(raw, "")
+        self.assertIn("suggest returned nothing", error)
+
+    def test_source_checkout_prefers_adjacent_engine_module(self):
+        from pathlib import Path
+        expected = str(Path(__file__).resolve().parent / "engine")
+        self.assertEqual(_engine_script(), expected)
+
+    @patch("urllib.request.urlopen")
+    def test_legacy_profile_response_fetches_public_avatar_metadata(self, urlopen):
+        response = urlopen.return_value.__enter__.return_value
+        response.geturl.return_value = "https://www.youtube.com/channel/UCsample"
+        response.read.return_value = b'<meta property="og:image" content="https://yt3.googleusercontent.com/avatar=s160">'
+        profile = {"success": True, "data": {"channel_url": "https://youtube.com/channel/UCsample"}}
+        result = _with_public_avatar(profile)
+        self.assertEqual(result["data"]["avatar_url"], "https://yt3.googleusercontent.com/avatar=s160")
+        urlopen.assert_called_once()
+
+    @patch("youtube_skillbox_plugin._with_public_avatar")
+    def test_home_dispatch_enriches_featured_channel_artwork(self, avatar):
+        avatar.side_effect = lambda result: {
+            "success": True,
+            "data": {"channel_url": result["data"]["channel_url"], "avatar_url": "https://yt3.googleusercontent.com/logo=s160"},
+        }
+        home = {"success": True, "data": [{"type": "featured channels", "items": [
+            {"kind": "channel", "id": "UC1234567890123456789012", "title": "Creator", "url": "https://www.youtube.com/channel/UC1234567890123456789012"},
+            {"kind": "video", "id": "abc", "thumbnail": "https://i.ytimg.com/video.jpg"},
+        ]}]}
+        result = _with_public_home_avatars(home)
+        self.assertEqual(result["data"][0]["items"][0]["thumbnail"], "https://yt3.googleusercontent.com/logo=s160")
+        self.assertEqual(avatar.call_count, 1)
+        self.assertEqual(result["data"][0]["items"][1]["thumbnail"], "https://i.ytimg.com/video.jpg")
+
+    def test_home_art_enrichment_caps_missing_logos_at_fifteen(self):
+        channels = [{"kind": "channel", "id": f"UC{'a' * 22}", "url": f"https://www.youtube.com/channel/UC{'a' * 22}"} for _ in range(18)]
+        with patch("youtube_skillbox_plugin._with_public_avatar", side_effect=lambda response: response) as avatar:
+            _with_public_home_avatars({"success": True, "data": [{"type": "featured channels", "items": channels}]})
+        self.assertEqual(avatar.call_count, 15)
+
     def test_hookscore_returns_five_property_heuristics(self):
         result = _hookscore([
             "Why do viewers leave your video after the first 30 seconds?",
@@ -130,6 +188,15 @@ class CreatorToolTests(unittest.TestCase):
         self.assertEqual(engine.call_args.args, ("profile", "https://www.youtube.com/channel/UC12345678901234567890", "--json"))
 
     @patch("youtube_skillbox_plugin._eng")
+    def test_keyword_dispatch_supports_bounded_audit_queries(self, engine):
+        engine.return_value = {"success": True, "data": {"keywords": [{"keyword": "space facts"}]}}
+        invoke("keywords", {"seed": "space facts", "limit": 12, "letters": "", "patterns": True})
+        self.assertEqual(engine.call_args.args, (
+            "keywords", "space facts", "--limit", "12", "--gl", "US", "--hl", "en",
+            "--letters", "", "--patterns", "--json",
+        ))
+
+    @patch("youtube_skillbox_plugin._eng")
     def test_channel_dispatch_supports_shorts_with_duration(self, engine):
         engine.return_value = {"success": True, "data": {"items": []}}
         invoke("channel", {
@@ -159,6 +226,20 @@ class CreatorToolTests(unittest.TestCase):
         args, _ = engine.call_args
         self.assertIn("--verbose", args)
         self.assertEqual(args[-1], "--json")
+
+    @patch("youtube_skillbox_plugin._eng")
+    def test_shows_falls_back_to_public_home_playlists(self, engine):
+        engine.side_effect = [
+            {"success": True, "data": {"items": []}},
+            {"success": True, "data": [{"type": "playlists", "title": "Popular playlists", "items": [
+                {"id": "PLabc", "title": "Science", "url": "https://youtube.com/playlist?list=PLabc", "thumbnail": "https://i.ytimg.com/test.jpg"}
+            ]}]},
+        ]
+        result = invoke("shows", {"handle": "@sample", "limit": 15})
+        self.assertTrue(result["success"])
+        self.assertTrue(result["data"]["fallback"])
+        self.assertEqual(result["data"]["items"][0]["kind"], "PLAYLIST")
+        self.assertEqual(engine.call_count, 2)
 
     @patch("youtube_skillbox_plugin._eng")
     def test_video_info_and_playlist_dispatch(self, engine):

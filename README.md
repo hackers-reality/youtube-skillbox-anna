@@ -61,7 +61,8 @@ bundle/                 Static SPA UI (vanilla JS, no build step)
 executas/youtube-skillbox/  Python stdio Executa → PyPI engine
 app.json                Store listing metadata
 manifest.json           Anna App manifest (schema 4)
-assets/                 Banner + listing art
+assets/                 Brand lockups, app mark, banner + listing art
+bundle/assets/          Logo and app-icon assets shipped with the static UI
 THIRD_PARTY_LICENSES/   Attribution for the upstream creator-skill engine
 ```
 

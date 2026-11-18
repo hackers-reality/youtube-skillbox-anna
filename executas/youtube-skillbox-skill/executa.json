@@ -1,0 +1,7 @@
+{
+  "slug": "youtube-skillbox-research",
+  "name": "YouTube Skillbox Research",
+  "version": "0.1.0",
+  "executa_type": "skill",
+  "description": "Use YouTube Skillbox's free research engine to audit channels, investigate outliers, research keywords and competitors, inspect public channel surfaces, fetch transcripts, score video SEO, and analyze creator-provided retention exports."
+}

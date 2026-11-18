@@ -22,7 +22,7 @@ assert.equal(calls[0][2].timeoutMs, 85000);
 await invokeAnnaTool(anna, { tool_id: "tool", method: "outliers", args: {}, timeoutMs: 180000 }, { onProgress() {} });
 assert.equal(calls[1][0], "async");
 assert.equal(calls[1][1].timeoutMs, 180000);
-assert.equal(calls[1][2].timeoutMs, 180000);
+assert.equal(calls[1][2].timeoutMs, 210000);
 assert.equal(typeof calls[1][2].onProgress, "function");
 
 assert.throws(

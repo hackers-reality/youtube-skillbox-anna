@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">YouTube Skillbox</title>
+  <desc id="desc">A play button paired with a rising measured-performance curve.</desc>
+  <defs>
+    <linearGradient id="shell" x1="72" y1="38" x2="438" y2="478" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#24201e"/><stop offset="1" stop-color="#111113"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="132" y1="146" x2="384" y2="367" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff645c"/><stop offset="1" stop-color="#df252b"/>
+    </linearGradient>
+    <filter id="glow" x="91" y="104" width="330" height="315" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="12" result="blur"/><feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#shell)"/>
+  <rect x="25" y="25" width="462" height="462" rx="111" stroke="#fff" stroke-opacity=".09" stroke-width="2"/>
+  <path d="M129 174c0-21 23-34 41-23l143 87c18 11 18 36 0 47l-143 87c-18 11-41-2-41-23V174Z" fill="url(#signal)"/>
+  <path d="M118 391h276" stroke="#fff" stroke-opacity=".15" stroke-width="3" stroke-linecap="round"/>
+  <path d="m143 359 55-45 49 18 65-75 59 20" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="10" filter="url(#glow)"/>
+  <circle cx="143" cy="359" r="8" fill="#fff"/><circle cx="198" cy="314" r="8" fill="#fff"/><circle cx="247" cy="332" r="8" fill="#fff"/><circle cx="312" cy="257" r="8" fill="#fff"/><circle cx="371" cy="277" r="8" fill="#fff"/>
+</svg>

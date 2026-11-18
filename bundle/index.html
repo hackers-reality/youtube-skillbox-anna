@@ -6,20 +6,17 @@
     <meta name="color-scheme" content="dark" />
     <title>YouTube Skillbox</title>
     <meta name="description" content="Evidence-backed YouTube audits, keyword research and creator workflows — inside Anna AI OS." />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect x=%228%22 y=%228%22 width=%2276%22 height=%2276%22 rx=%2220%22 fill=%22%23e5383b%22/><path d=%22M39 28v44l36-22z%22 fill=%22white%22/></svg>" />
+    <link rel="icon" type="image/svg+xml" href="assets/skillbox-mark.svg" />
+    <link rel="apple-touch-icon" href="assets/skillbox-mark-1024.png" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="app">
       <header class="topbar">
         <a class="brand" href="#tab-audit" aria-label="YouTube Skillbox home">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="M8.5 5.5v13L19 12z"/></svg>
-          </span>
-          <span class="brand-copy">
-            <strong>YouTube Skillbox</strong>
-            <span class="tagline">Your channel, measured.</span>
-          </span>
+          <img class="brand-lockup brand-lockup-dark" src="assets/skillbox-lockup-on-dark.svg" alt="" aria-hidden="true" />
+          <img class="brand-lockup brand-lockup-light" src="assets/skillbox-lockup-on-light.svg" alt="" aria-hidden="true" />
+          <span class="tagline">Your channel, measured.</span>
         </a>
         <div class="head-right">
           <button id="theme-toggle" class="icon-btn" type="button" aria-label="Theme: system" title="Theme: system">◐</button>
@@ -29,12 +26,13 @@
       </header>
 
       <nav class="tabs" role="tablist" aria-label="Skillbox sections">
+        <button id="rail-toggle" class="rail-toggle" type="button" aria-label="Collapse navigation" title="Collapse navigation">‹</button>
         <div class="nav-caption">WORKSPACE</div>
-        <button class="tab" id="tab-button-chat" data-tab="chat" role="tab" aria-controls="tab-chat" aria-selected="false" tabindex="-1">
+        <button class="tab is-active" id="tab-button-chat" data-tab="chat" role="tab" aria-controls="tab-chat" aria-selected="true" tabindex="0">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v11H9l-5 3v-14z"/><path d="M8 9.5h8M8 13h5"/></svg>
           <span>Ask Anna</span>
         </button>
-        <button class="tab is-active" id="tab-button-audit" data-tab="audit" role="tab" aria-controls="tab-audit" aria-selected="true" tabindex="0">
+        <button class="tab" id="tab-button-audit" data-tab="audit" role="tab" aria-controls="tab-audit" aria-selected="false" tabindex="-1">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 10.5h5"/></svg>
           <span>Audit</span>
         </button>
@@ -47,16 +45,15 @@
           <span>Retention Fix</span>
         </button>
         <div class="nav-spacer"></div>
-        <div class="nav-profile" id="nav-profile">
+        <button class="nav-profile" id="nav-profile" type="button" aria-label="Channel profile">
           <div class="nav-avatar" id="nav-avatar">?</div>
-          <div><strong id="nav-profile-name">No channel yet</strong><span id="nav-profile-handle">Set up your workspace</span></div>
-        </div>
-        <button id="profile-clear" class="nav-clear" type="button">Clear session cache</button>
+          <div><strong id="nav-profile-name">Guest workspace</strong><span id="nav-profile-handle">Choose a channel</span></div>
+        </button>
       </nav>
 
       <main id="app-main">
         <div class="wrap">
-          <section id="tab-chat" class="panel" role="tabpanel" aria-labelledby="tab-button-chat">
+          <section id="tab-chat" class="panel is-active" role="tabpanel" aria-labelledby="tab-button-chat">
             <div class="panel-head chat-head">
               <div>
                 <p class="eyebrow">ANNA GUIDE / 00</p>
@@ -78,23 +75,15 @@
                 <div id="chat-attachment" class="chat-attachment hidden" aria-live="polite"></div>
                 <form id="chat-form" class="chat-compose">
                   <input id="chat-file" type="file" accept="image/*,.csv,.zip,text/csv,application/zip" hidden />
-                  <button id="chat-attach" class="btn" type="button" aria-label="Attach image, CSV or ZIP">＋ Attach</button>
+                  <button id="chat-attach" class="btn chat-attach-btn" type="button" aria-label="Attach image, CSV or ZIP" title="Attach image, CSV or ZIP"><svg class="chat-attach-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v16M4 12h16" /></svg></button>
                   <textarea id="chat-input" rows="2" placeholder="Ask Anna about your channel…" aria-label="Ask Anna"></textarea>
                   <button id="chat-send" class="btn btn-primary" type="submit">Send <span aria-hidden="true">↗</span></button>
                 </form>
               </div>
-              <aside class="card profile-card" id="profile-card">
-                <div class="section-head"><div><p class="eyebrow">CHANNEL WORKSPACE</p><h2>Make it yours</h2></div><span class="section-note">Public data only</span></div>
-                <p class="section-copy">Paste a channel handle, URL or channel ID. We’ll show the public identity before saving it.</p>
-                <label class="field"><span>Channel handle / URL / ID</span><input id="profile-handle" type="text" placeholder="@yourchannel or UC…" autocomplete="off" /></label>
-                <label class="field mt"><span>Verification phrase <small>GENERATED · READ-ONLY</small></span><div class="copy-field"><input id="profile-phrase" type="text" placeholder="Generated after channel is found" autocomplete="off" readonly /><button id="profile-copy" class="btn btn-small" type="button" disabled>Copy</button></div></label>
-                <div class="profile-actions"><button id="profile-fetch" class="btn btn-primary" type="button">Find channel</button><button id="profile-verify" class="btn" type="button" disabled>Verify phrase</button></div>
-                <div id="profile-preview" class="profile-preview"><span class="hint">No channel loaded yet.</span></div>
-                <p class="hint profile-note">The app generates a unique phrase. Copy it, add it manually to your public YouTube description, then verify. No OAuth or write access is used.</p>
-              </aside>
+              <div id="chat-guest-note" class="note warn hidden"><b>Personal Anna is available after channel verification.</b><span>Connect your channel to unlock creator-specific chat. Guest mode still includes public research and creator tools.</span><button class="btn btn-small" data-open-onboarding type="button">Connect a channel</button></div>
             </div>
           </section>
-          <section id="tab-audit" class="panel is-active" role="tabpanel" aria-labelledby="tab-button-audit">
+          <section id="tab-audit" class="panel" role="tabpanel" aria-labelledby="tab-button-audit">
             <div class="panel-head">
               <div>
                 <p class="eyebrow">AUDIT / 01</p>
@@ -312,6 +301,12 @@
           </section>
 
           <section id="tab-retention" class="panel" role="tabpanel" aria-labelledby="tab-button-retention">
+            <div class="retention-subtabs" role="tablist" aria-label="Retention workspace">
+              <button class="retention-subtab is-active" data-ret-view="analyze" type="button">Analyze</button>
+              <button class="retention-subtab" data-ret-view="history" type="button">History <span id="ret-history-count">0</span></button>
+              <button class="retention-subtab" data-ret-view="cache" type="button">Cache <span id="ret-cache-count">0</span></button>
+            </div>
+            <div id="ret-view-analyze" class="retention-subview is-active">
             <div class="panel-head">
               <div>
                 <p class="eyebrow">RETENTION FIX / 03</p>
@@ -323,7 +318,7 @@
               <div class="card">
                 <label class="field" for="ret-csv">
                   <span>Audience-retention CSV or ZIP export</span>
-                  <div id="ret-dropzone" class="dropzone"><input id="ret-file" type="file" accept=".csv,.zip,text/csv,application/zip" /><span class="drop-icon">↥</span><strong>Drop a CSV or YouTube Studio ZIP</strong><small>We’ll find the retention table and keep the video title from the ZIP name.</small></div>
+                  <div id="ret-dropzone" class="dropzone" role="button" tabindex="0" aria-label="Choose a retention CSV or YouTube Studio ZIP"><input id="ret-file" type="file" accept=".csv,.zip,text/csv,application/zip" /><span class="drop-icon">↥</span><strong>Drop a CSV or YouTube Studio ZIP</strong><small>Or click to browse · ZIP title is preserved automatically.</small></div>
                   <div id="ret-file-entry-wrap" class="hidden"><select id="ret-file-entry" aria-label="Choose a CSV from the ZIP"></select><button id="ret-analyze-all" class="btn btn-small" type="button">Analyze every CSV</button></div>
                   <textarea id="ret-csv" rows="12" spellcheck="false" placeholder="Video position (%),Percentage watched&#10;0,95.0&#10;3,88.2&#10;6,74.1&#10;…"></textarea>
                 </label>
@@ -360,9 +355,22 @@
               <div class="output-head"><div><span>RETENTION REPORT</span><span class="output-sub">CSV-derived findings</span></div></div>
               <div id="ret-output" class="retention-report hidden" aria-live="polite"></div>
             </div>
+            </div>
+            <div id="ret-view-history" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Analysis history</h2><p class="section-copy">Reopen previous retention reports saved in this Anna workspace.</p></div></div><div id="ret-history-list" class="ret-history-list"></div></div>
+            <div id="ret-view-cache" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Saved analysis cache</h2><p class="section-copy">Previously analyzed exports are kept for quick reopening. Logging out clears this cache.</p></div></div><div id="ret-cache-list" class="ret-history-list"></div></div>
           </section>
         </div>
       </main>
+
+    <div id="onboarding-modal" class="onboarding-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+      <section class="onboarding-card">
+        <button id="onboarding-close" class="onboarding-close" type="button" aria-label="Close">×</button>
+        <div class="eyebrow">YOUR CREATOR WORKSPACE</div>
+        <h2 id="onboarding-title">Make Skillbox <em>yours.</em></h2>
+        <p id="onboarding-copy" class="section-copy">Enter your exact YouTube channel handle. We’ll show the public channel name and logo before you continue.</p>
+        <div id="onboarding-content"></div>
+      </section>
+    </div>
 
       <footer class="statusbar">
         <span id="status-dot" class="dot"></span>

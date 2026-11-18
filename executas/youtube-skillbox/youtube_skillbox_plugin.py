@@ -9,6 +9,7 @@ so the exact same code path works everywhere.
 """
 
 import csv
+from concurrent.futures import ThreadPoolExecutor
 import html
 import io
 import json
@@ -146,6 +147,8 @@ MANIFEST = {
                 {"name": "limit", "type": "integer", "description": "Max ideas to return.", "required": False, "default": 25},
                 {"name": "gl", "type": "string", "description": "Region code.", "required": False, "default": "US"},
                 {"name": "hl", "type": "string", "description": "Language code.", "required": False, "default": "en"},
+                {"name": "letters", "type": "string", "description": "Optional suffix expansion alphabet; an empty string disables alphabet expansion.", "required": False, "default": "abcdefghijklmnopqrstuvwxyz"},
+                {"name": "patterns", "type": "boolean", "description": "Also query common how/why/best/beginner/comparison/year topic patterns.", "required": False, "default": False},
             ],
             "timeout": ENGINE_TIMEOUT,
         },
@@ -275,7 +278,20 @@ def _normalize_sections(sections):
 def _engine_script():
     """Locate ytdata — frozen binary contains it as a module (PyInstaller
     hidden-import); in dev, wire the installed wheel / repo checkout into sys.path."""
-    import os
+    from pathlib import Path
+
+    # In a source checkout, prefer the adjacent engine so `anna-app dev` actually
+    # exercises the code being edited. In a frozen build this path points into
+    # PyInstaller's extraction directory and its bundled ytdata.py is valid too.
+    local_engine = Path(__file__).resolve().parent / "engine"
+    if (local_engine / "ytdata.py").is_file():
+        local_path = str(local_engine)
+        if local_path in sys.path:
+            sys.path.remove(local_path)
+        sys.path.insert(0, local_path)
+        import ytdata  # noqa: F401
+
+        return local_path
 
     try:
         import ytdata  # noqa: F401 — freeze: already inside the binary; dev: no-op add to sys.path below
@@ -298,9 +314,12 @@ def _run_engine(*args, timeout=ENGINE_TIMEOUT):
         return None, "", f"engine not found: {e}"
 
     old_out = sys.stdout
+    old_err = sys.stderr
     buf = io.StringIO()
+    err_buf = io.StringIO()
     old_argv = sys.argv
     sys.stdout = buf
+    sys.stderr = err_buf
     sys.argv = ["ytdata", *args]
 
     err = None
@@ -310,13 +329,16 @@ def _run_engine(*args, timeout=ENGINE_TIMEOUT):
         ytdata.main()
     except TimeoutError:
         err = f"timeout after {timeout}s — YouTube throttled us (HTTP 429?)."
-    except SystemExit:
-        pass  # argparse --help and friends — captured stdout is what we want
+    except SystemExit as exc:
+        if exc.code not in (None, 0):
+            diagnostic = err_buf.getvalue().strip()
+            err = diagnostic or f"engine exited with status {exc.code}"
     except Exception:
         tb = traceback.format_exc(limit=3).strip().splitlines()
         err = f"engine crashed: {tb[-1] if tb else 'unknown error'}"
     finally:
         sys.stdout = old_out
+        sys.stderr = old_err
         sys.argv = old_argv
 
     raw = buf.getvalue().strip()
@@ -341,6 +363,88 @@ def _handle_engine_result(js, raw, err):
 def _eng(*args, timeout=ENGINE_TIMEOUT):
     js, raw, err = _run_engine(*args, timeout=timeout)
     return _handle_engine_result(js, raw, err)
+
+
+def _with_public_avatar(result):
+    """Fill older bundled-engine profile responses with the public channel image."""
+    if not result.get("success") or not isinstance(result.get("data"), dict):
+        return result
+    data = result["data"]
+    if data.get("avatar_url") or data.get("avatar") or not data.get("channel_url"):
+        return result
+    try:
+        from urllib.request import Request, urlopen
+        from urllib.parse import urlparse
+
+        parsed = urlparse(data["channel_url"])
+        if parsed.scheme != "https" or parsed.hostname not in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+            return result
+        request = Request(
+            data["channel_url"],
+            headers={"User-Agent": "Mozilla/5.0 (compatible; YouTubeSkillbox/1.0)"},
+        )
+        with urlopen(request, timeout=12) as response:
+            final_host = urlparse(response.geturl()).hostname
+            if final_host not in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+                return result
+            page = response.read(2_000_000).decode("utf-8", "replace")
+        for tag in re.findall(r"<meta\b[^>]*>", page, flags=re.I):
+            prop = re.search(r"(?:property|name)=[\"']og:image[\"']", tag, flags=re.I)
+            content = re.search(r"content=[\"']([^\"']+)", tag, flags=re.I)
+            if prop and content:
+                data["avatar_url"] = html.unescape(content.group(1))
+                break
+    except Exception:
+        # Profile identity and verification remain usable when image metadata is blocked.
+        pass
+    return result
+
+
+def _with_public_home_avatars(result):
+    """Fill missing featured-channel artwork from each channel's public page.
+
+    Home shelf renderers sometimes omit the avatar even when the channel page
+    exposes it. Fetch only channel shelf entries, in a small bounded pool, so
+    the explorer and chat receive the same image evidence without serial waits.
+    """
+    if not result.get("success") or not isinstance(result.get("data"), (dict, list)):
+        return result
+    data = result["data"]
+    sections = data if isinstance(data, list) else data.get("items", [])
+    if not isinstance(sections, list):
+        return result
+    targets = []
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        items = section.get("items", [])
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict) or item.get("thumbnail") or item.get("avatar_url"):
+                continue
+            if str(item.get("kind", "")).lower() != "channel" and str(section.get("type", "")).lower() != "featured channels":
+                continue
+            url = item.get("url")
+            if not url and re.fullmatch(r"UC[\w-]{22}", str(item.get("id", ""))):
+                url = f"https://www.youtube.com/channel/{item['id']}"
+            if isinstance(url, str) and url.startswith("https://www.youtube.com/"):
+                targets.append((item, url))
+            if len(targets) >= 15:
+                break
+        if len(targets) >= 15:
+            break
+
+    def fetch_avatar(target):
+        item, url = target
+        profile = _with_public_avatar({"success": True, "data": {"channel_url": url}})
+        avatar = profile.get("data", {}).get("avatar_url")
+        if avatar:
+            item["thumbnail"] = avatar
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(fetch_avatar, targets))
+    return result
 
 
 def _norm_handle(h):
@@ -948,6 +1052,7 @@ def invoke(method: str, args: dict) -> dict:
             sections = _eng("sections", handle, "--json", timeout=ENGINE_TIMEOUT)
             profile = _eng("profile", handle, "--json", timeout=ENGINE_TIMEOUT)
             if sections.get("success") and profile.get("success"):
+                profile = _with_public_avatar(profile)
                 sec = sections["data"]
                 if isinstance(sec, dict):
                     sec = _normalize_sections(sec)
@@ -957,7 +1062,7 @@ def invoke(method: str, args: dict) -> dict:
                 "error": f"sections: {_err_str(sections)} | profile: {_err_str(profile)}",
             }
         if method == "profile":
-            return _eng("profile", _norm_handle(a.get("handle")), "--json", timeout=ENGINE_TIMEOUT)
+            return _with_public_avatar(_eng("profile", _norm_handle(a.get("handle")), "--json", timeout=ENGINE_TIMEOUT))
         if method == "latest":
             return _eng("latest", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 10))), "--json", timeout=ENGINE_TIMEOUT)
         if method == "channel":
@@ -976,8 +1081,29 @@ def invoke(method: str, args: dict) -> dict:
             return _eng("posts", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 10))),
                         "--json", timeout=ENGINE_TIMEOUT)
         if method == "shows":
-            return _eng("shows", _norm_handle(a.get("handle")), "--limit", str(int(a.get("limit", 20))),
-                        "--json", timeout=ENGINE_TIMEOUT)
+            handle = _norm_handle(a.get("handle"))
+            limit = max(1, min(15, int(a.get("limit", 15))))
+            shows = _eng("shows", handle, "--limit", str(limit), "--json", timeout=ENGINE_TIMEOUT)
+            show_items = shows.get("data", {}).get("items", []) if shows.get("success") else []
+            if show_items:
+                return shows
+            # YouTube's Shows tab is absent on many channels; their public
+            # playlist shelves are the closest equivalent collection surface.
+            home = _eng("home", handle, "--limit", "15", "--verbose", "--json", timeout=ENGINE_TIMEOUT)
+            home_data = home.get("data") if home.get("success") else []
+            # `_eng` wraps an engine's bare JSON array in `{items: [...]}` for
+            # Anna's transport. Accept both that production shape and a direct
+            # array so this fallback works against the real bridge and tests.
+            shelves = home_data.get("items", []) if isinstance(home_data, dict) else home_data
+            playlists = []
+            for shelf in shelves if isinstance(shelves, list) else []:
+                for item in shelf.get("items", []) if isinstance(shelf, dict) and str(shelf.get("type", "")).lower() == "playlists" else []:
+                    playlists.append({**item, "kind": "PLAYLIST", "count": shelf.get("title")})
+                    if len(playlists) >= limit:
+                        break
+                if len(playlists) >= limit:
+                    break
+            return {"success": True, "data": {"items": playlists, "source": "channel playlists" if playlists else "shows", "fallback": bool(playlists)}}
         if method == "playlist":
             return _eng("playlist", _norm_video(a.get("playlist")), "--limit", str(int(a.get("limit", 20))),
                         "--json", timeout=ENGINE_TIMEOUT)
@@ -993,9 +1119,14 @@ def invoke(method: str, args: dict) -> dict:
             args2.append("--json")
             return _eng(*args2, timeout=ENGINE_TIMEOUT)
         if method == "keywords":
-            return _eng("keywords", str(a.get("seed", "")).strip(), "--limit", str(int(a.get("limit", 25))),
-                        "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en")),
-                        "--json", timeout=ENGINE_TIMEOUT)
+            args = ["keywords", str(a.get("seed", "")).strip(), "--limit", str(int(a.get("limit", 25))),
+                    "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en"))]
+            if "letters" in a:
+                args.extend(["--letters", str(a.get("letters", ""))])
+            if a.get("patterns"):
+                args.append("--patterns")
+            args.append("--json")
+            return _eng(*args, timeout=ENGINE_TIMEOUT)
         if method == "compete":
             return _eng("compete", str(a.get("query", "")).strip(), "--top", "10", "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en")), "--json", timeout=ENGINE_TIMEOUT)
         if method == "verdict":
@@ -1015,7 +1146,7 @@ def invoke(method: str, args: dict) -> dict:
             if a.get("verbose"):
                 argv.append("--verbose")
             argv.append("--json")
-            return _eng(*argv, timeout=ENGINE_TIMEOUT)
+            return _with_public_home_avatars(_eng(*argv, timeout=ENGINE_TIMEOUT))
         if method == "transcribe":
             return _transcribe(str(a.get("video", "")).strip(), str(a.get("language", "en")).strip() or "en")
         if method == "hookscore":

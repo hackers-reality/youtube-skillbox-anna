@@ -33,6 +33,7 @@ Common flags:
 Requires: pip install yt-dlp  (posts/home/shows/search/keywords/track work without it)
 """
 import argparse
+import html
 import json
 import math
 import os
@@ -945,8 +946,29 @@ _HOME_ITEM_KINDS = {
 
 
 def _home_item(kind_node):
-    """Extract (kind, id, title, url) from a single home-shelf item node."""
+    """Extract kind, identity, title, URL and public artwork from a home item."""
     (key, node), = kind_node.items()
+    def artwork(value):
+        candidates = []
+        def walk(obj):
+            if isinstance(obj, dict):
+                url = obj.get("url")
+                if isinstance(url, str) and url.startswith(("https://", "http://")) and any(token in url for token in ("yt3.ggpht.com", "ytimg.com", "googleusercontent.com")):
+                    try:
+                        area = int(obj.get("width") or 0) * int(obj.get("height") or 0)
+                    except (TypeError, ValueError):
+                        area = 0
+                    candidates.append((area, url))
+                for child in obj.values():
+                    if isinstance(child, (dict, list)):
+                        walk(child)
+            elif isinstance(obj, list):
+                for child in obj:
+                    walk(child)
+        walk(value)
+        return max(candidates, default=(0, None))[1]
+
+    thumbnail = artwork(node)
     if key == "lockupViewModel":
         cid = node.get("contentId") or ""
         if cid.startswith("UC") and len(cid) == 24:
@@ -962,26 +984,29 @@ def _home_item(kind_node):
         url = {"video": f"https://www.youtube.com/watch?v={cid}",
                "playlist": f"https://www.youtube.com/playlist?list={cid}",
                "channel": f"https://www.youtube.com/channel/{cid}"}[kind]
-        return kind, cid, title, url
+        return kind, cid, title, url, thumbnail
     if key in ("gridVideoRenderer", "videoRenderer", "reelItemRenderer"):
         vid = node.get("videoId")
-        return "video" if key != "reelItemRenderer" else "short", vid, _runs_text(node.get("title")) or _runs_text(node.get("headline")), (f"https://www.youtube.com/watch?v={vid}" if vid else None)
+        kind = "video" if key != "reelItemRenderer" else "short"
+        thumbnail = thumbnail or (f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg" if vid else None)
+        return kind, vid, _runs_text(node.get("title")) or _runs_text(node.get("headline")), (f"https://www.youtube.com/watch?v={vid}" if vid else None), thumbnail
     if key in ("gridPlaylistRenderer", "playlistRenderer"):
         pid = node.get("playlistId")
-        return "playlist", pid, _runs_text(node.get("title")), (f"https://www.youtube.com/playlist?list={pid}" if pid else None)
+        return "playlist", pid, _runs_text(node.get("title")), (f"https://www.youtube.com/playlist?list={pid}" if pid else None), thumbnail
     if key in ("gridChannelRenderer", "channelRenderer"):
         cid = node.get("channelId") or (node.get("navigationEndpoint") or {}).get("browseEndpoint", {}).get("browseId")
-        return "channel", cid, _runs_text(node.get("title")), (f"https://www.youtube.com/channel/{cid}" if cid else None)
+        return "channel", cid, _runs_text(node.get("title")), (f"https://www.youtube.com/channel/{cid}" if cid else None), thumbnail
     if key == "shortsLockupViewModel":
         vid = (((node.get("onTap") or {}).get("innertubeCommand") or {})
                .get("reelWatchEndpoint", {}).get("videoId"))
         if not vid:
             eid = node.get("entityId") or ""
             vid = eid.rsplit("-", 1)[-1] if "-" in eid else None
-        return "short", vid, node.get("accessibilityText"), (f"https://www.youtube.com/shorts/{vid}" if vid else None)
+        thumbnail = thumbnail or (f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg" if vid else None)
+        return "short", vid, node.get("accessibilityText"), (f"https://www.youtube.com/shorts/{vid}" if vid else None), thumbnail
     if key in ("backstagePostRenderer", "postRenderer"):
-        return "post", node.get("postId"), _runs_text(node.get("contentText")), (f"https://www.youtube.com/post/{node.get('postId')}" if node.get("postId") else None)
-    return key.replace("Renderer", "").replace("ViewModel", "").lower(), None, None, None
+        return "post", node.get("postId"), _runs_text(node.get("contentText")), (f"https://www.youtube.com/post/{node.get('postId')}" if node.get("postId") else None), thumbnail
+    return key.replace("Renderer", "").replace("ViewModel", "").lower(), None, None, None, thumbnail
 
 
 def cmd_home(a):
@@ -1042,7 +1067,7 @@ def cmd_home(a):
                     vt = _runs_text(vt)
                 elif not isinstance(vt, str):
                     vt = None
-                items = [("video", vid, vt, f"https://www.youtube.com/watch?v={vid}" if vid else None)]
+                items = [("video", vid, vt, f"https://www.youtube.com/watch?v={vid}" if vid else None, f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg" if vid else None)]
             else:
                 # Generic: walk whatever renderers this section holds, so ANY
                 # section type (known or future) still yields its items.
@@ -1059,8 +1084,8 @@ def cmd_home(a):
                         top_key,
                         (top_key or "section").replace("Renderer", "").replace("ViewModel", "").lower())
             out.append({"type": stype, "title": title, "count": len(items),
-                        "items": [{"kind": k, "id": i, "title": t, "url": u}
-                                  for k, i, t, u in items]})
+                        "items": [{"kind": k, "id": i, "title": t, "url": u, "thumbnail": thumb}
+                                  for k, i, t, u, thumb in items]})
 
     if a.json:
         print(json.dumps(_strip_nulls(out), ensure_ascii=False, indent=2))
@@ -1117,9 +1142,10 @@ def cmd_profile(a):
     
     # First, get channel ID from the initial page's metadata
     channel_id = None
+    page_html = ""
     try:
-        html = _http_get(base)
-        data = _extract_ytInitialData(html)
+        page_html = _http_get(base)
+        data = _extract_ytInitialData(page_html)
         if data:
             # The channel ID is in metadata.channelMetadataRenderer.externalId
             meta = data.get("metadata", {}).get("channelMetadataRenderer", {})
@@ -1165,6 +1191,67 @@ def cmd_profile(a):
     # Parse profile data from Innertube response
     meta = resp.get("metadata", {}).get("channelMetadataRenderer", {})
     header_vm = resp.get("header", {}).get("pageHeaderRenderer", {}).get("content", {}).get("pageHeaderViewModel", {})
+
+    # Channel avatars have appeared under several Innertube view-model shapes.
+    # Prefer the highest-resolution public avatar URL without making the UI
+    # depend on a single YouTube renderer generation.
+    def avatar_from(node):
+        if isinstance(node, dict):
+            sources = node.get("sources")
+            if isinstance(sources, list):
+                urls = [item.get("url") for item in sources if isinstance(item, dict) and isinstance(item.get("url"), str)]
+                if urls:
+                    return urls[-1]
+            for key, value in node.items():
+                if key in ("avatar", "image", "thumbnail"):
+                    found = avatar_from(value)
+                    if found:
+                        return found
+                elif isinstance(value, (dict, list)):
+                    found = avatar_from(value)
+                    if found:
+                        return found
+        elif isinstance(node, list):
+            for value in node:
+                found = avatar_from(value)
+                if found:
+                    return found
+        return None
+
+    avatar_url = avatar_from(header_vm) or avatar_from(meta)
+    if not avatar_url and page_html:
+        # Public channel pages expose their channel image as Open Graph metadata
+        # even when the Innertube header switches to an unrecognized view model.
+        for match in re.finditer(r'<meta\b[^>]*(?:property|name)=["\']og:image["\'][^>]*>', page_html, re.I):
+            content = re.search(r'\bcontent=["\']([^"\']+)', match.group(0), re.I)
+            if content:
+                avatar_url = html.unescape(content.group(1))
+                break
+
+    # Channel art is distinct from the avatar. Innertube has moved the banner
+    # through several renderer generations, so locate banner-named subtrees and
+    # select the largest public image URL found in them.
+    banner_candidates = []
+    def find_banner(node, in_banner=False):
+        if isinstance(node, dict):
+            in_banner = in_banner or any("banner" in str(key).lower() for key in node)
+            if in_banner:
+                sources = node.get("sources")
+                if isinstance(sources, list):
+                    for item in sources:
+                        if isinstance(item, dict) and str(item.get("url", "")).startswith("https://"):
+                            banner_candidates.append((int(item.get("width") or 0) * int(item.get("height") or 0), item["url"]))
+                url = node.get("url")
+                if isinstance(url, str) and url.startswith("https://"):
+                    banner_candidates.append((int(node.get("width") or 0) * int(node.get("height") or 0), url))
+            for value in node.values():
+                if isinstance(value, (dict, list)):
+                    find_banner(value, in_banner)
+        elif isinstance(node, list):
+            for value in node:
+                find_banner(value, in_banner)
+    find_banner(header_vm)
+    banner_url = max(banner_candidates, default=(0, None))[1]
     
     # Extract subscriber count from header metadata
     subscribers = None
@@ -1201,6 +1288,8 @@ def cmd_profile(a):
         "name": meta.get("title"),
         "handle": meta.get("vanityChannelUrl", "").replace("http://www.youtube.com/", "").replace("https://www.youtube.com/", "") or channel_id,
         "channel_url": meta.get("channelUrl") or base,
+        "avatar_url": avatar_url,
+        "banner_url": banner_url,
         "subscribers": subscribers,
         "video_count": video_count,
         "shorts_count": shorts_count,
