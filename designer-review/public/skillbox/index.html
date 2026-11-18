@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
     <title>YouTube Skillbox</title>
-    <meta name="description" content="Standalone YouTube Skillbox designer preview powered by NVIDIA AI and the Skillbox research engine." />
+    <meta name="description" content="Standalone YouTube Skillbox designer preview powered by NVIDIA NIM and the Skillbox research engine." />
     <link rel="icon" type="image/svg+xml" href="assets/skillbox-mark.svg" />
     <link rel="apple-touch-icon" href="assets/skillbox-mark-1024.png" />
     <link rel="stylesheet" href="style.css" />
@@ -20,8 +20,8 @@
         </a>
         <div class="head-right">
           <button id="theme-toggle" class="icon-btn" type="button" aria-label="Theme: system" title="Theme: system">◐</button>
-          <span class="host-pill"><span class="host-dot"></span> <span id="runtime-pill">SKILLBOX PREVIEW</span></span>
-          <span class="host-caption" id="runtime-caption">STANDALONE · NO ANNA LOGIN</span>
+          <span class="host-pill"><span class="host-dot"></span> <span id="runtime-pill">NVIDIA NIM</span></span>
+          <span class="host-caption" id="runtime-caption">SKILLBOX ENGINE · LIVE PUBLIC DATA</span>
         </div>
       </header>
 
@@ -30,7 +30,7 @@
         <div class="nav-caption">WORKSPACE</div>
         <button class="tab is-active" id="tab-button-chat" data-tab="chat" role="tab" aria-controls="tab-chat" aria-selected="true" tabindex="0">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v11H9l-5 3v-14z"/><path d="M8 9.5h8M8 13h5"/></svg>
-          <span id="chat-tab-label">Ask Anna</span>
+          <span id="chat-tab-label">Skillbox AI</span>
         </button>
         <button class="tab" id="tab-button-audit" data-tab="audit" role="tab" aria-controls="tab-audit" aria-selected="false" tabindex="-1">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 10.5h5"/></svg>
@@ -56,16 +56,16 @@
           <section id="tab-chat" class="panel is-active" role="tabpanel" aria-labelledby="tab-button-chat">
             <div class="panel-head chat-head">
               <div>
-                <p class="eyebrow" id="chat-eyebrow">SKILLBOX GUIDE / 00</p>
+                <p class="eyebrow" id="chat-eyebrow">SKILLBOX AI / 00</p>
                 <h1>Tell me what your <em>channel needs.</em></h1>
                 <p class="lead">Ask for an audit, a content idea, a transcript read or a next move. The workspace profile keeps the conversation grounded in your own public data.</p>
               </div>
-              <span class="ev ev-inferred" id="llm-caption">NVIDIA AI · SKILLBOX TOOLS</span>
+              <span class="ev ev-inferred" id="llm-caption">NVIDIA NIM · TOOL-AWARE</span>
             </div>
             <div class="chat-layout">
               <div class="card chat-card">
                 <div id="chat-thread" class="chat-thread" aria-live="polite">
-                    <div class="chat-message assistant"><span class="chat-avatar" id="initial-assistant-avatar">S</span><div class="chat-message-body"><strong id="initial-assistant-name">Skillbox AI</strong><div class="chat-prose"><p>Set up your channel workspace or ask me where to start. I’ll label measured facts separately from recommendations.</p></div></div></div>
+                  <div class="chat-message assistant"><span class="chat-avatar" id="initial-assistant-avatar">S</span><div><strong id="initial-assistant-name">Skillbox AI · NVIDIA</strong><p>Set up your channel workspace or ask me where to start. I’ll label measured facts separately from recommendations.</p></div></div>
                 </div>
                 <div class="chat-suggestions" aria-label="Suggested questions">
                   <button class="chip" data-chat-prompt="What should I fix first on my channel?">What should I fix first?</button>
@@ -76,11 +76,11 @@
                 <form id="chat-form" class="chat-compose">
                   <input id="chat-file" type="file" accept="image/*,.csv,.zip,text/csv,application/zip" hidden />
                   <button id="chat-attach" class="btn chat-attach-btn" type="button" aria-label="Attach image, CSV or ZIP" title="Attach image, CSV or ZIP"><svg class="chat-attach-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v16M4 12h16" /></svg></button>
-                  <textarea id="chat-input" rows="2" placeholder="Ask Skillbox AI about your channel…" aria-label="Ask Skillbox AI"></textarea>
+                  <textarea id="chat-input" rows="2" placeholder="Ask Anna about your channel…" aria-label="Ask Anna"></textarea>
                   <button id="chat-send" class="btn btn-primary" type="submit">Send <span aria-hidden="true">↗</span></button>
                 </form>
               </div>
-              <div id="chat-guest-note" class="note warn hidden"><b>Channel-aware chat unlocks after channel setup.</b><span>Audit, Content Studio, and Retention Fix remain available for public research and creator workflows.</span><button class="btn btn-small" data-open-onboarding type="button">Connect a channel</button></div>
+              <div id="chat-guest-note" class="note warn hidden"><b>Personal Anna is available after channel verification.</b><span>Connect your channel to unlock creator-specific chat. Guest mode still includes public research and creator tools.</span><button class="btn btn-small" data-open-onboarding type="button">Connect a channel</button></div>
             </div>
           </section>
           <section id="tab-audit" class="panel" role="tabpanel" aria-labelledby="tab-button-audit">
@@ -146,7 +146,7 @@
             <div class="saved-wrap">
               <div class="section-head">
                 <div><p class="eyebrow">WORKSPACE</p><h2>Recent audits</h2></div>
-                <span class="section-note" id="audit-storage-note">Saved in Anna storage when available</span>
+                <span class="section-note">Saved in Anna storage when available</span>
               </div>
               <ul id="saved-list" class="saved-list">
                 <li class="empty">No saved audits yet. Run an audit to create your first snapshot.</li>
@@ -166,7 +166,7 @@
             <div class="card studio-input-card">
               <div class="section-head">
                 <div><p class="eyebrow">START WITH THE IDEA</p><h2>Give the video a direction</h2></div>
-                <span class="section-note" id="studio-llm-note">Host LLM · Anna</span>
+                <span class="section-note">Host LLM · Anna</span>
               </div>
               <div class="studio-grid">
                 <label class="field">
@@ -356,7 +356,7 @@
               <div id="ret-output" class="retention-report hidden" aria-live="polite"></div>
             </div>
             </div>
-            <div id="ret-view-history" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Analysis history</h2><p class="section-copy">Reopen previous retention reports saved in this browser workspace.</p></div></div><div id="ret-history-list" class="ret-history-list"></div></div>
+            <div id="ret-view-history" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Analysis history</h2><p class="section-copy">Reopen previous retention reports saved in this Anna workspace.</p></div></div><div id="ret-history-list" class="ret-history-list"></div></div>
             <div id="ret-view-cache" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Saved analysis cache</h2><p class="section-copy">Previously analyzed exports are kept for quick reopening. Logging out clears this cache.</p></div></div><div id="ret-cache-list" class="ret-history-list"></div></div>
           </section>
         </div>
@@ -381,31 +381,7 @@
       </footer>
     </div>
 
-    <script>
-      // Keep the review shell navigable even if the feature module fails to load.
-      (() => {
-        const buttons = [...document.querySelectorAll(".tab")];
-        const activate = (button) => {
-          buttons.forEach((item) => {
-            const active = item === button;
-            item.classList.toggle("is-active", active);
-            item.setAttribute("aria-selected", String(active));
-            item.tabIndex = active ? 0 : -1;
-            document.getElementById("tab-" + item.dataset.tab)?.classList.toggle("is-active", active);
-          });
-        };
-        buttons.forEach((button) => button.addEventListener("click", () => activate(button)));
-        const modal = document.getElementById("onboarding-modal");
-        const open = () => modal?.classList.remove("hidden");
-        const close = () => modal?.classList.add("hidden");
-        document.getElementById("nav-profile")?.addEventListener("click", open);
-        document.querySelectorAll("[data-open-onboarding]").forEach((button) => button.addEventListener("click", open));
-        document.getElementById("onboarding-close")?.addEventListener("click", close);
-        modal?.addEventListener("click", (event) => { if (event.target === modal) close(); });
-      })();
-    </script>
     <script src="anna-tool-ids.js"></script>
-    <script src="app.js?v=designer-preview-standalone-20261119-3" type="module"
-      onerror="document.getElementById('status-text').textContent='Skillbox feature module failed to load. Please reload this preview.';"></script>
+    <script src="app.js?v=skillbox-full-parity-20261119-1" type="module"></script>
   </body>
 </html>
