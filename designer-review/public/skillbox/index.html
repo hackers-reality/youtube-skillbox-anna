@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
     <title>YouTube Skillbox</title>
-    <meta name="description" content="Evidence-backed YouTube audits, keyword research and creator workflows — inside Anna AI OS." />
+    <meta name="description" content="Standalone YouTube Skillbox designer preview powered by NVIDIA AI and the Skillbox research engine." />
     <link rel="icon" type="image/svg+xml" href="assets/skillbox-mark.svg" />
     <link rel="apple-touch-icon" href="assets/skillbox-mark-1024.png" />
     <link rel="stylesheet" href="style.css" />
@@ -20,8 +20,8 @@
         </a>
         <div class="head-right">
           <button id="theme-toggle" class="icon-btn" type="button" aria-label="Theme: system" title="Theme: system">◐</button>
-          <span class="host-pill"><span class="host-dot"></span> <span id="runtime-pill">ANNA APP</span></span>
-          <span class="host-caption" id="runtime-caption">OPEN ENGINE · NO USER API KEYS</span>
+          <span class="host-pill"><span class="host-dot"></span> <span id="runtime-pill">SKILLBOX PREVIEW</span></span>
+          <span class="host-caption" id="runtime-caption">STANDALONE · NO ANNA LOGIN</span>
         </div>
       </header>
 
@@ -56,16 +56,16 @@
           <section id="tab-chat" class="panel is-active" role="tabpanel" aria-labelledby="tab-button-chat">
             <div class="panel-head chat-head">
               <div>
-                <p class="eyebrow" id="chat-eyebrow">ANNA GUIDE / 00</p>
+                <p class="eyebrow" id="chat-eyebrow">SKILLBOX GUIDE / 00</p>
                 <h1>Tell me what your <em>channel needs.</em></h1>
                 <p class="lead">Ask for an audit, a content idea, a transcript read or a next move. The workspace profile keeps the conversation grounded in your own public data.</p>
               </div>
-              <span class="ev ev-inferred" id="llm-caption">HOST LLM · TOOL-AWARE</span>
+              <span class="ev ev-inferred" id="llm-caption">NVIDIA AI · SKILLBOX TOOLS</span>
             </div>
             <div class="chat-layout">
               <div class="card chat-card">
                 <div id="chat-thread" class="chat-thread" aria-live="polite">
-                    <div class="chat-message assistant"><span class="chat-avatar" id="initial-assistant-avatar">A</span><div class="chat-message-body"><strong id="initial-assistant-name">Anna</strong><div class="chat-prose"><p>Set up your channel workspace or ask me where to start. I’ll label measured facts separately from recommendations.</p></div></div></div>
+                    <div class="chat-message assistant"><span class="chat-avatar" id="initial-assistant-avatar">S</span><div class="chat-message-body"><strong id="initial-assistant-name">Skillbox AI</strong><div class="chat-prose"><p>Set up your channel workspace or ask me where to start. I’ll label measured facts separately from recommendations.</p></div></div></div>
                 </div>
                 <div class="chat-suggestions" aria-label="Suggested questions">
                   <button class="chip" data-chat-prompt="What should I fix first on my channel?">What should I fix first?</button>
@@ -374,7 +374,7 @@
 
       <footer class="statusbar">
         <span id="status-dot" class="dot"></span>
-        <span id="status-text">Connecting to Anna host…</span>
+        <span id="status-text">Standalone preview · initializing Skillbox…</span>
         <span class="spacer"></span>
         <a id="repo-link" href="https://github.com/hackers-reality/youtube-skillbox-anna" target="_blank" rel="noopener">SOURCE REPOSITORY</a>
         <span class="foot-note">MIT</span>
@@ -382,6 +382,6 @@
     </div>
 
     <script src="anna-tool-ids.js"></script>
-    <script src="app.js" type="module"></script>
+    <script src="app.js?v=designer-preview-standalone-20261119-2" type="module"></script>
   </body>
 </html>
