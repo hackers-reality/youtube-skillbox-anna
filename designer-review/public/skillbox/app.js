@@ -13,6 +13,74 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const byId = (id) => document.getElementById(id);
 
+async function copyTextToClipboard(text) {
+  const value = String(text ?? "");
+  if (!value) throw new Error("There is nothing to copy.");
+
+  // Clipboard API requires a secure context and can be denied inside embedded
+  // previews. Try it first, then fall back to the selection-based copy command.
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch (_) {
+    // Continue to the legacy fallback when permission or iframe policy blocks it.
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.setAttribute("aria-hidden", "true");
+  Object.assign(textarea.style, {
+    position: "fixed",
+    left: "-9999px",
+    top: "0",
+    opacity: "0",
+    fontSize: "16px"
+  });
+  document.body.appendChild(textarea);
+  textarea.focus({ preventScroll: true });
+  textarea.select();
+  textarea.setSelectionRange(0, value.length);
+
+  let copied = false;
+  try {
+    copied = typeof document.execCommand === "function" && document.execCommand("copy");
+  } finally {
+    textarea.remove();
+  }
+  if (!copied) {
+    throw new Error("Clipboard access was blocked. Select the text and copy it manually.");
+  }
+  return true;
+}
+
+async function copyWithFeedback(text, button, errorTarget = null) {
+  if (!button) return false;
+  const originalLabel = button.dataset.copyLabel || button.textContent || "Copy";
+  button.dataset.copyLabel = originalLabel;
+  try {
+    await copyTextToClipboard(text);
+    button.textContent = "Copied!";
+    if (errorTarget) errorTarget.textContent = "";
+    window.setTimeout(() => {
+      if (button.isConnected) button.textContent = originalLabel;
+    }, 1600);
+    return true;
+  } catch (error) {
+    if (errorTarget) {
+      errorTarget.textContent = error?.message || "Copy failed. Select the text and copy it manually.";
+    }
+    button.textContent = "Copy failed";
+    window.setTimeout(() => {
+      if (button.isConnected) button.textContent = originalLabel;
+    }, 2200);
+    return false;
+  }
+}
+
+
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -310,7 +378,7 @@ function renderOnboarding() {
     title.textContent = "Verify it’s really yours.";
     copy.textContent = "Copy this one-time phrase into your channel description manually. We never edit YouTube or ask for OAuth.";
     content.innerHTML = `<label class="field"><span>Unique verification phrase · read-only</span><div class="copy-field"><input id="onboarding-phrase" readonly value="${escapeHtml(profileState.phrase)}" /><button id="onboarding-copy" class="btn" type="button">Copy</button></div></label><div class="onboarding-actions"><button id="onboarding-verify" class="btn btn-primary" type="button">I added it — verify now</button><button id="onboarding-back" class="btn" type="button">Back</button></div><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div>`;
-    byId("onboarding-copy")?.addEventListener("click", async () => { await navigator.clipboard.writeText(profileState.phrase); byId("onboarding-copy").textContent = "Copied"; });
+    byId("onboarding-copy")?.addEventListener("click", async () => { const copied = await copyWithFeedback(profileState.phrase, byId("onboarding-copy"), byId("onboarding-error")); if (!copied) { const input = byId("onboarding-phrase"); input?.focus(); input?.select(); input?.setSelectionRange(0, input.value.length); } });
     byId("onboarding-back")?.addEventListener("click", () => { onboardingStep = "confirm"; renderOnboarding(); });
     byId("onboarding-verify")?.addEventListener("click", async () => {
       const button = byId("onboarding-verify"); button.disabled = true; button.textContent = "Checking public description…";
@@ -332,7 +400,7 @@ function renderOnboarding() {
     copy.textContent = "Your original description was saved before verification. Restore it in YouTube when you’re ready; nothing was changed automatically.";
     const original = String(profileState.originalDescription ?? "");
     content.innerHTML = `<div class="onboarding-identity">${avatar ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(name)} channel logo" />` : `<span>${escapeHtml(name.slice(0,1).toUpperCase())}</span>`}<div><strong>${escapeHtml(name)}</strong><small>✓ Channel verified · ${escapeHtml(handle)}</small></div></div><label class="field mt"><span>${original ? "Your previous description · saved exactly" : "Previous description not available"}</span><textarea id="original-description" readonly rows="6">${escapeHtml(original)}</textarea></label><div class="onboarding-actions"><button id="copy-description" class="btn" type="button" ${original ? "" : "disabled"}>Copy old description</button><button id="onboarding-chat" class="btn btn-primary" type="button" ${original ? "" : "disabled"}>Ask Anna to refine</button><button id="onboarding-restored" class="btn" type="button">I restored it</button><button id="workspace-logout" class="btn" type="button">Log out & clear saved data</button></div><p class="hint">${original ? "Nothing is changed on YouTube automatically. Copy it back yourself, or ask Anna to refine it first." : "This channel was connected before the original-description backup existed. No original text can be reconstructed, so the current description was not changed."}</p>`;
-    byId("copy-description")?.addEventListener("click", async () => { await navigator.clipboard.writeText(original); byId("copy-description").textContent = "Copied"; });
+    byId("copy-description")?.addEventListener("click", () => copyWithFeedback(original, byId("copy-description")));
     byId("onboarding-chat")?.addEventListener("click", () => { closeOnboarding(); byId("tab-button-chat")?.click(); byId("chat-input").value = "Help me refine my YouTube channel description. Keep my original meaning and voice. Here is my previous description:\n\n" + original; byId("chat-input").focus(); });
     byId("onboarding-restored")?.addEventListener("click", async () => { profileState.restorationShown = true; await storageSet(PROFILE_KEY, [profileState]); closeOnboarding(); });
     byId("workspace-logout")?.addEventListener("click", clearWorkspaceSession);
@@ -1586,7 +1654,7 @@ function wireStudio() {
       }
     });
   });
-  byId("studio-copy").addEventListener("click", () => navigator.clipboard.writeText(byId("studio-pre").textContent).catch(() => {}));
+  byId("studio-copy").addEventListener("click", () => copyWithFeedback(byId("studio-pre").textContent, byId("studio-copy")));
 }
 
 /* ---------- keyword lab (Feature 1 — live research, no API key) ---------- */
@@ -1873,7 +1941,7 @@ function wireLab() {
   $$(".lab-actions [data-lab]").forEach((b) => {
     b.addEventListener("click", () => runLab(b.dataset.lab));
   });
-  byId("lab-copy").addEventListener("click", () => navigator.clipboard.writeText(byId("lab-result").innerText).catch(() => {}));
+  byId("lab-copy").addEventListener("click", () => copyWithFeedback(byId("lab-result").innerText, byId("lab-copy")));
 }
 
 /* ---------- retention analyzer ---------- */
