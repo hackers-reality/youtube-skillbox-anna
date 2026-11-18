@@ -1,16 +1,12 @@
-/* YouTube Skillbox — Anna App bundle
- * Static SPA. Talks to:
- *   • Host tools  → anna.tools.invoke({ tool_id, method, args })  (skillbox-core executa)
- *   • Host LLM    → anna.llm.complete({ messages, ... })          (free-form analysis)
- *   • Host storage→ anna.storage.set/get/list                     (saved audits)
+/* YouTube Skillbox — standalone designer preview.
+ * Original Skillbox application behavior and research engine are preserved.
+ * The LLM boundary is served by NVIDIA NIM; research tools use the same
+ * Skillbox Python engine adapter as the Anna application.
  * Evidence labels: MEASURED = measured numbers, INFERRED = reasoned from measured, HYPOTHESIS = unvalidated.
  */
 
 import { planChatTools } from "./chat-routing.mjs";
 
-const TOOL_ID = (typeof window !== "undefined" && window.__ANNA_TOOL_IDS__ && window.__ANNA_TOOL_IDS__["youtube-skillbox"]) || "bundled:youtube-skillbox";
-const DEV_TOOL_ID = "tool-dev-youtube-skillbox";
-const PRIMARY_TOOL_ID = typeof location !== "undefined" && /\/dev\//.test(location.pathname + location.search) ? DEV_TOOL_ID : TOOL_ID;
 const AUDITS_KEY = "youtube-skillbox:audits";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -118,22 +114,6 @@ async function nvidiaPreviewCompletion(systemPrompt, userMessage, imageBlocks = 
 }
 
 async function storageList(key) {
-  if (anna && !standalone) {
-    const response = await anna.storage.get({ key });
-    const value = response && response.value;
-    if (value == null) return [];
-    // Older bundle versions stored JSON as a string; accept both that format
-    // and native JSON values written by the current app.
-    if (typeof value === "string") {
-      try {
-        const parsed = JSON.parse(value);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (_) {
-        return [];
-      }
-    }
-    return Array.isArray(value) ? value : [];
-  }
   try {
     const value = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(value) ? value : [];
@@ -143,10 +123,6 @@ async function storageList(key) {
 }
 
 async function storageSet(key, value) {
-  if (anna && !standalone) {
-    await anna.storage.set({ key, value });
-    return;
-  }
   localStorage.setItem(key, JSON.stringify(value));
 }
 
@@ -2713,10 +2689,6 @@ async function main() {
     });
   });
   await renderSavedList();
-  if (anna && anna.window) {
-    try { await anna.window.set_title({ title: "YouTube Skillbox" }); } catch (_) {}
-    // AnnaAppRuntime.connect() already emits window.ready after the handshake.
-  }
   if (!ok) setStatus("Standalone preview · NVIDIA NIM + Skillbox engine ready", true);
 }
 
