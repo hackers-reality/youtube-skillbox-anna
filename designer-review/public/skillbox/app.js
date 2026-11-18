@@ -37,11 +37,11 @@ function applyStandaloneBranding() {
   const labels = {
     "runtime-pill": "NVIDIA NIM",
     "runtime-caption": "SKILLBOX ENGINE · LIVE PUBLIC DATA",
-    "chat-tab-label": "Skillbox AI",
-    "chat-eyebrow": "SKILLBOX AI / 00",
+    "chat-tab-label": "Ask Anna",
+    "chat-eyebrow": "ANNA GUIDE / 00",
     "llm-caption": "NVIDIA NIM · TOOL-AWARE",
-    "initial-assistant-avatar": "S",
-    "initial-assistant-name": "Skillbox AI · NVIDIA",
+    "initial-assistant-avatar": "A",
+    "initial-assistant-name": "Anna",
     "audit-storage-note": "Saved in this browser",
     "studio-llm-note": "NVIDIA NIM · Skillbox tools"
   };
