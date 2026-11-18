@@ -76,7 +76,7 @@
                 <form id="chat-form" class="chat-compose">
                   <input id="chat-file" type="file" accept="image/*,.csv,.zip,text/csv,application/zip" hidden />
                   <button id="chat-attach" class="btn chat-attach-btn" type="button" aria-label="Attach image, CSV or ZIP" title="Attach image, CSV or ZIP"><svg class="chat-attach-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v16M4 12h16" /></svg></button>
-                  <textarea id="chat-input" rows="2" placeholder="Ask Anna about your channel…" aria-label="Ask Anna"></textarea>
+                  <textarea id="chat-input" rows="2" placeholder="Ask Skillbox AI about your channel…" aria-label="Ask Skillbox AI"></textarea>
                   <button id="chat-send" class="btn btn-primary" type="submit">Send <span aria-hidden="true">↗</span></button>
                 </form>
               </div>
@@ -381,7 +381,31 @@
       </footer>
     </div>
 
+    <script>
+      // Keep the review shell navigable even if the feature module fails to load.
+      (() => {
+        const buttons = [...document.querySelectorAll(".tab")];
+        const activate = (button) => {
+          buttons.forEach((item) => {
+            const active = item === button;
+            item.classList.toggle("is-active", active);
+            item.setAttribute("aria-selected", String(active));
+            item.tabIndex = active ? 0 : -1;
+            document.getElementById("tab-" + item.dataset.tab)?.classList.toggle("is-active", active);
+          });
+        };
+        buttons.forEach((button) => button.addEventListener("click", () => activate(button)));
+        const modal = document.getElementById("onboarding-modal");
+        const open = () => modal?.classList.remove("hidden");
+        const close = () => modal?.classList.add("hidden");
+        document.getElementById("nav-profile")?.addEventListener("click", open);
+        document.querySelectorAll("[data-open-onboarding]").forEach((button) => button.addEventListener("click", open));
+        document.getElementById("onboarding-close")?.addEventListener("click", close);
+        modal?.addEventListener("click", (event) => { if (event.target === modal) close(); });
+      })();
+    </script>
     <script src="anna-tool-ids.js"></script>
-    <script src="app.js?v=designer-preview-standalone-20261119-2" type="module"></script>
+    <script src="app.js?v=designer-preview-standalone-20261119-3" type="module"
+      onerror="document.getElementById('status-text').textContent='Skillbox feature module failed to load. Please reload this preview.';"></script>
   </body>
 </html>
