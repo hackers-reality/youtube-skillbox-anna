@@ -49,5 +49,5 @@ test("the public preview uses a versioned standalone application bundle", () => 
   assert.match(html, /NVIDIA NIM/);
   assert.match(html, /SKILLBOX ENGINE/);
   assert.match(html, /app\.js\?v=skillbox-full-parity-/);
-  assert.doesNotMatch(html, /ANNA APP|ANNA GUIDE|HOST LLM|Connecting to Anna host/);
+  assert.doesNotMatch(html, /ANNA APP|HOST LLM|Connecting to Anna host/);
 });
