@@ -22,6 +22,15 @@ test("all workspace tabs, theme control, and first-visit channel setup remain in
   assert.match(page, /youtube-skillbox:preview-version/);
 });
 
+
+test("static preview shell is standalone before JavaScript starts and cache-busts the app module", () => {
+  assert.match(html, /id=["']runtime-pill["']>SKILLBOX PREVIEW</);
+  assert.match(html, /id=["']runtime-caption["']>STANDALONE · NO ANNA LOGIN</);
+  assert.match(html, /id=["']status-text["']>Standalone preview/);
+  assert.match(html, /app\.js\?v=designer-preview-standalone-[^"']+/);
+  assert.doesNotMatch(html, /ANNA APP|ANNA GUIDE|HOST LLM|Connecting to Anna host/);
+});
+
 test("workspace navigation is wired before any backend initialization", () => {
   const mainStart = app.indexOf("async function main()");
   const navigation = app.indexOf("wireTabs();", mainStart);
