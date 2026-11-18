@@ -105,21 +105,16 @@ let anna = null;
 let standalone = false;
 
 async function connect() {
-  try {
-    // The Anna SDK only exists inside Anna OS. Import it dynamically so a
-    // missing host SDK does not prevent this standalone Preview from booting.
-    const { AnnaAppRuntime } = await import("/static/anna-apps/_sdk/latest/index.js");
-    anna = await AnnaAppRuntime.connect();
-    setStatus("Connected to Anna host", true);
-    return true;
-  } catch (e) {
-    standalone = true;
-    applyStandaloneBranding();
-    setStatus("Standalone preview · NVIDIA AI + live Skillbox engine", true);
-    return false;
-  }
+  // This bundle is served by the public Vercel design-review app, not Anna OS.
+  // Never attempt to load or handshake with the Anna SDK here: that host-only
+  // request can remain pending in a normal browser and prevent the preview
+  // from becoming usable. The original Anna app bundle remains unchanged.
+  standalone = true;
+  anna = null;
+  applyStandaloneBranding();
+  setStatus("Standalone preview · NVIDIA AI + live Skillbox engine", true);
+  return false;
 }
-
 function applyStandaloneBranding() {
   const labels = {
     "runtime-pill": "NVIDIA AI",
