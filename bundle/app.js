@@ -19,6 +19,55 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const byId = (id) => document.getElementById(id);
 
+async function copyTextToClipboard(text) {
+  const value = String(text ?? "");
+  if (!value) throw new Error("There is nothing to copy.");
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch (_) {
+    // Continue to the legacy fallback when permission or iframe policy blocks it.
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.setAttribute("aria-hidden", "true");
+  Object.assign(textarea.style, { position: "fixed", left: "-9999px", top: "0", opacity: "0", fontSize: "16px" });
+  document.body.appendChild(textarea);
+  textarea.focus({ preventScroll: true });
+  textarea.select();
+  textarea.setSelectionRange(0, value.length);
+  let copied = false;
+  try {
+    copied = typeof document.execCommand === "function" && document.execCommand("copy");
+  } finally {
+    textarea.remove();
+  }
+  if (!copied) throw new Error("Clipboard access was blocked. Select the text and copy it manually.");
+  return true;
+}
+
+async function copyWithFeedback(text, button, errorTarget = null) {
+  if (!button) return false;
+  const originalLabel = button.dataset.copyLabel || button.textContent || "Copy";
+  button.dataset.copyLabel = originalLabel;
+  try {
+    await copyTextToClipboard(text);
+    button.textContent = "Copied!";
+    if (errorTarget) errorTarget.textContent = "";
+    window.setTimeout(() => { if (button.isConnected) button.textContent = originalLabel; }, 1600);
+    return true;
+  } catch (error) {
+    if (errorTarget) errorTarget.textContent = error?.message || "Copy failed. Select the text and copy it manually.";
+    button.textContent = "Copy failed";
+    window.setTimeout(() => { if (button.isConnected) button.textContent = originalLabel; }, 2200);
+    return false;
+  }
+}
+
+
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -1628,7 +1677,7 @@ function wireStudio() {
       }
     });
   });
-  byId("studio-copy").addEventListener("click", () => navigator.clipboard.writeText(byId("studio-pre").textContent).catch(() => {}));
+  byId("studio-copy").addEventListener("click", () => copyWithFeedback(byId("studio-pre").textContent, byId("studio-copy")));
 }
 
 /* ---------- keyword lab (Feature 1 — live research, no API key) ---------- */
@@ -1915,7 +1964,7 @@ function wireLab() {
   $$(".lab-actions [data-lab]").forEach((b) => {
     b.addEventListener("click", () => runLab(b.dataset.lab));
   });
-  byId("lab-copy").addEventListener("click", () => navigator.clipboard.writeText(byId("lab-result").innerText).catch(() => {}));
+  byId("lab-copy").addEventListener("click", () => copyWithFeedback(byId("lab-result").innerText, byId("lab-copy")));
 }
 
 /* ---------- retention analyzer ---------- */
