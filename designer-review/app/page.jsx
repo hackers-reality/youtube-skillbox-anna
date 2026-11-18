@@ -35,6 +35,6 @@ export default function DesignerReview() {
       {!ready && <div className="review-loading">Preparing your workspace…</div>}
       {ready && <iframe ref={frame} title="YouTube Skillbox live design preview" src="/skillbox/index.html?design-review=1" onLoad={() => setReady(true)} />}
     </section>
-    <footer className="review-footer">PRIVATE VERCEL PREVIEW <span>·</span> NVIDIA LLM calls stay server-side <span>·</span> Live Anna/YouTube research tools need the Anna host</footer>
+    <footer className="review-footer">PRIVATE VERCEL PREVIEW <span>·</span> NVIDIA AI calls stay server-side <span>·</span> Live YouTube research runs on the Skillbox engine</footer>
   </main>;
 }

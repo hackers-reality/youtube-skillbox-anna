@@ -112,7 +112,7 @@ async function connect() {
     return true;
   } catch (e) {
     standalone = true;
-    setStatus("Standalone preview · NVIDIA LLM · Anna tools unavailable", true, true);
+    setStatus("Standalone preview · NVIDIA AI + live Skillbox engine", true);
     return false;
   }
 }
@@ -127,7 +127,24 @@ function setStatus(text, ok, warn = false) {
 /* ---------- helpers: tools / llm / storage ---------- */
 async function tool(method, args, timeoutMs, options = {}) {
   if (standalone || !anna) {
-    throw new Error("Anna host is not connected. Open this app inside Anna AI OS to run live Skillbox tools; no sample measurements were substituted.");
+    const response = await fetch("/api/skillbox", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ method, args: args || {} }),
+      cache: "no-store",
+      signal: Number.isFinite(timeoutMs) && timeoutMs > 0 ? AbortSignal.timeout(timeoutMs + 5000) : undefined,
+    });
+    let envelope;
+    try { envelope = await response.json(); }
+    catch (_) { throw new Error("The Skillbox research service returned an unreadable response."); }
+    if (!response.ok) throw new Error(envelope?.error || "The Skillbox research service failed.");
+    const payload = envelope?.result;
+    if (!payload || typeof payload !== "object") throw new Error("The Skillbox research service returned no result.");
+    if (payload.success === false || payload.error) {
+      const failure = payload.error;
+      throw new Error(typeof failure === "string" ? failure : failure?.message || "Skillbox research failed.");
+    }
+    return payload.success === true && "data" in payload ? payload.data : payload;
   }
 
   const invoke = (toolId) => {
@@ -1478,52 +1495,7 @@ function renderShelves(data) {
   const blocks = sections.filter((section) => Array.isArray(section.items) && section.items.length).map((section) => {
     const items = section.items;
     const name = section.title || section.type || 'Videos';
-    const featured = /featured video/i.test(String(name));
-    const visibleItems = items.slice(0, 15);
-    const count = Number(section.count) || items.length;
-    return `<section class="yt-shelf${featured ? ' is-featured-video' : ''}"><div class="shelf-head"><div><h3>${escapeHtml(String(name))}</h3><span class="shelf-kind">${escapeHtml(String(section.type || 'CHANNEL SECTION'))}</span></div><span>First ${visibleItems.length} of ${count} public items</span></div><div class="shelf-row">${visibleItems.map((item) => {
-      const kind = String(item.kind || section.type || 'video');
-      const videoId = String(item.id || item.video_id || '');
-      const cardItem = { ...item, thumbnail: item.thumbnail || (/^[\w-]{11}$/.test(videoId) ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '') };
-      const visual = kind.toLowerCase() === 'post'
-        ? `<div class="shelf-post-preview">${escapeHtml(String(item.title || '').slice(0, 190))}</div>`
-        : kind.toLowerCase() === 'channel'
-          ? `<div class="shelf-channel-preview">${item.thumbnail ? `<img data-fallback-text="${escapeHtml(String(item.title || 'C').slice(0,1))}" src="${escapeHtml(item.thumbnail)}" alt="" loading="lazy">` : `<span>${escapeHtml(String(item.title || 'C').slice(0, 1).toUpperCase())}</span>`}<strong>${escapeHtml(String(item.title || 'Channel'))}</strong></div>`
-          : `<a class="shelf-thumb-link" href="${escapeHtml(item.url || '#')}" target="_blank" rel="noopener">${explorerThumb(cardItem)}</a>`;
-      const k = kind.toLowerCase();
-      return `<article class="shelf-item ${k === 'short' || k === 'shorts' ? 'is-short' : 'is-landscape'} ${k === 'playlist' ? 'is-playlist' : ''} ${k === 'post' ? 'is-post' : ''}">${visual}<span class="shelf-item-kind">${escapeHtml(kind)}</span>${k === 'post' ? '' : `<strong>${escapeHtml(String(item.title || item.name || item.id || 'Untitled'))}</strong>`}${explorerLink(item)}</article>`;
-    }).join('')}</div></section>`;
-  });
-  return (banner || profile.name || profile.avatar_url ? hero : '') + (blocks.length ? blocks.join('') : '<div class="empty-state"><strong>No populated shelves returned.</strong><span>The channel may have a minimal public home layout.</span></div>');
-}
-
-function renderShows(data) {
-  const items = listFrom(data, ['shows', 'items', 'playlists']);
-  if (!items.length) return '<div class="empty-state"><strong>No public Shows or playlists returned.</strong><span>YouTube may not expose public collections for this channel.</span></div>';
-  return `<div class="yt-show-grid">${items.slice(0, 15).map((item) => `<article class="yt-show-card">${item.thumbnail ? `<img class="show-thumbnail" src="${escapeHtml(item.thumbnail)}" alt="" loading="lazy">` : '<div class="show-art">▤</div>'}<div><div class="yt-card-kicker">${escapeHtml(String(item.kind || 'SHOW / PLAYLIST'))}</div><h3>${escapeHtml(String(item.title || item.name || item.id || 'Untitled show'))}</h3><p>${escapeHtml(String(item.description || item.count || 'Public episode collection'))}</p>${explorerLink(item)}</div></article>`).join('')}</div>`;
-}
-
-function renderExplorer(label, kind, handle, data) {
-  const items = listFrom(data, ['items', 'videos', 'uploads', 'shorts']);
-  const body = kind === 'posts' ? renderPosts(items, label) : kind === 'home' ? renderShelves(data) : kind === 'shows' ? renderShows(data) : renderVideoCards(items, label, kind);
-  return `<div class="explorer-report"><div class="explorer-report-head"><div><div class="lab-sec">${escapeHtml(label)} <span class="ev ev-measured">MEASURED</span></div><p class="hint">${escapeHtml(handle)} · public YouTube surface · results are capped at 15 to keep research responsive</p></div><span class="source-badge">SOURCE LINKED</span></div>${body}</div>`;
-}
-
-/* ---------- content studio ---------- */
-// Formula classification and hook scoring are owned by the original Skillbox Python engine.
-const TASK_PROMPTS = {
-  hooks: "Generate exactly 21 distinct opening-hook options for the supplied idea. Return ONLY a valid JSON array of objects with keys hook, formula and rationale. Use the 21 Skillbox formula families where appropriate: The Statistic, Someone Else's Result, The Mistake, Contrarian Flip, The Reveal, The Superlative, The Clock, I Tried It, The Question, Before and After, The Teardown, The Stack, The Warning, The List, The Receipt, The Insider, The Impossible Claim, The Comparison, The Origin, The Deadline, The Direct Address. Each hook must be speakable, confirm the video's actual promise, open a genuine curiosity gap and avoid unsupported numbers, personal claims or fake evidence. Do not reuse examples verbatim. The app scores the copy with the deterministic Skillbox hookscore engine; do not invent scores.",
-  script_hooks: "Generate exactly 5 distinct opening-hook candidates for the video idea. Return ONLY a valid JSON array of objects with keys hook, formula and rationale. Use different fits from the 21 Skillbox formula families. Follow the video's actual title promise, create a genuine curiosity gap and show that the payoff exists. Never invent a personal result, source, statistic or experience. The app will score all five with the original Skillbox hookscore engine; do not add scores.",
-  script: "Write the full spoken script using the two top-ranked hook candidates supplied in the request. If a current title/click promise was supplied, the first 15 seconds must confirm that exact promise, open a question the viewer cannot close, and prove the payoff exists. If no title was supplied, establish one clear promise in the hook without pretending it is an existing title. The 0:15–0:45 turn explains what the video will do and starts doing it—no channel intro, 'before we get started' or subscribe pitch. Body: one idea per beat and add [ON SCREEN: ...] to every beat. Explicitly deliver the promised payoff. Close with one ask, not three. Estimate runtime at 150 spoken words per minute. Never invent facts, numbers, sources or personal experience; mark unsupported factual claims [SOURCE NEEDED]. If no creator voice sample was supplied, state that voice fit is not calibrated and use a natural, clear spoken voice.",
-  titles: "Write exactly 5 distinct YouTube title options. Return ONLY a valid JSON array of strings. Keep each title under 100 characters, front-load the topic, avoid unsupported claims and do not overpromise. The app runs the deterministic Skillbox title linter; do not invent scores or CTR predictions.",
-  seo: "Write a search-facing YouTube package using only supplied keyword research. Start with a description whose first two lines state the video promise in the target query's language, then add any supplied link/resource, chapters only when real timecodes exist, and a concise longer description. Provide 8–12 relevant tags (never more than 15); use tags for disambiguation, spelling variants and real topic terms, not unrelated reach bait. If no keyword research was supplied, say the query still needs measuring. Do not invent search volume, sources, results or ranking claims.",
-  chapters: "Write YouTube chapters only from the timestamped transcript or timecoded outline supplied. The first entry must be 00:00; provide at least three chapters; every chapter must be at least 10 seconds apart. Give each chapter a clear three-to-five-word promise in natural creator voice, not a transcript topic dump. Never invent or interpolate timestamps. If there are not enough source timestamps for valid chapters, explain what is missing and ask for a timecoded transcript.",
-  shorts: "Find up to 3 self-contained Shorts from the timestamped transcript. A candidate should run 20–55 seconds, open on a complete thought, contain a turn (claim then complication or proof), and end on a line rather than trail off. For each candidate provide source start/end timecodes, the original first line, a NEW context-free hook, on-screen text for the first two seconds (different wording from the spoken line), a loop point, vertical-crop framing note, and why it survives without the long video. If source timestamps are absent, do not invent them.",
-  edit: "Create an edit decision list from the timestamped transcript. Identify candidate pauses from gaps between adjacent caption cues, filler phrases and repeated/restarted sentences. Cite the exact cue timecodes and source words for every recommendation. Caption gaps are candidate pauses, not proof of silence; label them for footage review. Do not claim to have inspected media or apply edits. If timestamps are missing, do not invent them.",
-  comments: "Triage the supplied YouTube comments into four piles: QUESTIONS, CORRECTIONS, PRAISE and BAIT. State the count in each pile before drafting. Answer the actual question first; acknowledge praise briefly and specifically; check corrections against supplied evidence and mark unverified claims for creator review; do not reply to bait. Keep each drafted reply under 30 words, use no emoji unless the creator's supplied voice notes use them, and never promise a future video. Recommend ONE comment to pin and explain why. Drafts only; do not claim anything was posted or hearted.",
-  plan: "Plan one realistic week, sized to the creator's real capacity. Before building the calendar, require two inputs: available hours this week and what content is already half-made. If either is missing, ask for it instead of inventing a schedule. When supplied, plan one anchor video, one low-effort post built from existing material, and up to three Shorts cut from the anchor—not seven uploads in seven days. Use the channel's own best day only if measured analytics were supplied; otherwise leave the day flexible. Return a table with day, format, working title, one-sentence promise, existing assets and estimated hours; state total hours and what to drop first if the week goes wrong.",
-  thumbnail: "Create three distinct title/thumbnail pairing briefs for the supplied video. For each, specify the subject/expression, framing, foreground/background contrast, no more than three words of thumbnail text, and what the title should communicate that the thumbnail does not. Do not invent thumbnail text as though the creator already supplied it. These are untested creative hypotheses; thumbnail image pixels have not been evaluated and no CTR or performance prediction is allowed.",
-  full: "Produce a practical creator pack: a concise script outline with a strong opening, title options, description and tags, chapters only when timestamps are supported by a transcript, and Shorts angles only when source content and timestamps are supplied. Separate measured facts, inference and creative hypotheses. No fake performance scores or CTR predictions."
+    const featured…2691 tokens truncated…ts angles only when source content and timestamps are supplied. Separate measured facts, inference and creative hypotheses. No fake performance scores or CTR predictions."
 };
 
 
@@ -2872,7 +2844,7 @@ async function main() {
     try { await anna.window.set_title({ title: "YouTube Skillbox" }); } catch (_) {}
     // AnnaAppRuntime.connect() already emits window.ready after the handshake.
   }
-  if (!ok) setStatus("Standalone preview · NVIDIA LLM · Anna tools unavailable", true, true);
+  if (!ok) setStatus("Standalone preview · NVIDIA AI + live Skillbox engine", true);
 }
 
 main().catch((e) => setStatus(`Fatal: ${e.message || e}`, false));
