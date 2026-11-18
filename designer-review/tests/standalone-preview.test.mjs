@@ -29,6 +29,9 @@ test("static preview shell is standalone before JavaScript starts and cache-bust
   assert.match(html, /id=["']status-text["']>Standalone preview/);
   assert.match(html, /app\.js\?v=designer-preview-standalone-[^"']+/);
   assert.doesNotMatch(html, /ANNA APP|ANNA GUIDE|HOST LLM|Connecting to Anna host/);
+  assert.match(html, /Keep the review shell navigable even if the feature module fails to load/);
+  assert.match(html, /buttons\.forEach\(\(button\) => button\.addEventListener\("click"/);
+  assert.match(html, /Skillbox feature module failed to load/);
 });
 
 test("workspace navigation is wired before any backend initialization", () => {
