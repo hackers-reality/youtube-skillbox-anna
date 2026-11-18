@@ -112,7 +112,7 @@ async function connect() {
     return true;
   } catch (e) {
     standalone = true;
-    setStatus("Standalone preview (no host) — wireframe mode", true, true);
+    setStatus("Standalone preview · NVIDIA LLM · Anna tools unavailable", true, true);
     return false;
   }
 }
@@ -174,7 +174,7 @@ async function tool(method, args, timeoutMs, options = {}) {
 
 async function llm(systemPrompt, userMessage, maxTokens = 3200) {
   if (standalone || !anna) {
-    throw new Error("Anna's hosted LLM is unavailable outside the Anna app runtime. No generated result was substituted.");
+    return nvidiaPreviewCompletion(systemPrompt, userMessage, [], maxTokens);
   }
   const r = await anna.llm.complete({
     messages: [{ role: "user", content: { type: "text", text: userMessage } }],
@@ -187,7 +187,7 @@ async function llm(systemPrompt, userMessage, maxTokens = 3200) {
 
 async function llmWithImage(systemPrompt, userMessage, imageBlock, maxTokens = 2600) {
   if (standalone || !anna) {
-    throw new Error("Anna's hosted vision model is unavailable outside the Anna app runtime.");
+    return nvidiaPreviewCompletion(systemPrompt, userMessage, [imageBlock], maxTokens);
   }
   const r = await anna.llm.complete({
     messages: [
@@ -202,11 +202,30 @@ async function llmWithImage(systemPrompt, userMessage, imageBlock, maxTokens = 2
 }
 
 async function llmWithImages(systemPrompt, userMessage, imageBlocks, maxTokens = 3200) {
-  if (standalone || !anna) throw new Error("Anna's hosted vision model is unavailable outside the Anna app runtime.");
+  if (standalone || !anna) return nvidiaPreviewCompletion(systemPrompt, userMessage, imageBlocks, maxTokens);
   const messages = [{ role: "user", content: { type: "text", text: userMessage } }];
   for (const block of imageBlocks) messages.push({ role: "user", content: block });
   const response = await anna.llm.complete({ messages, systemPrompt, maxTokens, temperature: 0.2 });
   return (response && response.content && response.content.text) || String(response);
+}
+
+async function nvidiaPreviewCompletion(systemPrompt, userMessage, imageBlocks = [], maxTokens = 1600) {
+  const images = (imageBlocks || []).filter((block) => block?.type === "image").map((block) => ({
+    mimeType: block.mimeType || "image/jpeg",
+    ...(block.data ? { data: block.data } : {}),
+    ...(block.url ? { url: block.url } : {}),
+  }));
+  const response = await fetch("/api/nvidia/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ systemPrompt, userMessage, images, maxTokens, temperature: 0.35 }),
+    cache: "no-store",
+  });
+  let result;
+  try { result = await response.json(); } catch (_) { throw new Error("The NVIDIA preview service returned an unreadable response."); }
+  if (!response.ok) throw new Error(result?.error || "The NVIDIA preview request failed.");
+  if (typeof result.content !== "string" || !result.content.trim()) throw new Error("NVIDIA returned an empty response.");
+  return result.content;
 }
 
 async function storageList(key) {
@@ -471,10 +490,12 @@ function renderProfileState() {
   const avatar = byId("nav-avatar");
   if (!profileState || !profileState.profile) {
     if (name) name.textContent = guestMode ? "Guest workspace" : "Set up your channel";
-    if (handle) handle.textContent = guestMode ? "Personal chat locked" : "Choose a channel";
+    if (handle) handle.textContent = guestMode ? (standalone ? "NVIDIA-powered guest chat" : "Personal chat locked") : "Choose a channel";
     if (avatar) avatar.textContent = guestMode ? "G" : "?";
-    byId("chat-guest-note")?.classList.toggle("hidden", !guestMode);
-    setPersonalChatEnabled(false);
+    const guestNote = byId("chat-guest-note");
+    if (guestNote && standalone && guestMode) guestNote.innerHTML = "<b>Live NVIDIA guest chat is available.</b><span>This standalone preview has no live Anna or YouTube research tools; responses use only your prompts and attachments.</span>";
+    guestNote?.classList.toggle("hidden", !guestMode);
+    setPersonalChatEnabled(!!(standalone && guestMode));
     return;
   }
   const profile = profileState.profile;
@@ -484,15 +505,17 @@ function renderProfileState() {
   if (name) name.textContent = displayName;
   if (handle) handle.textContent = profileState.verified ? displayHandle + " · verified" : displayHandle;
   if (avatar) { avatar.innerHTML = image ? `<img data-fallback-text="${escapeHtml(displayName.slice(0,1))}" src="${escapeHtml(image)}" alt="" />` : escapeHtml(String(displayName).slice(0, 1).toUpperCase()); wireImageFallbacks(); }
-  byId("chat-guest-note")?.classList.toggle("hidden", !!profileState.verified);
-  setPersonalChatEnabled(!!profileState.verified);
+  const guestNote = byId("chat-guest-note");
+  if (guestNote && standalone && guestMode && !profileState.verified) guestNote.innerHTML = "<b>Live NVIDIA guest chat is available.</b><span>This standalone preview has no live Anna or YouTube research tools; responses use only your prompts and attachments.</span>";
+  guestNote?.classList.toggle("hidden", !!profileState.verified);
+  setPersonalChatEnabled(!!profileState.verified || !!(standalone && guestMode));
 }
 
 function setPersonalChatEnabled(enabled) {
   const input = byId("chat-input");
   const send = byId("chat-send");
   const attach = byId("chat-attach");
-  if (input) { input.disabled = !enabled; input.placeholder = enabled ? "Ask Anna about your channel…" : "Verify your channel to unlock personal chat…"; }
+  if (input) { input.disabled = !enabled; input.placeholder = enabled ? (standalone ? "Ask Skillbox AI…" : "Ask Anna about your channel…") : "Verify your channel to unlock personal chat…"; }
   if (send) send.disabled = !enabled;
   if (attach) attach.disabled = !enabled;
   $$("[data-chat-prompt]").forEach((button) => { button.disabled = !enabled; });
@@ -566,7 +589,8 @@ function chatAdd(role, text, loading = false) {
   if (!thread) return null;
   const node = document.createElement("div");
   node.className = "chat-message " + role + (loading ? " is-loading" : "");
-  node.innerHTML = `<span class="chat-avatar">${role === "assistant" ? "A" : "Y"}</span><div class="chat-message-body"><strong>${role === "assistant" ? "Anna" : "You"}</strong><div class="chat-prose">${loading ? '<span class="typing-dots"><i></i><i></i><i></i></span>' : renderChatMd(text)}</div></div>`;
+  const assistantName = standalone ? "Skillbox AI · NVIDIA" : "Anna";
+  node.innerHTML = `<span class="chat-avatar">${role === "assistant" ? (standalone ? "S" : "A") : "Y"}</span><div class="chat-message-body"><strong>${role === "assistant" ? assistantName : "You"}</strong><div class="chat-prose">${loading ? '<span class="typing-dots"><i></i><i></i><i></i></span>' : renderChatMd(text)}</div></div>`;
   thread.appendChild(node);
   thread.scrollTop = thread.scrollHeight;
   return node;
@@ -799,9 +823,9 @@ function wireChat() {
   const send = async (message) => {
     const text = String(message || byId("chat-input").value || "").trim();
     const attachment = chatAttachment;
-    if (!profileState?.verified) { openOnboarding(profileState ? "phrase" : "identity"); return; }
+    if (!profileState?.verified && !(standalone && guestMode)) { openOnboarding(profileState ? "phrase" : "identity"); return; }
     if (!text && !attachment) { if (!anna || standalone) chatAdd("assistant", "Open this app inside Anna to use the live guide."); return; }
-    if ((!anna || standalone) && attachment && !text) { chatAdd("assistant", "Open this app inside Anna to analyze an attachment."); return; }
+    if ((!anna || standalone) && attachment && !text && !(standalone && guestMode)) { chatAdd("assistant", "Open this app inside Anna to analyze an attachment."); return; }
     byId("chat-input").value = "";
     const userLabel = text || "Please inspect this attachment.";
     chatAdd("user", attachment ? `${userLabel}\n\nAttached: ${attachment.name}` : userLabel);
@@ -810,9 +834,9 @@ function wireChat() {
     const loading = chatAdd("assistant", "", true);
     byId("chat-send").disabled = true;
     try {
-      const system = "You are Anna inside YouTube Skillbox. Answer like a calm creator strategist. Separate MEASURED facts, INFERRED explanations, HYPOTHESES and RECOMMENDATIONS. Use only evidence present in this request; never invent channel numbers, and if context contains an error say the measurement is unavailable. Public view counts, titles, thumbnails and outlier ratios alone cannot establish audience preference, why a video performed, what the recommendation algorithm did, CTR, or causality. Do not state those as facts; if useful, label them HYPOTHESES and name the missing evidence. Never claim YouTube was edited or content was published. Treat prior interpretations as unverified, not evidence. For a thumbnail image, give a transparent heuristic score out of 10 for hook clarity, hierarchy, contrast, mobile legibility and promise match; call it INFERRED, not a prediction of CTR.";
+      const system = "You are Skillbox's creator strategist. Answer calmly and practically. Separate MEASURED facts, INFERRED explanations, HYPOTHESES and RECOMMENDATIONS. Use only evidence present in this request; never invent channel numbers, and if context contains an error say the measurement is unavailable. Public view counts, titles, thumbnails and outlier ratios alone cannot establish audience preference, why a video performed, what the recommendation algorithm did, CTR, or causality. Do not state those as facts; if useful, label them HYPOTHESES and name the missing evidence. Never claim YouTube was edited or content was published. Treat prior interpretations as unverified, not evidence. For a thumbnail image, give a transparent heuristic score out of 10 for hook clarity, hierarchy, contrast, mobile legibility and promise match; call it INFERRED, not a prediction of CTR.";
       let response;
-      if (!profileState?.verified) throw new Error("Personal Anna chat unlocks after you verify your channel. Public research tools remain available in guest mode.");
+      if (!profileState?.verified && !(standalone && guestMode)) throw new Error("Personal chat unlocks after channel verification. In this Vercel preview, use guest chat for general LLM questions.");
       if (!attachment && /(banner|logo|channel branding|brand identity)/i.test(userLabel) && /(score|rate|review|analy[sz]|feedback|improv|look)/i.test(userLabel)) {
         response = await scoreChannelBranding();
       } else if (!attachment?.dataUrl && /(thumbnail|thumbs?)/i.test(userLabel) && /(score|rate|review|compare|analy[sz]|each|all)/i.test(userLabel)) {
@@ -2848,7 +2872,7 @@ async function main() {
     try { await anna.window.set_title({ title: "YouTube Skillbox" }); } catch (_) {}
     // AnnaAppRuntime.connect() already emits window.ready after the handshake.
   }
-  if (!ok) setStatus("Standalone preview — open via `anna-app dev` for the real host.", false, true);
+  if (!ok) setStatus("Standalone preview · NVIDIA LLM · Anna tools unavailable", true, true);
 }
 
 main().catch((e) => setStatus(`Fatal: ${e.message || e}`, false));

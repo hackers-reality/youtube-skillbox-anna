@@ -2,7 +2,7 @@ import "./review.css";
 
 export const metadata = {
   title: "YouTube Skillbox · Design Review",
-  description: "A safe, sample-data preview of the YouTube Skillbox creator workspace.",
+  description: "A private design preview of the YouTube Skillbox creator workspace with server-side NVIDIA LLM chat.",
   robots: { index: false, follow: false },
 };
 

@@ -2,6 +2,7 @@
   "name": "youtube-skillbox-designer-review",
   "version": "0.1.0",
   "private": true,
-  "scripts": {"dev":"next dev","sync":"node scripts/sync-bundle.mjs","build":"next build","start":"next start"},
+  "type": "module",
+  "scripts": {"dev":"next dev","sync":"node scripts/sync-bundle.mjs","build":"next build","start":"next start","test":"node --test app/api/nvidia/chat/route.test.mjs"},
   "dependencies": {"next":"16.4.6","react":"19.3.1","react-dom":"19.3.1"}
 }
