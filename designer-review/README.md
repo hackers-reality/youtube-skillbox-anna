@@ -8,4 +8,4 @@ This is a standalone Next.js shell around the app's current static UI bundle. It
 - The sample chat bubble is labeled as sample design content, not as a live Anna response.
 - The preview route is marked `noindex` and should remain a Vercel Preview deployment, not Production.
 
-Run `npm install`, then `npm run dev`. `npm run build` first syncs the latest `bundle/` UI into `public/skillbox` and builds Next.js.
+Run `npm install`, then `npm run dev`. Before refreshing the embedded bundle from the monorepo, run `npm run sync`; the Vercel project builds only the checked-in `designer-review` directory and never needs access to files outside it.
