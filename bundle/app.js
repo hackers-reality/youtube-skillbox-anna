@@ -1698,7 +1698,7 @@ function renderStudioOutput(output, task, raw) {
 
 
 function wireStudio() {
-  $(".studio-actions [data-task]").forEach((button) => {
+  $$(".studio-actions [data-task]").forEach((button) => {
     button.addEventListener("click", async () => {
       const topic = byId("studio-topic").value.trim();
       const keyword = byId("studio-keyword").value.trim();
@@ -1729,7 +1729,7 @@ function wireStudio() {
         return;
       }
 
-      $(".studio-actions [data-task]").forEach((item) => (item.disabled = true));
+      $$(".studio-actions [data-task]").forEach((item) => (item.disabled = true));
       label.textContent = "WORKING · " + button.textContent.trim();
       output.textContent = task === "transcript" ? "Fetching available captions…" : "Drafting…";
       try {
@@ -1850,7 +1850,7 @@ function wireStudio() {
         label.textContent = "FAILED";
       } finally {
         if (output.textContent.trim()) renderStudioOutput(output, task, output.textContent);
-        $(".studio-actions [data-task]").forEach((item) => (item.disabled = false));
+        $$(".studio-actions [data-task]").forEach((item) => (item.disabled = false));
       }
     });
   });
@@ -2027,7 +2027,7 @@ async function runLab(kind) {
   if (kind === "playlist" && !need(playlist, "Playlist contents needs a YouTube playlist URL or ID.")) return;
   if (kind === "track" && !need(video, "Rank tracking needs the video URL or ID to track.")) return;
 
-  $(".lab-actions [data-lab]").forEach((button) => (button.disabled = true));
+  $$(".lab-actions [data-lab]").forEach((button) => (button.disabled = true));
   out.innerHTML = '<p class="hint">Running ' + escapeHtml(kind) + ' research…</p>';
   const step = (message) => { label.textContent = message; };
 
@@ -2091,7 +2091,7 @@ async function runLab(kind) {
     out.innerHTML = '<p class="hint">Research failed: ' + escapeHtml(String(error.message || error)) + '</p>';
     label.textContent = "RESEARCH FAILED";
   } finally {
-    $(".lab-actions [data-lab]").forEach((button) => (button.disabled = false));
+    $$(".lab-actions [data-lab]").forEach((button) => (button.disabled = false));
   }
 }
 
@@ -2150,7 +2150,7 @@ async function runChain({ seed, competitor, video, gl, hl }, step, T) {
 }
 
 function wireLab() {
-  $(".lab-actions [data-lab]").forEach((b) => {
+  $$(".lab-actions [data-lab]").forEach((b) => {
     b.addEventListener("click", () => runLab(b.dataset.lab));
   });
   byId("lab-copy").addEventListener("click", () => copyWithFeedback(byId("lab-result").innerText, byId("lab-copy")));
