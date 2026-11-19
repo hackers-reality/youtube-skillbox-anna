@@ -1859,8 +1859,20 @@ async function runLab(kind) {
   const competitor = byId("lab-competitor").value.trim();
   const video = byId("lab-video").value.trim();
   const playlist = byId("lab-playlist").value.trim();
-  const gl = byId("lab-region").value || "IN";
-  const hl = byId("lab-language").value || "en";
+  const resolveLocale = (inputId, fallback) => {
+    const input = byId(inputId);
+    const raw = input ? input.value.trim() : "";
+    const list = byId(inputId + "-options");
+    const match = list && Array.from(list.options).find((option) =>
+      option.value.toLocaleLowerCase() === raw.toLocaleLowerCase()
+    );
+    if (match && match.dataset.code) return match.dataset.code;
+    // Allow advanced users to enter a region/language code directly.
+    if (/^[a-z]{2}(?:-[a-z0-9]+)?$/i.test(raw)) return raw;
+    return fallback;
+  };
+  const gl = resolveLocale("lab-region", "IN");
+  const hl = resolveLocale("lab-language", "en");
   const T = kind === "outliers" ? 180000 : 85000;
 
   const need = (condition, message) => {
