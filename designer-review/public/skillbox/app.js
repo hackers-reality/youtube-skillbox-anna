@@ -1,18 +1,12 @@
-/* YouTube Skillbox — Anna App bundle
- * Static SPA. Talks to:
- *   • Host tools  → anna.tools.invoke({ tool_id, method, args })  (skillbox-core executa)
- *   • Host LLM    → anna.llm.complete({ messages, ... })          (free-form analysis)
- *   • Host storage→ anna.storage.set/get/list                     (saved audits)
+/* YouTube Skillbox — standalone designer preview.
+ * Original Skillbox application behavior and research engine are preserved.
+ * The LLM boundary is served by NVIDIA NIM; research tools use the same
+ * Skillbox Python engine adapter as the Anna application.
  * Evidence labels: MEASURED = measured numbers, INFERRED = reasoned from measured, HYPOTHESIS = unvalidated.
  */
 
-import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
-import { invokeAnnaTool } from "./anna-tool-runtime.mjs";
 import { planChatTools } from "./chat-routing.mjs";
 
-const TOOL_ID = (typeof window !== "undefined" && window.__ANNA_TOOL_IDS__ && window.__ANNA_TOOL_IDS__["youtube-skillbox"]) || "bundled:youtube-skillbox";
-const DEV_TOOL_ID = "tool-dev-youtube-skillbox";
-const PRIMARY_TOOL_ID = typeof location !== "undefined" && /\/dev\//.test(location.pathname + location.search) ? DEV_TOOL_ID : TOOL_ID;
 const AUDITS_KEY = "youtube-skillbox:audits";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -22,6 +16,9 @@ const byId = (id) => document.getElementById(id);
 async function copyTextToClipboard(text) {
   const value = String(text ?? "");
   if (!value) throw new Error("There is nothing to copy.");
+
+  // Clipboard API requires a secure context and can be denied inside embedded
+  // previews. Try it first, then fall back to the selection-based copy command.
   try {
     if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
       await navigator.clipboard.writeText(value);
@@ -30,22 +27,32 @@ async function copyTextToClipboard(text) {
   } catch (_) {
     // Continue to the legacy fallback when permission or iframe policy blocks it.
   }
+
   const textarea = document.createElement("textarea");
   textarea.value = value;
   textarea.setAttribute("readonly", "");
   textarea.setAttribute("aria-hidden", "true");
-  Object.assign(textarea.style, { position: "fixed", left: "-9999px", top: "0", opacity: "0", fontSize: "16px" });
+  Object.assign(textarea.style, {
+    position: "fixed",
+    left: "-9999px",
+    top: "0",
+    opacity: "0",
+    fontSize: "16px"
+  });
   document.body.appendChild(textarea);
   textarea.focus({ preventScroll: true });
   textarea.select();
   textarea.setSelectionRange(0, value.length);
+
   let copied = false;
   try {
     copied = typeof document.execCommand === "function" && document.execCommand("copy");
   } finally {
     textarea.remove();
   }
-  if (!copied) throw new Error("Clipboard access was blocked. Select the text and copy it manually.");
+  if (!copied) {
+    throw new Error("Clipboard access was blocked. Select the text and copy it manually.");
+  }
   return true;
 }
 
@@ -57,12 +64,18 @@ async function copyWithFeedback(text, button, errorTarget = null) {
     await copyTextToClipboard(text);
     button.textContent = "Copied!";
     if (errorTarget) errorTarget.textContent = "";
-    window.setTimeout(() => { if (button.isConnected) button.textContent = originalLabel; }, 1600);
+    window.setTimeout(() => {
+      if (button.isConnected) button.textContent = originalLabel;
+    }, 1600);
     return true;
   } catch (error) {
-    if (errorTarget) errorTarget.textContent = error?.message || "Copy failed. Select the text and copy it manually.";
+    if (errorTarget) {
+      errorTarget.textContent = error?.message || "Copy failed. Select the text and copy it manually.";
+    }
     button.textContent = "Copy failed";
-    window.setTimeout(() => { if (button.isConnected) button.textContent = originalLabel; }, 2200);
+    window.setTimeout(() => {
+      if (button.isConnected) button.textContent = originalLabel;
+    }, 2200);
     return false;
   }
 }
@@ -81,15 +94,31 @@ let anna = null;
 let standalone = false;
 
 async function connect() {
-  try {
-    anna = await AnnaAppRuntime.connect();
-    setStatus("Connected to Anna host", true);
-    return true;
-  } catch (e) {
-    standalone = true;
-    setStatus("Standalone preview (no host) — wireframe mode", true, true);
-    return false;
+  standalone = true;
+  anna = null;
+  applyStandaloneBranding();
+  setStatus("Standalone preview · NVIDIA NIM + Skillbox engine ready", true);
+  return false;
+}
+
+function applyStandaloneBranding() {
+  const labels = {
+    "runtime-pill": "NVIDIA NIM",
+    "runtime-caption": "SKILLBOX ENGINE · LIVE PUBLIC DATA",
+    "chat-tab-label": "Ask Anna",
+    "chat-eyebrow": "ANNA GUIDE / 00",
+    "llm-caption": "NVIDIA NIM · TOOL-AWARE",
+    "initial-assistant-avatar": "A",
+    "initial-assistant-name": "Anna",
+    "audit-storage-note": "Saved in this browser",
+    "studio-llm-note": "NVIDIA NIM · Skillbox tools"
+  };
+  for (const [id, value] of Object.entries(labels)) {
+    const element = byId(id);
+    if (element) element.textContent = value;
   }
+  const description = document.querySelector('meta[name="description"]');
+  if (description) description.content = "YouTube creator research, content workflows, and retention analysis powered by NVIDIA NIM and the Skillbox engine.";
 }
 
 function setStatus(text, ok, warn = false) {
@@ -101,106 +130,58 @@ function setStatus(text, ok, warn = false) {
 
 /* ---------- helpers: tools / llm / storage ---------- */
 async function tool(method, args, timeoutMs, options = {}) {
-  if (standalone || !anna) {
-    throw new Error("Anna host is not connected. Open this app inside Anna AI OS to run live Skillbox tools; no sample measurements were substituted.");
+  const response = await fetch("/api/skillbox", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ method, args: args || {} }),
+    cache: "no-store",
+    signal: Number.isFinite(timeoutMs) && timeoutMs > 0
+      ? AbortSignal.timeout(timeoutMs + 5000)
+      : undefined,
+  });
+  let envelope;
+  try { envelope = await response.json(); }
+  catch (_) { throw new Error("The Skillbox research service returned an unreadable response."); }
+  if (!response.ok) throw new Error(envelope?.error || "The Skillbox research service failed.");
+  const payload = envelope?.result;
+  if (!payload || typeof payload !== "object") throw new Error("The Skillbox research service returned no result.");
+  if (payload.success === false || payload.error) {
+    const failure = payload.error;
+    throw new Error(typeof failure === "string" ? failure : failure?.message || "Skillbox research failed.");
   }
-
-  const invoke = (toolId) => {
-    const request = { tool_id: toolId, method, args: args || {} };
-    if (Number.isFinite(timeoutMs) && timeoutMs > 0) request.timeoutMs = timeoutMs;
-    return invokeAnnaTool(anna, request, options);
-  };
-  let res;
-  try {
-    res = await invoke(PRIMARY_TOOL_ID);
-  } catch (firstError) {
-    // Anna's push rewrites the generated map to the immutable production ID.
-    // The local harness declares the dev ID instead, so retry only for that
-    // precise declaration mismatch and never mask a real tool failure.
-    const message = String(firstError && (firstError.message || firstError));
-    if (PRIMARY_TOOL_ID === DEV_TOOL_ID || !/not a declared (required\/optional|required|optional) executa/i.test(message)) throw firstError;
-    res = await invoke(DEV_TOOL_ID);
-  }
-
-  if (res === undefined || res === null) throw new Error("tool returned no data");
-  if (typeof res !== "object") return res;
-
-  // The current SDK normally resolves the plugin payload directly. Accept
-  // the explicit RPC envelope as well so older hosts fail transparently.
-  if (res.ok === false) {
-    const e = res.error;
-    const message = typeof e === "string" ? e : (e && (e.message || e.code)) || "Anna host request failed";
-    if (PRIMARY_TOOL_ID !== DEV_TOOL_ID && /not a declared (required\/optional|required|optional) executa/i.test(message)) {
-      res = await invoke(DEV_TOOL_ID);
-    } else {
-      throw new Error(message);
-    }
-  }
-  const payload = res.ok === true && "result" in res ? res.result : res;
-  if (payload && typeof payload === "object") {
-    if (payload.success === false || payload.error) {
-      const e = payload.error;
-      throw new Error(typeof e === "string" ? e : (e && (e.message || e.code)) || "Skillbox tool failed");
-    }
-    if (payload.success === true && "data" in payload) return payload.data;
-  }
-  return payload;
+  return payload.success === true && "data" in payload ? payload.data : payload;
 }
 
 async function llm(systemPrompt, userMessage, maxTokens = 3200) {
-  if (standalone || !anna) {
-    throw new Error("Anna's hosted LLM is unavailable outside the Anna app runtime. No generated result was substituted.");
-  }
-  const r = await anna.llm.complete({
-    messages: [{ role: "user", content: { type: "text", text: userMessage } }],
-    systemPrompt,
-    maxTokens,
-    temperature: 0.35,
-  });
-  return (r && r.content && r.content.text) || String(r);
+  return nvidiaPreviewCompletion(systemPrompt, userMessage, [], maxTokens, 0.35);
 }
-
 async function llmWithImage(systemPrompt, userMessage, imageBlock, maxTokens = 2600) {
-  if (standalone || !anna) {
-    throw new Error("Anna's hosted vision model is unavailable outside the Anna app runtime.");
-  }
-  const r = await anna.llm.complete({
-    messages: [
-      { role: "user", content: { type: "text", text: userMessage } },
-      { role: "user", content: imageBlock },
-    ],
-    systemPrompt,
-    maxTokens,
-    temperature: 0.25,
-  });
-  return (r && r.content && r.content.text) || String(r);
+  return nvidiaPreviewCompletion(systemPrompt, userMessage, [imageBlock], maxTokens, 0.25);
 }
-
 async function llmWithImages(systemPrompt, userMessage, imageBlocks, maxTokens = 3200) {
-  if (standalone || !anna) throw new Error("Anna's hosted vision model is unavailable outside the Anna app runtime.");
-  const messages = [{ role: "user", content: { type: "text", text: userMessage } }];
-  for (const block of imageBlocks) messages.push({ role: "user", content: block });
-  const response = await anna.llm.complete({ messages, systemPrompt, maxTokens, temperature: 0.2 });
-  return (response && response.content && response.content.text) || String(response);
+  return nvidiaPreviewCompletion(systemPrompt, userMessage, imageBlocks, maxTokens, 0.2);
+}
+async function nvidiaPreviewCompletion(systemPrompt, userMessage, imageBlocks = [], maxTokens = 1600, temperature = 0.35) {
+  const images = (imageBlocks || []).filter((block) => block?.type === "image").map((block) => ({
+    mimeType: block.mimeType || "image/jpeg",
+    ...(block.data ? { data: block.data } : {}),
+    ...(block.url ? { url: block.url } : {}),
+  }));
+  const response = await fetch("/api/nvidia/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ systemPrompt, userMessage, images, maxTokens, temperature }),
+    cache: "no-store",
+  });
+  let result;
+  try { result = await response.json(); }
+  catch (_) { throw new Error("The NVIDIA preview service returned an unreadable response."); }
+  if (!response.ok) throw new Error(result?.error || "The NVIDIA preview request failed.");
+  if (typeof result.content !== "string" || !result.content.trim()) throw new Error("NVIDIA returned an empty response.");
+  return result.content;
 }
 
 async function storageList(key) {
-  if (anna && !standalone) {
-    const response = await anna.storage.get({ key });
-    const value = response && response.value;
-    if (value == null) return [];
-    // Older bundle versions stored JSON as a string; accept both that format
-    // and native JSON values written by the current app.
-    if (typeof value === "string") {
-      try {
-        const parsed = JSON.parse(value);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (_) {
-        return [];
-      }
-    }
-    return Array.isArray(value) ? value : [];
-  }
   try {
     const value = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(value) ? value : [];
@@ -210,10 +191,6 @@ async function storageList(key) {
 }
 
 async function storageSet(key, value) {
-  if (anna && !standalone) {
-    await anna.storage.set({ key, value });
-    return;
-  }
   localStorage.setItem(key, JSON.stringify(value));
 }
 
@@ -401,7 +378,7 @@ function renderOnboarding() {
     title.textContent = "Verify it’s really yours.";
     copy.textContent = "Copy this one-time phrase into your channel description manually. We never edit YouTube or ask for OAuth.";
     content.innerHTML = `<label class="field"><span>Unique verification phrase · read-only</span><div class="copy-field"><input id="onboarding-phrase" readonly value="${escapeHtml(profileState.phrase)}" /><button id="onboarding-copy" class="btn" type="button">Copy</button></div></label><div class="onboarding-actions"><button id="onboarding-verify" class="btn btn-primary" type="button">I added it — verify now</button><button id="onboarding-back" class="btn" type="button">Back</button></div><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div>`;
-    byId("onboarding-copy")?.addEventListener("click", async () => { await navigator.clipboard.writeText(profileState.phrase); byId("onboarding-copy").textContent = "Copied"; });
+    byId("onboarding-copy")?.addEventListener("click", async () => { const copied = await copyWithFeedback(profileState.phrase, byId("onboarding-copy"), byId("onboarding-error")); if (!copied) { const input = byId("onboarding-phrase"); input?.focus(); input?.select(); input?.setSelectionRange(0, input.value.length); } });
     byId("onboarding-back")?.addEventListener("click", () => { onboardingStep = "confirm"; renderOnboarding(); });
     byId("onboarding-verify")?.addEventListener("click", async () => {
       const button = byId("onboarding-verify"); button.disabled = true; button.textContent = "Checking public description…";
@@ -423,7 +400,7 @@ function renderOnboarding() {
     copy.textContent = "Your original description was saved before verification. Restore it in YouTube when you’re ready; nothing was changed automatically.";
     const original = String(profileState.originalDescription ?? "");
     content.innerHTML = `<div class="onboarding-identity">${avatar ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(name)} channel logo" />` : `<span>${escapeHtml(name.slice(0,1).toUpperCase())}</span>`}<div><strong>${escapeHtml(name)}</strong><small>✓ Channel verified · ${escapeHtml(handle)}</small></div></div><label class="field mt"><span>${original ? "Your previous description · saved exactly" : "Previous description not available"}</span><textarea id="original-description" readonly rows="6">${escapeHtml(original)}</textarea></label><div class="onboarding-actions"><button id="copy-description" class="btn" type="button" ${original ? "" : "disabled"}>Copy old description</button><button id="onboarding-chat" class="btn btn-primary" type="button" ${original ? "" : "disabled"}>Ask Anna to refine</button><button id="onboarding-restored" class="btn" type="button">I restored it</button><button id="workspace-logout" class="btn" type="button">Log out & clear saved data</button></div><p class="hint">${original ? "Nothing is changed on YouTube automatically. Copy it back yourself, or ask Anna to refine it first." : "This channel was connected before the original-description backup existed. No original text can be reconstructed, so the current description was not changed."}</p>`;
-    byId("copy-description")?.addEventListener("click", async () => { await navigator.clipboard.writeText(original); byId("copy-description").textContent = "Copied"; });
+    byId("copy-description")?.addEventListener("click", () => copyWithFeedback(original, byId("copy-description")));
     byId("onboarding-chat")?.addEventListener("click", () => { closeOnboarding(); byId("tab-button-chat")?.click(); byId("chat-input").value = "Help me refine my YouTube channel description. Keep my original meaning and voice. Here is my previous description:\n\n" + original; byId("chat-input").focus(); });
     byId("onboarding-restored")?.addEventListener("click", async () => { profileState.restorationShown = true; await storageSet(PROFILE_KEY, [profileState]); closeOnboarding(); });
     byId("workspace-logout")?.addEventListener("click", clearWorkspaceSession);
@@ -1766,7 +1743,7 @@ function wireStudio() {
       }
     });
   });
-  byId("studio-copy").addEventListener("click", () => copyWithFeedback(byId("studio-pre").dataset.copyText || byId("studio-pre").textContent, byId("studio-copy")));
+  byId("studio-copy").addEventListener("click", () => copyWithFeedback(byId("studio-pre").textContent, byId("studio-copy")));
 }
 
 /* ---------- keyword lab (Feature 1 — live research, no API key) ---------- */
@@ -2881,11 +2858,7 @@ async function main() {
     });
   });
   await renderSavedList();
-  if (anna && anna.window) {
-    try { await anna.window.set_title({ title: "YouTube Skillbox" }); } catch (_) {}
-    // AnnaAppRuntime.connect() already emits window.ready after the handshake.
-  }
-  if (!ok) setStatus("Standalone preview — open via `anna-app dev` for the real host.", false, true);
+  if (!ok) setStatus("Standalone preview · NVIDIA NIM + Skillbox engine ready", true);
 }
 
 main().catch((e) => setStatus(`Fatal: ${e.message || e}`, false));
