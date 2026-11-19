@@ -1,12 +1,18 @@
-/* YouTube Skillbox — standalone designer preview.
- * Original Skillbox application behavior and research engine are preserved.
- * The LLM boundary is served by NVIDIA NIM; research tools use the same
- * Skillbox Python engine adapter as the Anna application.
+/* YouTube Skillbox — Anna App bundle
+ * Static SPA. Talks to:
+ *   • Host tools  → anna.tools.invoke({ tool_id, method, args })  (skillbox-core executa)
+ *   • Host LLM    → anna.llm.complete({ messages, ... })          (free-form analysis)
+ *   • Host storage→ anna.storage.set/get/list                     (saved audits)
  * Evidence labels: MEASURED = measured numbers, INFERRED = reasoned from measured, HYPOTHESIS = unvalidated.
  */
 
+import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
+import { invokeAnnaTool } from "./anna-tool-runtime.mjs";
 import { planChatTools } from "./chat-routing.mjs";
 
+const TOOL_ID = (typeof window !== "undefined" && window.__ANNA_TOOL_IDS__ && window.__ANNA_TOOL_IDS__["youtube-skillbox"]) || "bundled:youtube-skillbox";
+const DEV_TOOL_ID = "tool-dev-youtube-skillbox";
+const PRIMARY_TOOL_ID = typeof location !== "undefined" && /\/dev\//.test(location.pathname + location.search) ? DEV_TOOL_ID : TOOL_ID;
 const AUDITS_KEY = "youtube-skillbox:audits";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -16,9 +22,6 @@ const byId = (id) => document.getElementById(id);
 async function copyTextToClipboard(text) {
   const value = String(text ?? "");
   if (!value) throw new Error("There is nothing to copy.");
-
-  // Clipboard API requires a secure context and can be denied inside embedded
-  // previews. Try it first, then fall back to the selection-based copy command.
   try {
     if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
       await navigator.clipboard.writeText(value);
@@ -27,32 +30,22 @@ async function copyTextToClipboard(text) {
   } catch (_) {
     // Continue to the legacy fallback when permission or iframe policy blocks it.
   }
-
   const textarea = document.createElement("textarea");
   textarea.value = value;
   textarea.setAttribute("readonly", "");
   textarea.setAttribute("aria-hidden", "true");
-  Object.assign(textarea.style, {
-    position: "fixed",
-    left: "-9999px",
-    top: "0",
-    opacity: "0",
-    fontSize: "16px"
-  });
+  Object.assign(textarea.style, { position: "fixed", left: "-9999px", top: "0", opacity: "0", fontSize: "16px" });
   document.body.appendChild(textarea);
   textarea.focus({ preventScroll: true });
   textarea.select();
   textarea.setSelectionRange(0, value.length);
-
   let copied = false;
   try {
     copied = typeof document.execCommand === "function" && document.execCommand("copy");
   } finally {
     textarea.remove();
   }
-  if (!copied) {
-    throw new Error("Clipboard access was blocked. Select the text and copy it manually.");
-  }
+  if (!copied) throw new Error("Clipboard access was blocked. Select the text and copy it manually.");
   return true;
 }
 
@@ -64,18 +57,12 @@ async function copyWithFeedback(text, button, errorTarget = null) {
     await copyTextToClipboard(text);
     button.textContent = "Copied!";
     if (errorTarget) errorTarget.textContent = "";
-    window.setTimeout(() => {
-      if (button.isConnected) button.textContent = originalLabel;
-    }, 1600);
+    window.setTimeout(() => { if (button.isConnected) button.textContent = originalLabel; }, 1600);
     return true;
   } catch (error) {
-    if (errorTarget) {
-      errorTarget.textContent = error?.message || "Copy failed. Select the text and copy it manually.";
-    }
+    if (errorTarget) errorTarget.textContent = error?.message || "Copy failed. Select the text and copy it manually.";
     button.textContent = "Copy failed";
-    window.setTimeout(() => {
-      if (button.isConnected) button.textContent = originalLabel;
-    }, 2200);
+    window.setTimeout(() => { if (button.isConnected) button.textContent = originalLabel; }, 2200);
     return false;
   }
 }
@@ -94,31 +81,15 @@ let anna = null;
 let standalone = false;
 
 async function connect() {
-  standalone = true;
-  anna = null;
-  applyStandaloneBranding();
-  setStatus("Standalone preview · NVIDIA NIM + Skillbox engine ready", true);
-  return false;
-}
-
-function applyStandaloneBranding() {
-  const labels = {
-    "runtime-pill": "NVIDIA NIM",
-    "runtime-caption": "SKILLBOX ENGINE · LIVE PUBLIC DATA",
-    "chat-tab-label": "Ask Anna",
-    "chat-eyebrow": "ANNA GUIDE / 00",
-    "llm-caption": "NVIDIA NIM · TOOL-AWARE",
-    "initial-assistant-avatar": "A",
-    "initial-assistant-name": "Anna",
-    "audit-storage-note": "Saved in this browser",
-    "studio-llm-note": "NVIDIA NIM · Skillbox tools"
-  };
-  for (const [id, value] of Object.entries(labels)) {
-    const element = byId(id);
-    if (element) element.textContent = value;
+  try {
+    anna = await AnnaAppRuntime.connect();
+    setStatus("Connected to Anna host", true);
+    return true;
+  } catch (e) {
+    standalone = true;
+    setStatus("Standalone preview (no host) — wireframe mode", true, true);
+    return false;
   }
-  const description = document.querySelector('meta[name="description"]');
-  if (description) description.content = "YouTube creator research, content workflows, and retention analysis powered by NVIDIA NIM and the Skillbox engine.";
 }
 
 function setStatus(text, ok, warn = false) {
@@ -130,58 +101,106 @@ function setStatus(text, ok, warn = false) {
 
 /* ---------- helpers: tools / llm / storage ---------- */
 async function tool(method, args, timeoutMs, options = {}) {
-  const response = await fetch("/api/skillbox", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ method, args: args || {} }),
-    cache: "no-store",
-    signal: Number.isFinite(timeoutMs) && timeoutMs > 0
-      ? AbortSignal.timeout(timeoutMs + 5000)
-      : undefined,
-  });
-  let envelope;
-  try { envelope = await response.json(); }
-  catch (_) { throw new Error("The Skillbox research service returned an unreadable response."); }
-  if (!response.ok) throw new Error(envelope?.error || "The Skillbox research service failed.");
-  const payload = envelope?.result;
-  if (!payload || typeof payload !== "object") throw new Error("The Skillbox research service returned no result.");
-  if (payload.success === false || payload.error) {
-    const failure = payload.error;
-    throw new Error(typeof failure === "string" ? failure : failure?.message || "Skillbox research failed.");
+  if (standalone || !anna) {
+    throw new Error("Anna host is not connected. Open this app inside Anna AI OS to run live Skillbox tools; no sample measurements were substituted.");
   }
-  return payload.success === true && "data" in payload ? payload.data : payload;
+
+  const invoke = (toolId) => {
+    const request = { tool_id: toolId, method, args: args || {} };
+    if (Number.isFinite(timeoutMs) && timeoutMs > 0) request.timeoutMs = timeoutMs;
+    return invokeAnnaTool(anna, request, options);
+  };
+  let res;
+  try {
+    res = await invoke(PRIMARY_TOOL_ID);
+  } catch (firstError) {
+    // Anna's push rewrites the generated map to the immutable production ID.
+    // The local harness declares the dev ID instead, so retry only for that
+    // precise declaration mismatch and never mask a real tool failure.
+    const message = String(firstError && (firstError.message || firstError));
+    if (PRIMARY_TOOL_ID === DEV_TOOL_ID || !/not a declared (required\/optional|required|optional) executa/i.test(message)) throw firstError;
+    res = await invoke(DEV_TOOL_ID);
+  }
+
+  if (res === undefined || res === null) throw new Error("tool returned no data");
+  if (typeof res !== "object") return res;
+
+  // The current SDK normally resolves the plugin payload directly. Accept
+  // the explicit RPC envelope as well so older hosts fail transparently.
+  if (res.ok === false) {
+    const e = res.error;
+    const message = typeof e === "string" ? e : (e && (e.message || e.code)) || "Anna host request failed";
+    if (PRIMARY_TOOL_ID !== DEV_TOOL_ID && /not a declared (required\/optional|required|optional) executa/i.test(message)) {
+      res = await invoke(DEV_TOOL_ID);
+    } else {
+      throw new Error(message);
+    }
+  }
+  const payload = res.ok === true && "result" in res ? res.result : res;
+  if (payload && typeof payload === "object") {
+    if (payload.success === false || payload.error) {
+      const e = payload.error;
+      throw new Error(typeof e === "string" ? e : (e && (e.message || e.code)) || "Skillbox tool failed");
+    }
+    if (payload.success === true && "data" in payload) return payload.data;
+  }
+  return payload;
 }
 
 async function llm(systemPrompt, userMessage, maxTokens = 3200) {
-  return nvidiaPreviewCompletion(systemPrompt, userMessage, [], maxTokens, 0.35);
-}
-async function llmWithImage(systemPrompt, userMessage, imageBlock, maxTokens = 2600) {
-  return nvidiaPreviewCompletion(systemPrompt, userMessage, [imageBlock], maxTokens, 0.25);
-}
-async function llmWithImages(systemPrompt, userMessage, imageBlocks, maxTokens = 3200) {
-  return nvidiaPreviewCompletion(systemPrompt, userMessage, imageBlocks, maxTokens, 0.2);
-}
-async function nvidiaPreviewCompletion(systemPrompt, userMessage, imageBlocks = [], maxTokens = 1600, temperature = 0.35) {
-  const images = (imageBlocks || []).filter((block) => block?.type === "image").map((block) => ({
-    mimeType: block.mimeType || "image/jpeg",
-    ...(block.data ? { data: block.data } : {}),
-    ...(block.url ? { url: block.url } : {}),
-  }));
-  const response = await fetch("/api/nvidia/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ systemPrompt, userMessage, images, maxTokens, temperature }),
-    cache: "no-store",
+  if (standalone || !anna) {
+    throw new Error("Anna's hosted LLM is unavailable outside the Anna app runtime. No generated result was substituted.");
+  }
+  const r = await anna.llm.complete({
+    messages: [{ role: "user", content: { type: "text", text: userMessage } }],
+    systemPrompt,
+    maxTokens,
+    temperature: 0.35,
   });
-  let result;
-  try { result = await response.json(); }
-  catch (_) { throw new Error("The NVIDIA preview service returned an unreadable response."); }
-  if (!response.ok) throw new Error(result?.error || "The NVIDIA preview request failed.");
-  if (typeof result.content !== "string" || !result.content.trim()) throw new Error("NVIDIA returned an empty response.");
-  return result.content;
+  return (r && r.content && r.content.text) || String(r);
+}
+
+async function llmWithImage(systemPrompt, userMessage, imageBlock, maxTokens = 2600) {
+  if (standalone || !anna) {
+    throw new Error("Anna's hosted vision model is unavailable outside the Anna app runtime.");
+  }
+  const r = await anna.llm.complete({
+    messages: [
+      { role: "user", content: { type: "text", text: userMessage } },
+      { role: "user", content: imageBlock },
+    ],
+    systemPrompt,
+    maxTokens,
+    temperature: 0.25,
+  });
+  return (r && r.content && r.content.text) || String(r);
+}
+
+async function llmWithImages(systemPrompt, userMessage, imageBlocks, maxTokens = 3200) {
+  if (standalone || !anna) throw new Error("Anna's hosted vision model is unavailable outside the Anna app runtime.");
+  const messages = [{ role: "user", content: { type: "text", text: userMessage } }];
+  for (const block of imageBlocks) messages.push({ role: "user", content: block });
+  const response = await anna.llm.complete({ messages, systemPrompt, maxTokens, temperature: 0.2 });
+  return (response && response.content && response.content.text) || String(response);
 }
 
 async function storageList(key) {
+  if (anna && !standalone) {
+    const response = await anna.storage.get({ key });
+    const value = response && response.value;
+    if (value == null) return [];
+    // Older bundle versions stored JSON as a string; accept both that format
+    // and native JSON values written by the current app.
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_) {
+        return [];
+      }
+    }
+    return Array.isArray(value) ? value : [];
+  }
   try {
     const value = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(value) ? value : [];
@@ -191,6 +210,10 @@ async function storageList(key) {
 }
 
 async function storageSet(key, value) {
+  if (anna && !standalone) {
+    await anna.storage.set({ key, value });
+    return;
+  }
   localStorage.setItem(key, JSON.stringify(value));
 }
 
@@ -378,7 +401,7 @@ function renderOnboarding() {
     title.textContent = "Verify it’s really yours.";
     copy.textContent = "Copy this one-time phrase into your channel description manually. We never edit YouTube or ask for OAuth.";
     content.innerHTML = `<label class="field"><span>Unique verification phrase · read-only</span><div class="copy-field"><input id="onboarding-phrase" readonly value="${escapeHtml(profileState.phrase)}" /><button id="onboarding-copy" class="btn" type="button">Copy</button></div></label><div class="onboarding-actions"><button id="onboarding-verify" class="btn btn-primary" type="button">I added it — verify now</button><button id="onboarding-back" class="btn" type="button">Back</button></div><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div>`;
-    byId("onboarding-copy")?.addEventListener("click", async () => { const copied = await copyWithFeedback(profileState.phrase, byId("onboarding-copy"), byId("onboarding-error")); if (!copied) { const input = byId("onboarding-phrase"); input?.focus(); input?.select(); input?.setSelectionRange(0, input.value.length); } });
+    byId("onboarding-copy")?.addEventListener("click", async () => { await navigator.clipboard.writeText(profileState.phrase); byId("onboarding-copy").textContent = "Copied"; });
     byId("onboarding-back")?.addEventListener("click", () => { onboardingStep = "confirm"; renderOnboarding(); });
     byId("onboarding-verify")?.addEventListener("click", async () => {
       const button = byId("onboarding-verify"); button.disabled = true; button.textContent = "Checking public description…";
@@ -400,7 +423,7 @@ function renderOnboarding() {
     copy.textContent = "Your original description was saved before verification. Restore it in YouTube when you’re ready; nothing was changed automatically.";
     const original = String(profileState.originalDescription ?? "");
     content.innerHTML = `<div class="onboarding-identity">${avatar ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(name)} channel logo" />` : `<span>${escapeHtml(name.slice(0,1).toUpperCase())}</span>`}<div><strong>${escapeHtml(name)}</strong><small>✓ Channel verified · ${escapeHtml(handle)}</small></div></div><label class="field mt"><span>${original ? "Your previous description · saved exactly" : "Previous description not available"}</span><textarea id="original-description" readonly rows="6">${escapeHtml(original)}</textarea></label><div class="onboarding-actions"><button id="copy-description" class="btn" type="button" ${original ? "" : "disabled"}>Copy old description</button><button id="onboarding-chat" class="btn btn-primary" type="button" ${original ? "" : "disabled"}>Ask Anna to refine</button><button id="onboarding-restored" class="btn" type="button">I restored it</button><button id="workspace-logout" class="btn" type="button">Log out & clear saved data</button></div><p class="hint">${original ? "Nothing is changed on YouTube automatically. Copy it back yourself, or ask Anna to refine it first." : "This channel was connected before the original-description backup existed. No original text can be reconstructed, so the current description was not changed."}</p>`;
-    byId("copy-description")?.addEventListener("click", () => copyWithFeedback(original, byId("copy-description")));
+    byId("copy-description")?.addEventListener("click", async () => { await navigator.clipboard.writeText(original); byId("copy-description").textContent = "Copied"; });
     byId("onboarding-chat")?.addEventListener("click", () => { closeOnboarding(); byId("tab-button-chat")?.click(); byId("chat-input").value = "Help me refine my YouTube channel description. Keep my original meaning and voice. Here is my previous description:\n\n" + original; byId("chat-input").focus(); });
     byId("onboarding-restored")?.addEventListener("click", async () => { profileState.restorationShown = true; await storageSet(PROFILE_KEY, [profileState]); closeOnboarding(); });
     byId("workspace-logout")?.addEventListener("click", clearWorkspaceSession);
@@ -1498,8 +1521,96 @@ function renderTitleLint(result) {
   return output.join("\n");
 }
 
+function renderStudioOutput(output, task, raw) {
+  const value = String(raw || "").trim();
+  if (!value) return;
+  output.dataset.copyText = value;
+  const inline = (text) => escapeHtml(String(text ?? ""))
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.+?)`/g, "<code>$1</code>");
+  const textBody = (text) => "<p>" + inline(text).replace(/\n/g, "<br>") + "</p>";
+  const card = (eyebrow, title, body) =>
+    '<article class="studio-result-card">' +
+    (eyebrow ? '<div class="studio-result-eyebrow">' + inline(eyebrow) + '</div>' : '') +
+    (title ? '<h3>' + inline(title) + '</h3>' : '') +
+    '<div class="studio-result-body">' + body + '</div></article>';
+
+  let parsed = null;
+  try { parsed = JSON.parse(value); } catch (_) {}
+  if (Array.isArray(parsed)) {
+    const cards = parsed.map((item, index) => {
+      if (typeof item === "string") return card("OPTION " + String(index + 1).padStart(2, "0"), "", textBody(item));
+      const titleKey = ["hook", "title", "name", "keyword", "heading"].find(key => item && item[key] != null);
+      const title = titleKey ? item[titleKey] : "Option " + (index + 1);
+      const details = Object.entries(item || {}).filter(([key]) => key !== titleKey).map(([key, val]) =>
+        '<div class="studio-result-detail"><span>' + inline(key.replace(/_/g, " ")) + '</span><strong>' +
+        inline(Array.isArray(val) ? val.join(", ") : typeof val === "object" ? JSON.stringify(val) : val) +
+        '</strong></div>').join("");
+      return card("OPTION " + String(index + 1).padStart(2, "0"), title, details || textBody(title));
+    }).join("");
+    output.innerHTML = '<div class="studio-result-grid">' + cards + '</div>';
+    return;
+  }
+  if (parsed && typeof parsed === "object") {
+    const cards = Object.entries(parsed).map(([key, val]) => {
+      const body = Array.isArray(val)
+        ? '<ul>' + val.map(item => '<li>' + inline(typeof item === "object" ? JSON.stringify(item) : item) + '</li>').join("") + '</ul>'
+        : typeof val === "object" && val !== null
+          ? Object.entries(val).map(([k, v]) => '<div class="studio-result-detail"><span>' + inline(k.replace(/_/g, " ")) + '</span><strong>' + inline(typeof v === "object" ? JSON.stringify(v) : v) + '</strong></div>').join("")
+          : textBody(val);
+      return card(key.replace(/[_-]/g, " "), "", body);
+    }).join("");
+    output.innerHTML = '<div class="studio-result-grid">' + cards + '</div>';
+    return;
+  }
+
+  if (/SKILLBOX HOOK SCORECARD|SKILLBOX TITLE LINT/.test(value)) {
+    const lines = value.split(/\r?\n/), titleMode = value.includes("SKILLBOX TITLE LINT"), cards = [];
+    let consumedUntil = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      const match = line.match(/^\d+\s+(.+?)(?:\s+·\s+(\d+)\s+characters)?$/);
+      if (match && (/\d+\/100/.test(line) || titleMode && /characters/.test(line))) {
+        const title = (lines[i + 1] || "").trim(), details = [];
+        let j = i + 2;
+        while (j < lines.length && lines[j].trim() && !/^\d+\s+.+(?:\/100|characters)/.test(lines[j].trim())) details.push(lines[j++].trim());
+        cards.push(card(match[1], title, details.map(line => textBody(line)).join("")));
+        consumedUntil = j;
+        i = j - 1;
+      }
+    }
+    if (cards.length) {
+      const remainder = lines.slice(consumedUntil).filter(line => line.trim() && !/^SKILLBOX HOOK SCORECARD|^SKILLBOX TITLE LINT|^Heuristic copy analysis|^Heuristic title-text checks|^\d+ hooks scored/.test(line.trim()));
+      if (remainder.length) cards.push(card("FULL SCRIPT DRAFT", "", remainder.map(textBody).join("")));
+      output.innerHTML = '<div class="studio-result-grid">' + cards.join("") + '</div>';
+      return;
+    }
+  }
+
+  const sections = [];
+  let current = { title: "", lines: [] };
+  const flush = () => { if (current.title || current.lines.length) sections.push(current); };
+  for (const line of value.split(/\r?\n/)) {
+    const heading = line.match(/^\s*(?:#{1,3}\s+|(?:\d+[.)]\s+))(.+?)\s*$/);
+    if (heading) { flush(); current = { title: heading[1], lines: [] }; }
+    else if (!line.trim()) { flush(); current = { title: "", lines: [] }; }
+    else current.lines.push(line);
+  }
+  flush();
+  const cards = sections.map((section, index) => {
+    const title = section.title || (sections.length === 1 ? "Draft" : "Section " + (index + 1));
+    const isList = section.lines.length && section.lines.every(line => /^\s*(?:[-*•]|\d+[.)])\s+/.test(line));
+    const body = isList
+      ? '<ul>' + section.lines.map(line => '<li>' + inline(line.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "")) + '</li>').join("") + '</ul>'
+      : section.lines.map(textBody).join("");
+    return card(section.title ? "CONTENT" : task.replace(/_/g, " "), title, body);
+  }).join("");
+  output.innerHTML = '<div class="studio-result-grid">' + (cards || card("DRAFT", "", textBody(value))) + '</div>';
+}
+
+
 function wireStudio() {
-  $$(".studio-actions [data-task]").forEach((button) => {
+  $(".studio-actions [data-task]").forEach((button) => {
     button.addEventListener("click", async () => {
       const topic = byId("studio-topic").value.trim();
       const keyword = byId("studio-keyword").value.trim();
@@ -1530,7 +1641,7 @@ function wireStudio() {
         return;
       }
 
-      $$(".studio-actions [data-task]").forEach((item) => (item.disabled = true));
+      $(".studio-actions [data-task]").forEach((item) => (item.disabled = true));
       label.textContent = "WORKING · " + button.textContent.trim();
       output.textContent = task === "transcript" ? "Fetching available captions…" : "Drafting…";
       try {
@@ -1650,11 +1761,12 @@ function wireStudio() {
         output.textContent = "Error: " + (error.message || error);
         label.textContent = "FAILED";
       } finally {
-        $$(".studio-actions [data-task]").forEach((item) => (item.disabled = false));
+        if (output.textContent.trim()) renderStudioOutput(output, task, output.textContent);
+        $(".studio-actions [data-task]").forEach((item) => (item.disabled = false));
       }
     });
   });
-  byId("studio-copy").addEventListener("click", () => copyWithFeedback(byId("studio-pre").textContent, byId("studio-copy")));
+  byId("studio-copy").addEventListener("click", () => copyWithFeedback(byId("studio-pre").dataset.copyText || byId("studio-pre").textContent, byId("studio-copy")));
 }
 
 /* ---------- keyword lab (Feature 1 — live research, no API key) ---------- */
@@ -1797,8 +1909,20 @@ async function runLab(kind) {
   const competitor = byId("lab-competitor").value.trim();
   const video = byId("lab-video").value.trim();
   const playlist = byId("lab-playlist").value.trim();
-  const gl = byId("lab-region").value || "IN";
-  const hl = byId("lab-language").value || "en";
+  const resolveLocale = (inputId, fallback) => {
+    const input = byId(inputId);
+    const raw = input ? input.value.trim() : "";
+    const list = byId(inputId + "-options");
+    const match = list && Array.from(list.options).find((option) =>
+      option.value.toLocaleLowerCase() === raw.toLocaleLowerCase()
+    );
+    if (match && match.dataset.code) return match.dataset.code;
+    // Allow advanced users to enter a region/language code directly.
+    if (/^[a-z]{2}(?:-[a-z0-9]+)?$/i.test(raw)) return raw;
+    return fallback;
+  };
+  const gl = resolveLocale("lab-region", "IN");
+  const hl = resolveLocale("lab-language", "en");
   const T = kind === "outliers" ? 180000 : 85000;
 
   const need = (condition, message) => {
@@ -1815,7 +1939,7 @@ async function runLab(kind) {
   if (kind === "playlist" && !need(playlist, "Playlist contents needs a YouTube playlist URL or ID.")) return;
   if (kind === "track" && !need(video, "Rank tracking needs the video URL or ID to track.")) return;
 
-  $$(".lab-actions [data-lab]").forEach((button) => (button.disabled = true));
+  $(".lab-actions [data-lab]").forEach((button) => (button.disabled = true));
   out.innerHTML = '<p class="hint">Running ' + escapeHtml(kind) + ' research…</p>';
   const step = (message) => { label.textContent = message; };
 
@@ -1879,7 +2003,7 @@ async function runLab(kind) {
     out.innerHTML = '<p class="hint">Research failed: ' + escapeHtml(String(error.message || error)) + '</p>';
     label.textContent = "RESEARCH FAILED";
   } finally {
-    $$(".lab-actions [data-lab]").forEach((button) => (button.disabled = false));
+    $(".lab-actions [data-lab]").forEach((button) => (button.disabled = false));
   }
 }
 
@@ -1938,7 +2062,7 @@ async function runChain({ seed, competitor, video, gl, hl }, step, T) {
 }
 
 function wireLab() {
-  $$(".lab-actions [data-lab]").forEach((b) => {
+  $(".lab-actions [data-lab]").forEach((b) => {
     b.addEventListener("click", () => runLab(b.dataset.lab));
   });
   byId("lab-copy").addEventListener("click", () => copyWithFeedback(byId("lab-result").innerText, byId("lab-copy")));
@@ -2757,7 +2881,11 @@ async function main() {
     });
   });
   await renderSavedList();
-  if (!ok) setStatus("Standalone preview · NVIDIA NIM + Skillbox engine ready", true);
+  if (anna && anna.window) {
+    try { await anna.window.set_title({ title: "YouTube Skillbox" }); } catch (_) {}
+    // AnnaAppRuntime.connect() already emits window.ready after the handshake.
+  }
+  if (!ok) setStatus("Standalone preview — open via `anna-app dev` for the real host.", false, true);
 }
 
 main().catch((e) => setStatus(`Fatal: ${e.message || e}`, false));
