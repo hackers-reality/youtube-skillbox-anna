@@ -1472,6 +1472,89 @@ function renderTitleLint(result) {
   return output.join("\n");
 }
 
+function renderStudioOutput(output, task, raw) {
+  const value = String(raw || "").trim();
+  if (!value) return;
+  output.dataset.copyText = value;
+  const inline = (text) => escapeHtml(String(text ?? ""))
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.+?)`/g, "<code>$1</code>");
+  const textBody = (text) => "<p>" + inline(text).replace(/\n/g, "<br>") + "</p>";
+  const card = (eyebrow, title, body) =>
+    '<article class="studio-result-card">' +
+    (eyebrow ? '<div class="studio-result-eyebrow">' + inline(eyebrow) + '</div>' : '') +
+    (title ? '<h3>' + inline(title) + '</h3>' : '') +
+    '<div class="studio-result-body">' + body + '</div></article>';
+
+  let parsed = null;
+  try { parsed = JSON.parse(value); } catch (_) {}
+  if (Array.isArray(parsed)) {
+    const cards = parsed.map((item, index) => {
+      if (typeof item === "string") return card("OPTION " + String(index + 1).padStart(2, "0"), "", textBody(item));
+      const titleKey = ["hook", "title", "name", "keyword", "heading"].find(key => item && item[key] != null);
+      const title = titleKey ? item[titleKey] : "Option " + (index + 1);
+      const details = Object.entries(item || {}).filter(([key]) => key !== titleKey).map(([key, val]) =>
+        '<div class="studio-result-detail"><span>' + inline(key.replace(/_/g, " ")) + '</span><strong>' +
+        inline(Array.isArray(val) ? val.join(", ") : typeof val === "object" ? JSON.stringify(val) : val) +
+        '</strong></div>').join("");
+      return card("OPTION " + String(index + 1).padStart(2, "0"), title, details || textBody(title));
+    }).join("");
+    output.innerHTML = '<div class="studio-result-grid">' + cards + '</div>';
+    return;
+  }
+  if (parsed && typeof parsed === "object") {
+    const cards = Object.entries(parsed).map(([key, val]) => {
+      const body = Array.isArray(val)
+        ? '<ul>' + val.map(item => '<li>' + inline(typeof item === "object" ? JSON.stringify(item) : item) + '</li>').join("") + '</ul>'
+        : typeof val === "object" && val !== null
+          ? Object.entries(val).map(([k, v]) => '<div class="studio-result-detail"><span>' + inline(k.replace(/_/g, " ")) + '</span><strong>' + inline(typeof v === "object" ? JSON.stringify(v) : v) + '</strong></div>').join("")
+          : textBody(val);
+      return card(key.replace(/[_-]/g, " "), "", body);
+    }).join("");
+    output.innerHTML = '<div class="studio-result-grid">' + cards + '</div>';
+    return;
+  }
+
+  if (/SKILLBOX HOOK SCORECARD|SKILLBOX TITLE LINT/.test(value)) {
+    const lines = value.split(/\r?\n/), titleMode = value.includes("SKILLBOX TITLE LINT"), cards = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      const match = line.match(/^\d+\s+(.+?)(?:\s+·\s+(\d+)\s+characters)?$/);
+      if (match && (/\d+\/100/.test(line) || titleMode && /characters/.test(line))) {
+        const title = (lines[i + 1] || "").trim(), details = [];
+        let j = i + 2;
+        while (j < lines.length && lines[j].trim() && !/^\d+\s+.+(?:\/100|characters)/.test(lines[j].trim())) details.push(lines[j++].trim());
+        cards.push(card(match[1], title, details.map(line => textBody(line)).join("")));
+        i = j - 1;
+      }
+    }
+    if (cards.length) {
+      output.innerHTML = '<div class="studio-result-grid">' + cards.join("") + '</div>';
+      return;
+    }
+  }
+
+  const sections = [];
+  let current = { title: "", lines: [] };
+  const flush = () => { if (current.title || current.lines.length) sections.push(current); };
+  for (const line of value.split(/\r?\n/)) {
+    const heading = line.match(/^\s*(?:#{1,3}\s+|(?:\d+[.)]\s+))(.+?)\s*$/);
+    if (heading) { flush(); current = { title: heading[1], lines: [] }; }
+    else if (!line.trim()) { flush(); current = { title: "", lines: [] }; }
+    else current.lines.push(line);
+  }
+  flush();
+  const cards = sections.map((section, index) => {
+    const title = section.title || (sections.length === 1 ? "Draft" : "Section " + (index + 1));
+    const isList = section.lines.length && section.lines.every(line => /^\s*(?:[-*•]|\d+[.)])\s+/.test(line));
+    const body = isList
+      ? '<ul>' + section.lines.map(line => '<li>' + inline(line.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "")) + '</li>').join("") + '</ul>'
+      : section.lines.map(textBody).join("");
+    return card(section.title ? "CONTENT" : task.replace(/_/g, " "), title, body);
+  }).join("");
+  output.innerHTML = '<div class="studio-result-grid">' + (cards || card("DRAFT", "", textBody(value))) + '</div>';
+}
+
 function wireStudio() {
   $$(".studio-actions [data-task]").forEach((button) => {
     button.addEventListener("click", async () => {
