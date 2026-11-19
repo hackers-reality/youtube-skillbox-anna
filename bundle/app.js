@@ -1517,6 +1517,7 @@ function renderStudioOutput(output, task, raw) {
 
   if (/SKILLBOX HOOK SCORECARD|SKILLBOX TITLE LINT/.test(value)) {
     const lines = value.split(/\r?\n/), titleMode = value.includes("SKILLBOX TITLE LINT"), cards = [];
+    let consumedUntil = 0;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       const match = line.match(/^\d+\s+(.+?)(?:\s+·\s+(\d+)\s+characters)?$/);
@@ -1525,10 +1526,13 @@ function renderStudioOutput(output, task, raw) {
         let j = i + 2;
         while (j < lines.length && lines[j].trim() && !/^\d+\s+.+(?:\/100|characters)/.test(lines[j].trim())) details.push(lines[j++].trim());
         cards.push(card(match[1], title, details.map(line => textBody(line)).join("")));
+        consumedUntil = j;
         i = j - 1;
       }
     }
     if (cards.length) {
+      const remainder = lines.slice(consumedUntil).filter(line => line.trim() && !/^SKILLBOX HOOK SCORECARD|^SKILLBOX TITLE LINT|^Heuristic copy analysis|^Heuristic title-text checks|^\d+ hooks scored/.test(line.trim()));
+      if (remainder.length) cards.push(card("FULL SCRIPT DRAFT", "", remainder.map(textBody).join("")));
       output.innerHTML = '<div class="studio-result-grid">' + cards.join("") + '</div>';
       return;
     }
