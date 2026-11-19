@@ -1707,11 +1707,12 @@ function wireStudio() {
         output.textContent = "Error: " + (error.message || error);
         label.textContent = "FAILED";
       } finally {
-        $$(".studio-actions [data-task]").forEach((item) => (item.disabled = false));
+        if (output.textContent.trim()) renderStudioOutput(output, task, output.textContent);
+        $(".studio-actions [data-task]").forEach((item) => (item.disabled = false));
       }
     });
   });
-  byId("studio-copy").addEventListener("click", () => navigator.clipboard.writeText(byId("studio-pre").textContent).catch(() => {}));
+  byId("studio-copy").addEventListener("click", () => navigator.clipboard.writeText(byId("studio-pre").dataset.copyText || byId("studio-pre").textContent).catch(() => {}));
 }
 
 /* ---------- keyword lab (Feature 1 — live research, no API key) ---------- */
