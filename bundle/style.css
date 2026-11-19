@@ -472,3 +472,19 @@ html[data-theme="light"] input[type="text"],html[data-theme="light"] input[type=
 @media(prefers-reduced-motion:reduce){.chat-attach-btn:hover:not(:disabled) .chat-attach-icon,.chat-attach-btn:focus-visible .chat-attach-icon{animation-duration:.58s!important}}
 .chat-compose #chat-input:focus{outline:0;box-shadow:none}
 .ret-activity-chart{position:relative}.activity-hover-line{stroke:rgba(255,240,225,.42);stroke-width:1;pointer-events:none}.activity-hover-seen{fill:#3987e5;stroke:#151311;stroke-width:2;pointer-events:none}
+
+
+/* Content Studio: turn model output into readable, theme-native creator cards. */
+.output-pre.output-render{display:block;min-height:94px;max-height:640px;padding:14px;margin-top:9px;white-space:normal;overflow:auto;font:inherit;color:var(--text);background:var(--bg-2)}
+.studio-result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:10px}
+.studio-result-card{min-width:0;padding:14px 15px;border:1px solid var(--line);border-radius:var(--radius-md);background:linear-gradient(145deg,var(--surface-1),var(--bg-2));box-shadow:0 1px 0 rgba(255,255,255,.025) inset}
+.studio-result-card h3{margin:3px 0 9px;color:var(--text);font-size:14px;line-height:1.4;font-weight:650;letter-spacing:-.01em;overflow-wrap:anywhere}
+.studio-result-eyebrow{margin-bottom:5px;color:var(--red);font-size:9px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}
+.studio-result-body{color:var(--text-2);font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+.studio-result-body p{margin:0 0 7px}.studio-result-body p:last-child{margin-bottom:0}
+.studio-result-body strong{color:var(--text);font-weight:650}
+.studio-result-body ul{margin:3px 0;padding-left:18px}.studio-result-body li{padding:2px 0}
+.studio-result-detail{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-top:1px solid var(--line)}
+.studio-result-detail:first-child{border-top:0}.studio-result-detail span{color:var(--text-dim);font-size:10px;text-transform:capitalize}
+.studio-result-detail strong{max-width:70%;text-align:right;color:var(--text);font-size:11px;font-weight:600}
+@media(max-width:620px){.studio-result-grid{grid-template-columns:1fr}.studio-result-card{padding:12px}}
