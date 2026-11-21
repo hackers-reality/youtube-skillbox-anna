@@ -1,12 +1,13 @@
-/* YouTube Skillbox — standalone designer preview.
- * Original Skillbox application behavior and research engine are preserved.
- * The LLM boundary is served by NVIDIA NIM; research tools use the same
- * Skillbox Python engine adapter as the Anna application.
+/* YouTube Skillbox — NVIDIA NIM + Skillbox Engine
+ * Static SPA. Talks to:
+ *   • Skillbox tools → fetch("/api/skillbox")
+ *   • NVIDIA NIM   → fetch("/api/nvidia/chat")
  * Evidence labels: MEASURED = measured numbers, INFERRED = reasoned from measured, HYPOTHESIS = unvalidated.
  */
 
-import { planChatTools } from "./chat-routing.mjs";
-
+const TOOL_ID = (typeof window !== "undefined" && window.__ANNA_TOOL_IDS__ && window.__ANNA_TOOL_IDS__["youtube-skillbox"]) || "bundled:youtube-skillbox";
+const DEV_TOOL_ID = "tool-dev-youtube-skillbox";
+const PRIMARY_TOOL_ID = typeof location !== "undefined" && /\/dev\//.test(location.pathname + location.search) ? DEV_TOOL_ID : TOOL_ID;
 const AUDITS_KEY = "youtube-skillbox:audits";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -16,9 +17,6 @@ const byId = (id) => document.getElementById(id);
 async function copyTextToClipboard(text) {
   const value = String(text ?? "");
   if (!value) throw new Error("There is nothing to copy.");
-
-  // Clipboard API requires a secure context and can be denied inside embedded
-  // previews. Try it first, then fall back to the selection-based copy command.
   try {
     if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
       await navigator.clipboard.writeText(value);
@@ -27,32 +25,22 @@ async function copyTextToClipboard(text) {
   } catch (_) {
     // Continue to the legacy fallback when permission or iframe policy blocks it.
   }
-
   const textarea = document.createElement("textarea");
   textarea.value = value;
   textarea.setAttribute("readonly", "");
   textarea.setAttribute("aria-hidden", "true");
-  Object.assign(textarea.style, {
-    position: "fixed",
-    left: "-9999px",
-    top: "0",
-    opacity: "0",
-    fontSize: "16px"
-  });
+  Object.assign(textarea.style, { position: "fixed", left: "-9999px", top: "0", opacity: "0", fontSize: "16px" });
   document.body.appendChild(textarea);
   textarea.focus({ preventScroll: true });
   textarea.select();
   textarea.setSelectionRange(0, value.length);
-
   let copied = false;
   try {
     copied = typeof document.execCommand === "function" && document.execCommand("copy");
   } finally {
     textarea.remove();
   }
-  if (!copied) {
-    throw new Error("Clipboard access was blocked. Select the text and copy it manually.");
-  }
+  if (!copied) throw new Error("Clipboard access was blocked. Select the text and copy it manually.");
   return true;
 }
 
@@ -64,20 +52,18 @@ async function copyWithFeedback(text, button, errorTarget = null) {
     await copyTextToClipboard(text);
     button.textContent = "Copied!";
     if (errorTarget) errorTarget.textContent = "";
-    window.setTimeout(() => {
-      if (button.isConnected) button.textContent = originalLabel;
-    }, 1600);
+    window.setTimeout(() => { if (button.isConnected) button.textContent = originalLabel; }, 1600);
     return true;
   } catch (error) {
-    if (errorTarget) {
-      errorTarget.textContent = error?.message || "Copy failed. Select the text and copy it manually.";
-    }
+    if (errorTarget) errorTarget.textContent = error?.message || "Copy failed. Select the text and copy it manually.";
     button.textContent = "Copy failed";
-    window.setTimeout(() => {
-      if (button.isConnected) button.textContent = originalLabel;
-    }, 2200);
+    window.setTimeout(() => { if (button.isConnected) button.textContent = originalLabel; }, 2200);
     return false;
   }
+
+byId("copy-description")?.addEventListener("click", async () => { await copyWithFeedback(original, byId("copy-description")); });
+
+byId("copy-description")?.addEventListener("click", async () => { await copyWithFeedback(original, byId("copy-description")); });
 }
 
 
@@ -91,36 +77,14 @@ const parseArgsLine = (s) => {
 
 /* ---------- anna connection ---------- */
 let anna = null;
-let standalone = false;
+let standalone = true;
 
 async function connect() {
   standalone = true;
   anna = null;
-  applyStandaloneBranding();
-  setStatus("Standalone preview · NVIDIA NIM + Skillbox engine ready", true);
+  setStatus("Standalone preview — Skillbox tools via /api/skillbox", true, true);
   return false;
 }
-
-function applyStandaloneBranding() {
-  const labels = {
-    "runtime-pill": "NVIDIA NIM",
-    "runtime-caption": "SKILLBOX ENGINE · LIVE PUBLIC DATA",
-    "chat-tab-label": "Ask Anna",
-    "chat-eyebrow": "ANNA GUIDE / 00",
-    "llm-caption": "NVIDIA NIM · TOOL-AWARE",
-    "initial-assistant-avatar": "A",
-    "initial-assistant-name": "Anna",
-    "audit-storage-note": "Saved in this browser",
-    "studio-llm-note": "NVIDIA NIM · Skillbox tools"
-  };
-  for (const [id, value] of Object.entries(labels)) {
-    const element = byId(id);
-    if (element) element.textContent = value;
-  }
-  const description = document.querySelector('meta[name="description"]');
-  if (description) description.content = "YouTube creator research, content workflows, and retention analysis powered by NVIDIA NIM and the Skillbox engine.";
-}
-
 function setStatus(text, ok, warn = false) {
   const dot = byId("status-dot");
   const label = byId("status-text");
@@ -130,58 +94,43 @@ function setStatus(text, ok, warn = false) {
 
 /* ---------- helpers: tools / llm / storage ---------- */
 async function tool(method, args, timeoutMs, options = {}) {
-  const response = await fetch("/api/skillbox", {
+  const res = await fetch("/api/skillbox", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ method, args: args || {} }),
-    cache: "no-store",
-    signal: Number.isFinite(timeoutMs) && timeoutMs > 0
-      ? AbortSignal.timeout(timeoutMs + 5000)
-      : undefined,
   });
-  let envelope;
-  try { envelope = await response.json(); }
-  catch (_) { throw new Error("The Skillbox research service returned an unreadable response."); }
-  if (!response.ok) throw new Error(envelope?.error || "The Skillbox research service failed.");
-  const payload = envelope?.result;
-  if (!payload || typeof payload !== "object") throw new Error("The Skillbox research service returned no result.");
-  if (payload.success === false || payload.error) {
-    const failure = payload.error;
-    throw new Error(typeof failure === "string" ? failure : failure?.message || "Skillbox research failed.");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Skillbox tool failed" }));
+    throw new Error(err.error || "Skillbox tool failed");
   }
-  return payload.success === true && "data" in payload ? payload.data : payload;
-}
+  const payload = await res.json();
+  return payload.result ?? payload;
 
 async function llm(systemPrompt, userMessage, maxTokens = 3200) {
-  return nvidiaPreviewCompletion(systemPrompt, userMessage, [], maxTokens, 0.35);
-}
-async function llmWithImage(systemPrompt, userMessage, imageBlock, maxTokens = 2600) {
-  return nvidiaPreviewCompletion(systemPrompt, userMessage, [imageBlock], maxTokens, 0.25);
-}
-async function llmWithImages(systemPrompt, userMessage, imageBlocks, maxTokens = 3200) {
-  return nvidiaPreviewCompletion(systemPrompt, userMessage, imageBlocks, maxTokens, 0.2);
-}
-async function nvidiaPreviewCompletion(systemPrompt, userMessage, imageBlocks = [], maxTokens = 1600, temperature = 0.35) {
-  const images = (imageBlocks || []).filter((block) => block?.type === "image").map((block) => ({
-    mimeType: block.mimeType || "image/jpeg",
-    ...(block.data ? { data: block.data } : {}),
-    ...(block.url ? { url: block.url } : {}),
-  }));
-  const response = await fetch("/api/nvidia/chat", {
+  const res = await fetch("/api/nvidia/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ systemPrompt, userMessage, images, maxTokens, temperature }),
-    cache: "no-store",
+    body: JSON.stringify({ systemPrompt, userMessage, maxTokens, temperature: 0.35 }),
   });
-  let result;
-  try { result = await response.json(); }
-  catch (_) { throw new Error("The NVIDIA preview service returned an unreadable response."); }
-  if (!response.ok) throw new Error(result?.error || "The NVIDIA preview request failed.");
-  if (typeof result.content !== "string" || !result.content.trim()) throw new Error("NVIDIA returned an empty response.");
-  return result.content;
-}
+  if (!res.ok) throw new Error("NVIDIA NIM chat failed");
+  const data = await res.json();
+  return data.content ?? data.text ?? String(data);
+
+async function llmWithImage(systemPrompt, userMessage, imageBlock, maxTokens = 2600) {
+  const res = await fetch("/api/nvidia/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ systemPrompt, userMessage, imageBlock, maxTokens, temperature: 0.25 }),
+  });
+  if (!res.ok) throw new Error("NVIDIA NIM vision failed");
+  const data = await res.json();
+  return data.content ?? data.text ?? String(data);
 
 async function storageList(key) {
+  try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+    }
+    return Array.isArray(value) ? value : [];
+  }
   try {
     const value = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(value) ? value : [];
@@ -192,7 +141,6 @@ async function storageList(key) {
 
 async function storageSet(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
-}
 
 const PROFILE_KEY = "youtube-skillbox:profile";
 const CHAT_KEY = "youtube-skillbox:chat";
@@ -310,7 +258,7 @@ function generateVerificationPhrase() {
   const source = globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function"
     ? globalThis.crypto.getRandomValues(new Uint16Array(4))
     : [0, 1, 2, 3].map(() => Math.floor(Math.random() * 65536));
-  return `Anna Skillbox ${Array.from(source, (value) => String(value).padStart(5, "0")).join("-")}`;
+  return `NVIDIA NIM Skillbox ${Array.from(source, (value) => String(value).padStart(5, "0")).join("-")}`;
 }
 
 function profileName(profile) { return profile && (profile.name || profile.title || profile.channel_name || profile.author || "Channel"); }
@@ -336,7 +284,7 @@ function renderOnboarding() {
   const avatar = profileAvatar(profile || {});
   if (onboardingStep === "guest") {
     title.textContent = "Guest workspace";
-    copy.textContent = "Public research remains available. Personal Anna chat is locked until you verify a channel.";
+    copy.textContent = "Public research remains available. Personal NVIDIA NIM chat is locked until you verify a channel.";
     content.innerHTML = `<div class="onboarding-actions"><button id="guest-connect" class="btn btn-primary" type="button">Connect a channel</button><button id="guest-logout" class="btn" type="button">Log out & clear saved data</button></div>`;
     byId("guest-connect")?.addEventListener("click", () => openOnboarding("identity"));
     byId("guest-logout")?.addEventListener("click", clearWorkspaceSession);
@@ -378,7 +326,7 @@ function renderOnboarding() {
     title.textContent = "Verify it’s really yours.";
     copy.textContent = "Copy this one-time phrase into your channel description manually. We never edit YouTube or ask for OAuth.";
     content.innerHTML = `<label class="field"><span>Unique verification phrase · read-only</span><div class="copy-field"><input id="onboarding-phrase" readonly value="${escapeHtml(profileState.phrase)}" /><button id="onboarding-copy" class="btn" type="button">Copy</button></div></label><div class="onboarding-actions"><button id="onboarding-verify" class="btn btn-primary" type="button">I added it — verify now</button><button id="onboarding-back" class="btn" type="button">Back</button></div><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div>`;
-    byId("onboarding-copy")?.addEventListener("click", async () => { const copied = await copyWithFeedback(profileState.phrase, byId("onboarding-copy"), byId("onboarding-error")); if (!copied) { const input = byId("onboarding-phrase"); input?.focus(); input?.select(); input?.setSelectionRange(0, input.value.length); } });
+    byId("onboarding-copy")?.addEventListener("click", async () => { const copied = await copyWithFeedback("your channel, measured.", byId("onboarding-copy"), byId("chat-guest-note")); if (!copied) { byId("chat-guest-note").textContent = "Copy failed — select and copy manually."; byId("chat-guest-note").classList.remove("hidden"); } });
     byId("onboarding-back")?.addEventListener("click", () => { onboardingStep = "confirm"; renderOnboarding(); });
     byId("onboarding-verify")?.addEventListener("click", async () => {
       const button = byId("onboarding-verify"); button.disabled = true; button.textContent = "Checking public description…";
@@ -399,8 +347,8 @@ function renderOnboarding() {
     title.textContent = "You’re verified.";
     copy.textContent = "Your original description was saved before verification. Restore it in YouTube when you’re ready; nothing was changed automatically.";
     const original = String(profileState.originalDescription ?? "");
-    content.innerHTML = `<div class="onboarding-identity">${avatar ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(name)} channel logo" />` : `<span>${escapeHtml(name.slice(0,1).toUpperCase())}</span>`}<div><strong>${escapeHtml(name)}</strong><small>✓ Channel verified · ${escapeHtml(handle)}</small></div></div><label class="field mt"><span>${original ? "Your previous description · saved exactly" : "Previous description not available"}</span><textarea id="original-description" readonly rows="6">${escapeHtml(original)}</textarea></label><div class="onboarding-actions"><button id="copy-description" class="btn" type="button" ${original ? "" : "disabled"}>Copy old description</button><button id="onboarding-chat" class="btn btn-primary" type="button" ${original ? "" : "disabled"}>Ask Anna to refine</button><button id="onboarding-restored" class="btn" type="button">I restored it</button><button id="workspace-logout" class="btn" type="button">Log out & clear saved data</button></div><p class="hint">${original ? "Nothing is changed on YouTube automatically. Copy it back yourself, or ask Anna to refine it first." : "This channel was connected before the original-description backup existed. No original text can be reconstructed, so the current description was not changed."}</p>`;
-    byId("copy-description")?.addEventListener("click", () => copyWithFeedback(original, byId("copy-description")));
+    content.innerHTML = `<div class="onboarding-identity">${avatar ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(name)} channel logo" />` : `<span>${escapeHtml(name.slice(0,1).toUpperCase())}</span>`}<div><strong>${escapeHtml(name)}</strong><small>✓ Channel verified · ${escapeHtml(handle)}</small></div></div><label class="field mt"><span>${original ? "Your previous description · saved exactly" : "Previous description not available"}</span><textarea id="original-description" readonly rows="6">${escapeHtml(original)}</textarea></label><div class="onboarding-actions"><button id="copy-description" class="btn" type="button" ${original ? "" : "disabled"}>Copy old description</button><button id="onboarding-chat" class="btn btn-primary" type="button" ${original ? "" : "disabled"}>Ask NVIDIA NIM to refine</button><button id="onboarding-restored" class="btn" type="button">I restored it</button><button id="workspace-logout" class="btn" type="button">Log out & clear saved data</button></div><p class="hint">${original ? "Nothing is changed on YouTube automatically. Copy it back yourself, or ask NVIDIA NIM to refine it first." : "This channel was connected before the original-description backup existed. No original text can be reconstructed, so the current description was not changed."}</p>`;
+    byId("copy-description")?.addEventListener("click", async () => { await navigator.clipboard.writeText(original); byId("copy-description").textContent = "Copied"; });
     byId("onboarding-chat")?.addEventListener("click", () => { closeOnboarding(); byId("tab-button-chat")?.click(); byId("chat-input").value = "Help me refine my YouTube channel description. Keep my original meaning and voice. Here is my previous description:\n\n" + original; byId("chat-input").focus(); });
     byId("onboarding-restored")?.addEventListener("click", async () => { profileState.restorationShown = true; await storageSet(PROFILE_KEY, [profileState]); closeOnboarding(); });
     byId("workspace-logout")?.addEventListener("click", clearWorkspaceSession);
@@ -434,7 +382,7 @@ function setPersonalChatEnabled(enabled) {
   const input = byId("chat-input");
   const send = byId("chat-send");
   const attach = byId("chat-attach");
-  if (input) { input.disabled = !enabled; input.placeholder = enabled ? "Ask Anna about your channel…" : "Verify your channel to unlock personal chat…"; }
+  if (input) { input.disabled = !enabled; input.placeholder = enabled ? "Ask NVIDIA NIM about your channel…" : "Verify your channel to unlock personal chat…"; }
   if (send) send.disabled = !enabled;
   if (attach) attach.disabled = !enabled;
   $$("[data-chat-prompt]").forEach((button) => { button.disabled = !enabled; });
@@ -450,7 +398,7 @@ async function clearWorkspaceSession() {
   catch (_) { setStatus("Workspace data cleared · close other Skillbox windows to clear thumbnail files", true, true); }
   renderProfileState();
   renderRetentionHistory();
-  byId("chat-thread").innerHTML = '<div class="chat-message assistant"><span class="chat-avatar">A</span><div><strong>Anna</strong><p>Saved workspace data has been cleared.</p></div></div>';
+  byId("chat-thread").innerHTML = '<div class="chat-message assistant"><span class="chat-avatar">A</span><div><strong>NVIDIA NIM</strong><p>Saved workspace data has been cleared.</p></div></div>';
   openOnboarding("identity");
 }
 
@@ -508,7 +456,7 @@ function chatAdd(role, text, loading = false) {
   if (!thread) return null;
   const node = document.createElement("div");
   node.className = "chat-message " + role + (loading ? " is-loading" : "");
-  node.innerHTML = `<span class="chat-avatar">${role === "assistant" ? "A" : "Y"}</span><div><strong>${role === "assistant" ? "Anna" : "You"}</strong><p>${loading ? '<span class="typing-dots"><i></i><i></i><i></i></span>' : renderMd(text)}</p></div>`;
+  node.innerHTML = `<span class="chat-avatar">${role === "assistant" ? "A" : "Y"}</span><div><strong>${role === "assistant" ? "NVIDIA NIM" : "You"}</strong><p>${loading ? '<span class="typing-dots"><i></i><i></i><i></i></span>' : renderMd(text)}</p></div>`;
   thread.appendChild(node);
   thread.scrollTop = thread.scrollHeight;
   return node;
@@ -526,7 +474,7 @@ function renderChatAttachment() {
     ? `<img src="${escapeHtml(chatAttachment.dataUrl)}" alt="Attached thumbnail preview" />`
     : `<span class="file-glyph">${chatAttachment.type.includes("zip") ? "ZIP" : "CSV"}</span>`;
   box.className = "chat-attachment";
-  box.innerHTML = `${preview}<span><strong>${escapeHtml(chatAttachment.name)}</strong><small>${escapeHtml(chatAttachment.description || "Ready for Anna to inspect")}</small></span><button id="chat-attachment-remove" class="btn btn-small" type="button" aria-label="Remove attachment">×</button>`;
+  box.innerHTML = `${preview}<span><strong>${escapeHtml(chatAttachment.name)}</strong><small>${escapeHtml(chatAttachment.description || "Ready for NVIDIA NIM to inspect")}</small></span><button id="chat-attachment-remove" class="btn btn-small" type="button" aria-label="Remove attachment">×</button>`;
   byId("chat-attachment-remove")?.addEventListener("click", () => { chatAttachment = null; renderChatAttachment(); });
 }
 
@@ -541,7 +489,7 @@ async function readChatAttachment(file) {
       reader.onerror = () => reject(reader.error || new Error("Could not read image"));
       reader.readAsDataURL(file);
     });
-    attachment.description = "Thumbnail image · Anna can score the hook, hierarchy, contrast and promise";
+    attachment.description = "Thumbnail image · NVIDIA NIM can score the hook, hierarchy, contrast and promise";
   } else if (/\.zip$/i.test(file.name) || type.includes("zip")) {
     attachment.entries = await readZipCsvEntries(file);
     attachment.description = `${attachment.entries.length} CSV exports · each will be classified by metric`;
@@ -573,7 +521,7 @@ async function chatContext(message, attachment = null) {
   }
   const savedContext = savedResearchContext();
   const cachedThumbs = await storageList(THUMBNAIL_KEY);
-  return `Current workspace profile: ${profileState ? JSON.stringify(profileState.profile) : "not configured"}\nMeasured context (may contain explicit errors; never replace them): ${evidence || "No live tool call was needed for this question."}\nPreviously saved workspace research (cached Anna history; older than live measurements): ${savedContext}\nPreviously seen public thumbnail references (metadata/URLs, not image files): ${JSON.stringify(cachedThumbs.slice(0, 60))}\nAttachment context:\n${attachmentContext}`;
+  return `Current workspace profile: ${profileState ? JSON.stringify(profileState.profile) : "not configured"}\nMeasured context (may contain explicit errors; never replace them): ${evidence || "No live tool call was needed for this question."}\nPreviously saved workspace research (cached NVIDIA NIM history; older than live measurements): ${savedContext}\nPreviously seen public thumbnail references (metadata/URLs, not image files): ${JSON.stringify(cachedThumbs.slice(0, 60))}\nAttachment context:\n${attachmentContext}`;
 }
 
 async function rememberThumbnailItems(handle, items) {
@@ -720,8 +668,8 @@ function wireChat() {
     const text = String(message || byId("chat-input").value || "").trim();
     const attachment = chatAttachment;
     if (!profileState?.verified) { openOnboarding(profileState ? "phrase" : "identity"); return; }
-    if (!text && !attachment) { if (!anna || standalone) chatAdd("assistant", "Open this app inside Anna to use the live guide."); return; }
-    if ((!anna || standalone) && attachment && !text) { chatAdd("assistant", "Open this app inside Anna to analyze an attachment."); return; }
+    if (!text && !attachment) { if (!anna || standalone) chatAdd("assistant", "Open this app inside NVIDIA NIM to use the live guide."); return; }
+    if ((!anna || standalone) && attachment && !text) { chatAdd("assistant", "Open this app inside NVIDIA NIM to analyze an attachment."); return; }
     byId("chat-input").value = "";
     const userLabel = text || "Please inspect this attachment.";
     chatAdd("user", attachment ? `${userLabel}\n\nAttached: ${attachment.name}` : userLabel);
@@ -730,9 +678,9 @@ function wireChat() {
     const loading = chatAdd("assistant", "", true);
     byId("chat-send").disabled = true;
     try {
-      const system = "You are Anna inside YouTube Skillbox. Answer like a calm creator strategist. Separate MEASURED facts, INFERRED explanations, HYPOTHESES and RECOMMENDATIONS. Use only evidence present in this request; never invent channel numbers, and if context contains an error say the measurement is unavailable. Public view counts, titles, thumbnails and outlier ratios alone cannot establish audience preference, why a video performed, what the recommendation algorithm did, CTR, or causality. Do not state those as facts; if useful, label them HYPOTHESES and name the missing evidence. Never claim YouTube was edited or content was published. Treat prior interpretations as unverified, not evidence. For a thumbnail image, give a transparent heuristic score out of 10 for hook clarity, hierarchy, contrast, mobile legibility and promise match; call it INFERRED, not a prediction of CTR.";
+      const system = "You are NVIDIA NIM inside YouTube Skillbox. Answer like a calm creator strategist. Separate MEASURED facts, INFERRED explanations, HYPOTHESES and RECOMMENDATIONS. Use only evidence present in this request; never invent channel numbers, and if context contains an error say the measurement is unavailable. Public view counts, titles, thumbnails and outlier ratios alone cannot establish audience preference, why a video performed, what the recommendation algorithm did, CTR, or causality. Do not state those as facts; if useful, label them HYPOTHESES and name the missing evidence. Never claim YouTube was edited or content was published. Treat prior interpretations as unverified, not evidence. For a thumbnail image, give a transparent heuristic score out of 10 for hook clarity, hierarchy, contrast, mobile legibility and promise match; call it INFERRED, not a prediction of CTR.";
       let response;
-      if (!profileState?.verified) throw new Error("Personal Anna chat unlocks after you verify your channel. Public research tools remain available in guest mode.");
+      if (!profileState?.verified) throw new Error("Personal NVIDIA NIM chat unlocks after you verify your channel. Public research tools remain available in guest mode.");
       if (!attachment && /(banner|logo|channel branding|brand identity)/i.test(userLabel) && /(score|rate|review|analy[sz]|feedback|improv|look)/i.test(userLabel)) {
         response = await scoreChannelBranding();
       } else if (!attachment?.dataUrl && /(thumbnail|thumbs?)/i.test(userLabel) && /(score|rate|review|compare|analy[sz]|each|all)/i.test(userLabel)) {
@@ -958,7 +906,7 @@ async function runAudit(handle, retryKeys = null) {
       <div class="audit-report" style="margin-top:8px">
         <strong>MEASURED:</strong> 0 of ${jobs.length} tool calls succeeded.<br><br>
         <strong>Errors:</strong><br>${Object.entries(errors).map(([k,v]) => `• <strong>${escapeHtml(k)}</strong> — ${escapeHtml(v.slice(0,300))}`).join("<br>")}<br><br>
-        <strong>What to check:</strong> inspect the raw tool responses, confirm the Executa is available to this Anna host, and retry later if the provider rate-limited the request.<br><br>
+        <strong>What to check:</strong> inspect the raw tool responses, confirm the Executa is available to this NVIDIA NIM host, and retry later if the provider rate-limited the request.<br><br>
         <strong>No verdict was generated.</strong> Missing measurements are never replaced with sample numbers.
       </div>
     </div>`;
@@ -1063,14 +1011,14 @@ async function runAudit(handle, retryKeys = null) {
     const audits = await storageList(AUDITS_KEY);
     audits.unshift({ ts: Date.now(), handle, evidence, verdict });
     const history = audits.slice(0, 5);
-    // runtime_state is capped at 256 KB by Anna; keep margin for metadata
+    // runtime_state is capped at 256 KB by NVIDIA NIM; keep margin for metadata
     // and UTF-8 encoding rather than allowing a silent oversize write.
     while (history.length > 1
       && new TextEncoder().encode(JSON.stringify(history)).byteLength > 180 * 1024) {
       history.pop();
     }
     if (new TextEncoder().encode(JSON.stringify(history)).byteLength > 180 * 1024) {
-      throw new Error("This audit is too large to fit in the 256 KB Anna window-state store.");
+      throw new Error("This audit is too large to fit in the 256 KB NVIDIA NIM window-state store.");
     }
     await storageSet(AUDITS_KEY, history);
   } catch (storageError) {
@@ -1224,9 +1172,9 @@ async function renderSavedList() {
   try {
     audits = await storageList(AUDITS_KEY);
   } catch (error) {
-    list.innerHTML = '<li class="empty">Saved audits could not be loaded from Anna storage: '
+    list.innerHTML = '<li class="empty">Saved audits could not be loaded from NVIDIA NIM storage: '
       + escapeHtml(String(error.message || error)) + '</li>';
-    setStatus("Anna storage unavailable", false, true);
+    setStatus("NVIDIA NIM storage unavailable", false, true);
     return;
   }
   savedAudits = audits;
@@ -1497,6 +1445,94 @@ function renderTitleLint(result) {
   });
   return output.join("\n");
 }
+
+function renderStudioOutput(output, task, raw) {
+  const value = String(raw || "").trim();
+  if (!value) return;
+  output.dataset.copyText = value;
+  const inline = (text) => escapeHtml(String(text ?? ""))
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.+?)`/g, "<code>$1</code>");
+  const textBody = (text) => "<p>" + inline(text).replace(/\n/g, "<br>") + "</p>";
+  const card = (eyebrow, title, body) =>
+    '<article class="studio-result-card">' +
+    (eyebrow ? '<div class="studio-result-eyebrow">' + inline(eyebrow) + '</div>' : '') +
+    (title ? '<h3>' + inline(title) + '</h3>' : '') +
+    '<div class="studio-result-body">' + body + '</div></article>';
+
+  let parsed = null;
+  try { parsed = JSON.parse(value); } catch (_) {}
+  if (Array.isArray(parsed)) {
+    const cards = parsed.map((item, index) => {
+      if (typeof item === "string") return card("OPTION " + String(index + 1).padStart(2, "0"), "", textBody(item));
+      const titleKey = ["hook", "title", "name", "keyword", "heading"].find(key => item && item[key] != null);
+      const title = titleKey ? item[titleKey] : "Option " + (index + 1);
+      const details = Object.entries(item || {}).filter(([key]) => key !== titleKey).map(([key, val]) =>
+        '<div class="studio-result-detail"><span>' + inline(key.replace(/_/g, " ")) + '</span><strong>' +
+        inline(Array.isArray(val) ? val.join(", ") : typeof val === "object" ? JSON.stringify(val) : val) +
+        '</strong></div>').join("");
+      return card("OPTION " + String(index + 1).padStart(2, "0"), title, details || textBody(title));
+    }).join("");
+    output.innerHTML = '<div class="studio-result-grid">' + cards + '</div>';
+    return;
+  }
+  if (parsed && typeof parsed === "object") {
+    const cards = Object.entries(parsed).map(([key, val]) => {
+      const body = Array.isArray(val)
+        ? '<ul>' + val.map(item => '<li>' + inline(typeof item === "object" ? JSON.stringify(item) : item) + '</li>').join("") + '</ul>'
+        : typeof val === "object" && val !== null
+          ? Object.entries(val).map(([k, v]) => '<div class="studio-result-detail"><span>' + inline(k.replace(/_/g, " ")) + '</span><strong>' + inline(typeof v === "object" ? JSON.stringify(v) : v) + '</strong></div>').join("")
+          : textBody(val);
+      return card(key.replace(/[_-]/g, " "), "", body);
+    }).join("");
+    output.innerHTML = '<div class="studio-result-grid">' + cards + '</div>';
+    return;
+  }
+
+  if (/SKILLBOX HOOK SCORECARD|SKILLBOX TITLE LINT/.test(value)) {
+    const lines = value.split(/\r?\n/), titleMode = value.includes("SKILLBOX TITLE LINT"), cards = [];
+    let consumedUntil = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      const match = line.match(/^\d+\s+(.+?)(?:\s+·\s+(\d+)\s+characters)?$/);
+      if (match && (/\d+\/100/.test(line) || titleMode && /characters/.test(line))) {
+        const title = (lines[i + 1] || "").trim(), details = [];
+        let j = i + 2;
+        while (j < lines.length && lines[j].trim() && !/^\d+\s+.+(?:\/100|characters)/.test(lines[j].trim())) details.push(lines[j++].trim());
+        cards.push(card(match[1], title, details.map(line => textBody(line)).join("")));
+        consumedUntil = j;
+        i = j - 1;
+      }
+    }
+    if (cards.length) {
+      const remainder = lines.slice(consumedUntil).filter(line => line.trim() && !/^SKILLBOX HOOK SCORECARD|^SKILLBOX TITLE LINT|^Heuristic copy analysis|^Heuristic title-text checks|^\d+ hooks scored/.test(line.trim()));
+      if (remainder.length) cards.push(card("FULL SCRIPT DRAFT", "", remainder.map(textBody).join("")));
+      output.innerHTML = '<div class="studio-result-grid">' + cards.join("") + '</div>';
+      return;
+    }
+  }
+
+  const sections = [];
+  let current = { title: "", lines: [] };
+  const flush = () => { if (current.title || current.lines.length) sections.push(current); };
+  for (const line of value.split(/\r?\n/)) {
+    const heading = line.match(/^\s*(?:#{1,3}\s+|(?:\d+[.)]\s+))(.+?)\s*$/);
+    if (heading) { flush(); current = { title: heading[1], lines: [] }; }
+    else if (!line.trim()) { flush(); current = { title: "", lines: [] }; }
+    else current.lines.push(line);
+  }
+  flush();
+  const cards = sections.map((section, index) => {
+    const title = section.title || (sections.length === 1 ? "Draft" : "Section " + (index + 1));
+    const isList = section.lines.length && section.lines.every(line => /^\s*(?:[-*•]|\d+[.)])\s+/.test(line));
+    const body = isList
+      ? '<ul>' + section.lines.map(line => '<li>' + inline(line.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, "")) + '</li>').join("") + '</ul>'
+      : section.lines.map(textBody).join("");
+    return card(section.title ? "CONTENT" : task.replace(/_/g, " "), title, body);
+  }).join("");
+  output.innerHTML = '<div class="studio-result-grid">' + (cards || card("DRAFT", "", textBody(value))) + '</div>';
+}
+
 
 function renderStudioOutput(output, task, raw) {
   const value = String(raw || "").trim();
@@ -2662,10 +2698,10 @@ async function describeRetentionReports(reports) {
   try {
     const response = await llm("Write one concise, distinct, plain-language interpretation (max 35 words) per supplied retention chart. Use only supplied measurements. Distinguish audience segments and do not infer causes or advice. Return ONLY a JSON array with one string per input item in matching order.", JSON.stringify(evidence), 1200);
     const parsed = JSON.parse(response.match(/\[[\s\S]*\]/)?.[0] || "null");
-    if (!Array.isArray(parsed)) throw new Error("Anna returned no chart descriptions.");
+    if (!Array.isArray(parsed)) throw new Error("NVIDIA NIM returned no chart descriptions.");
     reports.forEach((report, index) => { if (report.findings) report.shortDescription = conciseRetentionRead(parsed[index]); });
   } catch (error) {
-    reports.forEach((report) => { if (report.findings) report.shortDescription = `Anna's chart description is unavailable (${String(error.message || error).slice(0, 120)}).`; });
+    reports.forEach((report) => { if (report.findings) report.shortDescription = `NVIDIA NIM's chart description is unavailable (${String(error.message || error).slice(0, 120)}).`; });
   }
   return reports;
 }
@@ -2837,6 +2873,18 @@ function wireRetention() {
 }
 
 /* ---------- boot ---------- */
+
+async function llmWithImages(systemPrompt, userMessage, imageBlocks, maxTokens = 3200) {
+  const res = await fetch("/api/nvidia/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ systemPrompt, userMessage, imageBlocks, maxTokens, temperature: 0.2 }),
+  });
+  if (!res.ok) throw new Error("NVIDIA NIM multi-image failed");
+  const data = await res.json();
+  return data.content ?? data.text ?? String(data);
+}
+
 async function main() {
   wireTabs();
   wireRail();
@@ -2858,7 +2906,11 @@ async function main() {
     });
   });
   await renderSavedList();
-  if (!ok) setStatus("Standalone preview · NVIDIA NIM + Skillbox engine ready", true);
+  if (anna && anna.window) {
+    try { await anna.window.set_title({ title: "YouTube Skillbox" }); } catch (_) {}
+    // .connect() already emits window.ready after the handshake.
+  }
+  if (!ok) setStatus("Standalone preview — open via `anna-app dev` for the real host.", false, true);
 }
 
 main().catch((e) => setStatus(`Fatal: ${e.message || e}`, false));

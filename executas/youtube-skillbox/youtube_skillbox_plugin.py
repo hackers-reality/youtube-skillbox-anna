@@ -1,4 +1,4 @@
-"""YouTube Skillbox — Executa plugin powering the Anna App.
+﻿"""YouTube Skillbox â€” Executa plugin powering the Anna App.
 
 Exposes the open-source YouTube Skillbox engine (PyPI: youtube-skillbox)
 as first-class Anna tools. When run as the frozen PyInstaller binary, we
@@ -17,8 +17,12 @@ import re
 import sys
 import time
 import traceback
+import threading
 
-VERSION = "0.7.0"
+# Module-level lock to serialize _run_engine calls (prevents stdout/stderr/argv corruption under concurrency)
+_ENGINE_LOCK = threading.Lock()
+
+VERSION = "0.7.1"
 ENGINE_TIMEOUT = 90
 AUDIT_TIMEOUT = 150
 
@@ -123,7 +127,7 @@ MANIFEST = {
         },
         {
             "name": "outliers",
-            "description": "Videos that dramatically outperform the channel's own subscribed baseline (views/subs ratio) — the best source of repeatable ideas.",
+            "description": "Videos that dramatically outperform the channel's own subscribed baseline (views/subs ratio) â€” the best source of repeatable ideas.",
             "parameters": [CLIENT_ID_PARAM,
                 {"name": "handle", "type": "string", "description": "Channel handle or URL.", "required": True},
                 {"name": "min_ratio", "type": "number", "description": "Minimum views/subs multiple.", "required": False, "default": 2.0},
@@ -276,7 +280,7 @@ def _normalize_sections(sections):
 
 
 def _engine_script():
-    """Locate ytdata — frozen binary contains it as a module (PyInstaller
+    """Locate ytdata â€” frozen binary contains it as a module (PyInstaller
     hidden-import); in dev, wire the installed wheel / repo checkout into sys.path."""
     from pathlib import Path
 
@@ -294,7 +298,7 @@ def _engine_script():
         return local_path
 
     try:
-        import ytdata  # noqa: F401 — freeze: already inside the binary; dev: no-op add to sys.path below
+        import ytdata  # noqa: F401 â€” freeze: already inside the binary; dev: no-op add to sys.path below
 
         return "<bundled>"
     except ImportError:
@@ -307,20 +311,21 @@ def _engine_script():
 
 
 def _run_engine(*args, timeout=ENGINE_TIMEOUT):
-    """Run the engine in-process and capture its stdout."""
-    try:
-        _engine_script()
-    except Exception as e:
-        return None, "", f"engine not found: {e}"
+    """Run the engine in-process and capture its stdout. Thread-safe via _ENGINE_LOCK."""
+    with _ENGINE_LOCK:
+        try:
+            _engine_script()
+        except Exception as e:
+            return None, "", f"engine not found: {e}"
 
-    old_out = sys.stdout
-    old_err = sys.stderr
-    buf = io.StringIO()
-    err_buf = io.StringIO()
-    old_argv = sys.argv
-    sys.stdout = buf
-    sys.stderr = err_buf
-    sys.argv = ["ytdata", *args]
+        old_out = sys.stdout
+        old_err = sys.stderr
+        buf = io.StringIO()
+        err_buf = io.StringIO()
+        old_argv = sys.argv
+        sys.stdout = buf
+        sys.stderr = err_buf
+        sys.argv = ["ytdata", *args]
 
     err = None
     try:
@@ -328,7 +333,7 @@ def _run_engine(*args, timeout=ENGINE_TIMEOUT):
 
         ytdata.main()
     except TimeoutError:
-        err = f"timeout after {timeout}s — YouTube throttled us (HTTP 429?)."
+        err = f"timeout after {timeout}s â€” YouTube throttled us (HTTP 429?)."
     except SystemExit as exc:
         if exc.code not in (None, 0):
             diagnostic = err_buf.getvalue().strip()
@@ -352,7 +357,7 @@ def _handle_engine_result(js, raw, err):
     if err:
         return {"success": False, "error": err}
     if js is not None:
-        # Anna's transport only delivers top-level JSON *objects* — a bare
+        # Anna's transport only delivers top-level JSON *objects* â€” a bare
         # array arrives in the bundle as {}. Always wrap lists.
         if isinstance(js, list):
             js = {"items": js}
@@ -486,7 +491,7 @@ def _verdict(opp, comp):
         "verdict": call,
         "opportunity": opp,
         "competition": comp,
-        "label": "heuristic — not a ranking prediction",
+        "label": "heuristic â€” not a ranking prediction",
     }
 
 
@@ -1211,6 +1216,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
