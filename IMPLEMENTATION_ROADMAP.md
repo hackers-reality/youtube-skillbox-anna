@@ -17,6 +17,7 @@
 - Explicit Channel DNA requests enrich up to six representative videos with available original-language captions before classification; missing captions remain unavailable evidence, not negative signals.
 - One-video topic clusters are reported as experimental topics instead of being promoted to the dominant niche.
 - Added regression fixtures for space/science, gaming, cooking, education, entertainment, technology, music, and business, including the space/science channel with one isolated AI/farmer experiment.
+- Added a persistent creator-focus field to the verified channel profile; this user-provided context is passed to Channel DNA without replacing measured content evidence.
 - GitHub Actions validation passed on the Creator OS branch after the initial Channel DNA integration (Python, frontend, strict Anna manifest validation, and JSON/HTML checks).
 
 **Still open before the Phase 2 exit gate:** transcript enrichment is not yet wired into the sample pipeline; creator-confirmed niche/preferences need a first-class UI control; the lexical classifier needs validation against real representative channels and may return insufficient evidence for ambiguous samples. This is an initial vertical slice, not a completed Creator Intelligence department.
