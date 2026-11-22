@@ -69,8 +69,9 @@ test("copy controls use the Clipboard API with a textarea fallback and visible f
 });
 
 test("standalone runtime imports its chat planner and never falls back to the Anna host", () => {
-  assert.match(app, /^import \\{ planChatTools \\} from ["\x27]\\.\\/chat-routing\\.mjs["\x27];/);
-  assert.match(app, /Standalone preview — Skillbox tools and NVIDIA NIM are ready/);
-  assert.doesNotMatch(app, /Open this app inside NVIDIA NIM|open via anna-app dev/);
-  assert.match(routing, /export function planChatTools/);
+  assert.ok(app.startsWith('import { planChatTools } from "./chat-routing.mjs";'));
+  assert.ok(app.includes("Standalone preview — Skillbox tools and NVIDIA NIM are ready"));
+  assert.ok(!app.includes("Open this app inside NVIDIA NIM"));
+  assert.ok(!app.includes("open via anna-app dev"));
+  assert.ok(routing.includes("export function planChatTools"));
 });
