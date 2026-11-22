@@ -31,12 +31,12 @@ appJs = appJs.replace(/import \{ planChatTools \} from "\.\/chat-routing\.mjs";\
 
 appJs = appJs.replace(
   /async function tool\(method, args, timeoutMs, options = \{\}\) \{[\s\S]*?return payload;\s*\}/m,
-  "async function tool(method, args, timeoutMs, options = {}) {\n  const res = await fetch(\"/api/skillbox\", {\n    method: \"POST\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify({ method, args: args || {} }),\n  });\n  if (!res.ok) {\n    const err = await res.json().catch(() => ({ error: \"Skillbox tool failed\" }));\n    throw new Error(err.error || \"Skillbox tool failed\");\n  }\n  const payload = await res.json();\n  return payload.result ?? payload;"
+  "async function tool(method, args, timeoutMs, options = {}) {\n  const res = await fetch(\"/api/skillbox\", {\n    method: \"POST\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify({ method, args: args || {} }),\n  });\n  if (!res.ok) {\n    const err = await res.json().catch(() => ({ error: \"Skillbox tool failed\" }));\n    throw new Error(err.error || \"Skillbox tool failed\");\n  }\n  const payload = await res.json();\n  return payload.result ?? payload;\n}"
 );
 
 appJs = appJs.replace(
   /async function llm\(systemPrompt, userMessage, maxTokens = 3200\) \{[\s\S]*?return \(r && r\.content && r\.content\.text\) \|\| String\(r\);\s*\}/m,
-  "async function llm(systemPrompt, userMessage, maxTokens = 3200) {\n  const res = await fetch(\"/api/nvidia/chat\", {\n    method: \"POST\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify({ systemPrompt, userMessage, maxTokens, temperature: 0.35 }),\n  });\n  if (!res.ok) throw new Error(\"NVIDIA NIM chat failed\");\n  const data = await res.json();\n  return data.content ?? data.text ?? String(data);"
+  "async function llm(systemPrompt, userMessage, maxTokens = 3200) {\n  const res = await fetch(\"/api/nvidia/chat\", {\n    method: \"POST\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify({ systemPrompt, userMessage, maxTokens, temperature: 0.35 }),\n  });\n  if (!res.ok) throw new Error(\"NVIDIA NIM chat failed\");\n  const data = await res.json();\n  return data.content ?? data.text ?? String(data);\n}"
 );
 
 appJs = appJs.replace(
