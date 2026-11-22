@@ -64,10 +64,7 @@ appJs = appJs.replace(
   "byId(\"onboarding-copy\")?.addEventListener(\"click\", async () => { const copied = await copyWithFeedback(\"your channel, measured.\", byId(\"onboarding-copy\"), byId(\"chat-guest-note\")); if (!copied) { byId(\"chat-guest-note\").textContent = \"Copy failed \u2014 select and copy manually.\"; byId(\"chat-guest-note\").classList.remove(\"hidden\"); } });"
 );
 
-appJs = appJs.replace(
-  /(async function copyWithFeedback\(text, button, errorTarget = null\) \{[\s\S]*?return false;\s*\})/m,
-  "$1\n\nbyId(\"copy-description\")?.addEventListener(\"click\", async () => { await copyWithFeedback(original, byId(\"copy-description\")); });"
-);
+// Preserve the copy-description listener in its original UI initialization scope.
 
 appJs = appJs.replace(/import \{ AnnaAppRuntime \} from "\/static\/anna-apps\/_sdk\/latest\/index\.js";\s*/, "");
 appJs = appJs.replace(/import \{ invokeAnnaTool \} from "\.\/anna-tool-runtime\.mjs";\s*/, "");
