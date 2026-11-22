@@ -9,6 +9,7 @@ assert.deepEqual(planChatTools({ message: "Why did my videos lose views?", handl
 assert.deepEqual(planChatTools({ message: "Analyze these community posts", handle: "@creator" }).map((item) => item.method), ["posts"]);
 assert.deepEqual(planChatTools({ message: "Why does retention drop here?", handle: "@creator", hasRetentionAttachment: true }), []);
 assert.deepEqual(planChatTools({ message: "Research competition for space facts", handle: "@creator" }).map((item) => item.method), ["keywords", "search", "compete"]);
+assert.deepEqual(planChatTools({ message: "Analyze my channel DNA and niche", handle: "@creator" }).map((item) => item.method), ["channel", "outliers", "profile"]);
 
 // $() returns one DOM node; $$() is required for selector collections.
 const lines = source.split(/\r?\n/).map((line) => line.trim());
@@ -20,6 +21,8 @@ assert.match(source, /key: "shorts", method: "channel", label: "first 15 public 
 assert.match(source, /canonical public URL/);
 assert.match(source, /youtube\\\.com\\\/shorts\\\//);
 assert.match(source, /Building an evidence-only audit/);
+assert.match(source, /evidenceMap\.channel_dna/);
+assert.match(source, /videos_json: JSON\.stringify\(dnaVideos\)/);
 assert.match(source, /PARTIAL AUDIT · \$\{measuredSignals\.length\}\/\$\{auditSignals\.length\} measurements returned/);
 assert.match(source, /All five audit measurements returned\./);
 assert.match(source, /Partial audit · \$\{measuredCount\}\/5 measurements returned\./);
