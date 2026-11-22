@@ -60,12 +60,7 @@ async function copyWithFeedback(text, button, errorTarget = null) {
     window.setTimeout(() => { if (button.isConnected) button.textContent = originalLabel; }, 2200);
     return false;
   }
-
-byId("copy-description")?.addEventListener("click", async () => { await copyWithFeedback(original, byId("copy-description")); });
-
-byId("copy-description")?.addEventListener("click", async () => { await copyWithFeedback(original, byId("copy-description")); });
 }
-
 
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -94,53 +89,32 @@ function setStatus(text, ok, warn = false) {
 
 /* ---------- helpers: tools / llm / storage ---------- */
 async function tool(method, args, timeoutMs, options = {}) {
-  const res = await fetch("/api/skillbox", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ method, args: args || {} }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Skillbox tool failed" }));
-    throw new Error(err.error || "Skillbox tool failed");
-  }
+  const res = await fetch("/api/skillbox", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method, args: args || {} }) });
+  if (!res.ok) { const err = await res.json().catch(() => ({ error: "Skillbox tool failed" })); throw new Error(err.error || "Skillbox tool failed"); }
   const payload = await res.json();
   return payload.result ?? payload;
+}
 
 async function llm(systemPrompt, userMessage, maxTokens = 3200) {
-  const res = await fetch("/api/nvidia/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ systemPrompt, userMessage, maxTokens, temperature: 0.35 }),
-  });
+  const res = await fetch("/api/nvidia/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ systemPrompt, userMessage, maxTokens, temperature: 0.35 }) });
   if (!res.ok) throw new Error("NVIDIA NIM chat failed");
   const data = await res.json();
   return data.content ?? data.text ?? String(data);
+}
 
 async function llmWithImage(systemPrompt, userMessage, imageBlock, maxTokens = 2600) {
-  const res = await fetch("/api/nvidia/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ systemPrompt, userMessage, imageBlock, maxTokens, temperature: 0.25 }),
-  });
+  const res = await fetch("/api/nvidia/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ systemPrompt, userMessage, imageBlock, maxTokens, temperature: 0.25 }) });
   if (!res.ok) throw new Error("NVIDIA NIM vision failed");
   const data = await res.json();
   return data.content ?? data.text ?? String(data);
-
-async function storageList(key) {
-  try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
-    }
-    return Array.isArray(value) ? value : [];
-  }
-  try {
-    const value = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(value) ? value : [];
-  } catch (_) {
-    return [];
-  }
 }
 
-async function storageSet(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+async function storageList(key) {
+  try { const value = JSON.parse(localStorage.getItem(key) || "[]"); return Array.isArray(value) ? value : []; }
+  catch { return []; }
+}
+async function storageSet(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+
 
 const PROFILE_KEY = "youtube-skillbox:profile";
 const CHAT_KEY = "youtube-skillbox:chat";
