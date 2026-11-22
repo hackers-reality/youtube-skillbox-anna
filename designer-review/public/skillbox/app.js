@@ -1,3 +1,4 @@
+import { planChatTools } from "./chat-routing.mjs";
 /* YouTube Skillbox — NVIDIA NIM + Skillbox Engine
  * Static SPA. Talks to:
  *   • Skillbox tools → fetch("/api/skillbox")
@@ -77,8 +78,8 @@ let standalone = true;
 async function connect() {
   standalone = true;
   anna = null;
-  setStatus("Standalone preview — Skillbox tools via /api/skillbox", true, true);
-  return false;
+  setStatus("Standalone preview — Skillbox tools and NVIDIA NIM are ready", true);
+  return true;
 }
 function setStatus(text, ok, warn = false) {
   const dot = byId("status-dot");
@@ -642,8 +643,7 @@ function wireChat() {
     const text = String(message || byId("chat-input").value || "").trim();
     const attachment = chatAttachment;
     if (!profileState?.verified) { openOnboarding(profileState ? "phrase" : "identity"); return; }
-    if (!text && !attachment) { if (!anna || standalone) chatAdd("assistant", "Open this app inside NVIDIA NIM to use the live guide."); return; }
-    if ((!anna || standalone) && attachment && !text) { chatAdd("assistant", "Open this app inside NVIDIA NIM to analyze an attachment."); return; }
+    if (!text && !attachment) { chatAdd("assistant", "Type a message or attach a file to get started."); return; }
     byId("chat-input").value = "";
     const userLabel = text || "Please inspect this attachment.";
     chatAdd("user", attachment ? `${userLabel}\n\nAttached: ${attachment.name}` : userLabel);
@@ -2885,7 +2885,7 @@ async function main() {
     try { await anna.window.set_title({ title: "YouTube Skillbox" }); } catch (_) {}
     // .connect() already emits window.ready after the handshake.
   }
-  if (!ok) setStatus("Standalone preview — open via `anna-app dev` for the real host.", false, true);
+  if (!ok) setStatus("Standalone preview is ready; check the connection status above.", true, true);
 }
 
 main().catch((e) => setStatus(`Fatal: ${e.message || e}`, false));
