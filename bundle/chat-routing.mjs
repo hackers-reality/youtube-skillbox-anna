@@ -22,7 +22,7 @@ export function planChatTools({ message = "", handle = "", profile = {}, hasRete
   if (handle && (asksIdentity || (asksMeasuredChannel && !asksPerformance))) add("profile", "profile", { handle });
   if (handle && /community|\bposts?\b/.test(lower)) add("community_posts", "posts", { handle, limit: 12 });
   if (handle && /home|shelf|featured/.test(lower)) add("home_shelves", "home", { handle, limit: 8, verbose: true });
-  if (/\bshows?\b/.test(lower)) add("shows", "shows", { handle, limit: 12 });
+  if (handle && /\bshows?\b/.test(lower)) add("shows", "shows", { handle, limit: 12 });
 
   if (/ideas?|what should i (?:make|post)|topic|keywords?|trending|research|search demand|competit|competition/.test(lower)) {
     const topic = String(message).match(/(?:about|on|around|for|in the niche of)\s+([^?.!]+)/i)?.[1]?.trim();
