@@ -246,6 +246,15 @@ MANIFEST = {
             "timeout": 10,
         },
         {
+            "name": "channel_dna",
+            "description": "Infer a channel's dominant content niche from a representative sample of published videos. Titles, transcripts and descriptions are weighted above tags; isolated topics are surfaced as experiments, not treated as the channel identity.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "videos_json", "type": "string", "description": "JSON array of up to 50 published video objects with title and optional description, transcript, tags, url, id, views and format.", "required": True},
+                {"name": "preferences", "type": "string", "description": "Optional creator-confirmed niche, goals or preferences.", "required": False, "default": ""},
+            ],
+            "timeout": 10,
+        },
+        {
             "name": "retention",
             "description": "Parse a pasted YouTube Studio retention CSV and calculate hook leak, cliffs and average slide from the actual axis. Does not invent timestamps from percent-only data.",
             "parameters": [CLIENT_ID_PARAM,
@@ -471,6 +480,116 @@ def _engine_version():
         return version("youtube-skillbox")
     except Exception:
         return "?"
+
+
+
+_CHANNEL_DNA_LEXICON = {
+    "space_science": ("space", "nasa", "astronomy", "universe", "planet", "galaxy", "black hole", "cosmos", "astrophysics", "rocket", "mars", "moon", "stars", "physics", "quantum", "telescope", "solar system", "exoplanet", "science experiment"),
+    "gaming": ("gameplay", "gaming", "minecraft", "roblox", "fortnite", "blox fruits", "video game", "game review", "walkthrough", "speedrun", "mod showcase", "boss fight", "game update", "valorant", "gta"),
+    "cooking": ("recipe", "cooking", "cook", "baking", "ingredients", "homemade", "meal prep", "kitchen", "dessert", "food review", "street food"),
+    "education": ("lesson", "study guide", "exam prep", "mathematics", "history lesson", "learn", "explained for beginners", "classroom", "tutorial", "solve", "chapter", "school project"),
+    "entertainment": ("movie review", "film review", "anime", "episode", "tv show", "celebrity", "trailer reaction", "movie explained", "series recap", "entertainment"),
+    "technology": ("software", "programming", "coding", "developer", "artificial intelligence", "machine learning", "ai tool", "tech review", "app review", "computer", "robotics", "gadget", "open source"),
+    "music": ("song", "music video", "guitar", "piano", "cover song", "instrumental", "singing", "lyrics", "music production", "drum lesson"),
+    "business": ("business", "entrepreneur", "marketing", "finance", "investing", "personal finance", "startup", "sales strategy", "ecommerce", "leadership"),
+}
+
+def _dna_text(value):
+    if isinstance(value, (list, tuple, set)):
+        return " ".join(str(item) for item in value if item is not None)
+    return str(value or "")
+
+def _dna_term_hits(text, terms):
+    normalized = _dna_text(text).lower()
+    hits = []
+    for term in terms:
+        pattern = r"(?<!\w)" + re.escape(term.lower()).replace(r"\ ", r"\s+") + r"(?!\w)"
+        if re.search(pattern, normalized):
+            hits.append(term)
+    return hits
+
+def _channel_dna(videos, preferences=None):
+    """Infer channel identity from representative published content; tags cannot set the niche."""
+    if isinstance(videos, str):
+        videos = json.loads(videos)
+    if not isinstance(videos, list):
+        raise ValueError("videos must be a JSON array")
+    videos = [item for item in videos[:50] if isinstance(item, dict)]
+    creator_focus = _dna_text(preferences).strip() or None
+    if not videos:
+        return {"status": "insufficient_evidence", "dominant_niche": None, "confidence": "none", "sample_size": 0,
+                "topic_clusters": [], "experimental_topics": [], "creator_confirmed_focus": creator_focus,
+                "evidence_contract": "MEASURED = supplied public content metadata; INFERRED = topic classification.",
+                "limitations": ["No representative published videos were supplied."]}
+
+    counts = {key: 0 for key in _CHANNEL_DNA_LEXICON}
+    scores = {key: 0.0 for key in _CHANNEL_DNA_LEXICON}
+    evidence = {key: [] for key in _CHANNEL_DNA_LEXICON}
+    format_counts = {}
+    classifications = []
+    for video in videos:
+        title = _dna_text(video.get("title"))
+        description = _dna_text(video.get("description"))
+        transcript = _dna_text(video.get("transcript") or video.get("transcript_text"))
+        tags = _dna_text(video.get("tags"))
+        per_category = {}
+        for category, terms in _CHANNEL_DNA_LEXICON.items():
+            per_category[category] = (
+                len(_dna_term_hits(title, terms)) * 3.0
+                + len(_dna_term_hits(transcript, terms)) * 2.2
+                + len(_dna_term_hits(description, terms)) * 1.0
+            )
+        best = max(per_category, key=per_category.get)
+        best_score = per_category[best]
+        primary = best if best_score >= 1.0 else None
+        tag_signals = []
+        if primary:
+            counts[primary] += 1
+            scores[primary] += best_score
+            evidence[primary].append({
+                "title": title or "Untitled video",
+                "url": _dna_text(video.get("url") or video.get("video_url")) or None,
+                "id": _dna_text(video.get("id") or video.get("video_id")) or None,
+                "views": video.get("views", video.get("view_count")),
+            })
+        else:
+            tag_signals = [category for category, terms in _CHANNEL_DNA_LEXICON.items() if _dna_term_hits(tags, terms)]
+        fmt = _dna_text(video.get("format") or video.get("kind") or "unspecified").lower()
+        format_counts[fmt] = format_counts.get(fmt, 0) + 1
+        classifications.append({"title": title or "Untitled video", "primary_topic": primary,
+                                "content_score": round(best_score, 2), "tag_only_signals": tag_signals})
+
+    ordered = sorted(counts, key=lambda key: (counts[key], scores[key]), reverse=True)
+    total = sum(counts.values())
+    top = ordered[0] if ordered and counts[ordered[0]] else None
+    top_count = counts[top] if top else 0
+    share = top_count / total if total else 0.0
+    enough = bool(top and top_count >= 2 and share >= 0.30)
+    dominant = top if enough else None
+    confidence = ("high" if top_count >= 5 and share >= 0.60 else
+                  "medium" if top_count >= 3 and share >= 0.45 else "low") if enough else ("low" if total else "none")
+    clusters = [{
+        "topic": category, "video_count": counts[category],
+        "share_of_classified_content": round(counts[category] / total, 3) if total else 0,
+        "weighted_content_score": round(scores[category], 2),
+        "evidence": evidence[category][:8], "classification": "INFERRED",
+    } for category in ordered if counts[category]]
+    experimental = [cluster for cluster in clusters if cluster["video_count"] == 1 and cluster["topic"] != dominant]
+    return {
+        "status": "inferred" if enough else "insufficient_evidence",
+        "dominant_niche": dominant, "confidence": confidence, "sample_size": len(videos),
+        "classified_video_count": total, "topic_clusters": clusters, "experimental_topics": experimental,
+        "format_mix": [{"format": key, "video_count": value} for key, value in sorted(format_counts.items())],
+        "creator_confirmed_focus": creator_focus, "video_classifications": classifications,
+        "methodology": {"content_weights": {"title": 3.0, "transcript": 2.2, "description": 1.0, "tags": 0.0},
+                        "minimum_video_content_score": 1.0, "minimum_dominant_video_count": 2,
+                        "minimum_dominant_share": 0.30,
+                        "note": "Tags are low-trust context; they cannot classify a video or establish a niche."},
+        "evidence_contract": "MEASURED = supplied public video metadata and sample counts; INFERRED = topic clusters and niche classification; creator_confirmed_focus is user-provided.",
+        "limitations": ["This is a content-sample inference, not a measurement of audience preference.",
+                        "A small or unrepresentative sample can misstate the channel's broader identity.",
+                        "Views are retained as evidence metadata but do not determine niche classification."],
+    }
 
 
 def _verdict(opp, comp):
@@ -1161,6 +1280,8 @@ def invoke(method: str, args: dict) -> dict:
             if not isinstance(titles, list) or not titles:
                 return {"success": False, "error": "titles must be a non-empty array of strings"}
             return {"success": True, "data": _title_lint(titles[:30], a.get("thumbnail_text"))}
+        if method == "channel_dna":
+            return {"success": True, "data": _channel_dna(a.get("videos_json", "[]"), a.get("preferences", ""))}
         if method == "retention":
             return {"success": True, "data": _parse_retention_csv(a.get("csv", ""), a.get("duration"))}
         return {"success": False, "error": f"unknown method: {method}"}
