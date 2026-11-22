@@ -312,6 +312,23 @@ class CreatorToolTests(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(result["data"]["dominant_niche"], "space_science")
 
+    def test_channel_dna_keeps_close_topic_matches_unclassified(self):
+        result = _channel_dna([
+            {"title": "NASA robotics mission explores Mars"},
+            {"title": "NASA robot discovers a new planet"},
+            {"title": "NASA robotics mission to the Moon"},
+        ])
+        self.assertIsNone(result["dominant_niche"])
+        self.assertTrue(all(item["primary_topic"] is None for item in result["video_classifications"]))
+        self.assertTrue(all(item["ambiguous_topics"] for item in result["video_classifications"]))
+
+    def test_channel_dna_does_not_treat_general_physics_as_space_channel_evidence(self):
+        result = _channel_dna([
+            {"title": "Physics study guide for beginners"},
+            {"title": "Physics exam prep and practice"},
+            {"title": "Mathematics exam preparation"},
+        ])
+        self.assertEqual(result["dominant_niche"], "education")
 
 if __name__ == "__main__":
     unittest.main()
