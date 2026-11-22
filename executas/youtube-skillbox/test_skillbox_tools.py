@@ -4,6 +4,7 @@ Run with:
     python -m unittest discover -s executas/youtube-skillbox -p "test_*.py" -v
 """
 import unittest
+import json
 import sys
 from types import ModuleType
 
