@@ -186,6 +186,7 @@ let savedAudits = [];
 // Keep the user's explicit motion choice for this app session, including when
 // a new CSV/ZIP replaces the retention result DOM.
 let retentionMotionChoice = null;
+let themeToggleBound = false;
 
 function openThumbnailDb() {
   if (!globalThis.indexedDB) return Promise.reject(new Error("This browser does not support a persistent thumbnail cache."));
@@ -769,7 +770,10 @@ async function loadWorkspaceState() {
   renderProfileState();
   const mode = localStorage.getItem(THEME_KEY) || "system";
   applyTheme(mode);
-  byId("theme-toggle")?.addEventListener("click", cycleTheme);
+  if (!themeToggleBound) {
+    byId("theme-toggle")?.addEventListener("click", cycleTheme);
+    themeToggleBound = true;
+  }
   if (profileState?.verified && !profileState.restorationShown) openOnboarding("restore");
   else if (!profileState?.verified && !guestMode) openOnboarding(profileState?.confirmed ? "phrase" : profileState ? "confirm" : "identity");
 }
@@ -2819,8 +2823,13 @@ async function main() {
   wireLab();
   wireRetention();
   wireRetentionHistory();
-  const ok = await connect();
+  // Render local workspace state and onboarding immediately. The Anna host
+  // handshake can take time (or remain pending); it must never block the UI.
+  const hostConnection = connect();
   await loadWorkspaceState();
+  const ok = await hostConnection;
+  // Once the host is available, hydrate the authoritative APS-backed state.
+  if (ok) await loadWorkspaceState();
   byId("audit-run").addEventListener("click", () => runAudit(byId("audit-handle").value));
   byId("audit-handle").addEventListener("keydown", (e) => { if (e.key === "Enter") runAudit(byId("audit-handle").value); });
   $$(".chip[data-handle]").forEach((chip) => {
