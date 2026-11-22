@@ -98,14 +98,14 @@ async function tool(method, args, timeoutMs, options = {}) {
 
 async function llm(systemPrompt, userMessage, maxTokens = 3200) {
   const res = await fetch("/api/nvidia/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ systemPrompt, userMessage, maxTokens, temperature: 0.35 }) });
-  if (!res.ok) throw new Error("NVIDIA NIM chat failed");
+  if (!res.ok) { const error = await res.json().catch(() => ({})); throw new Error(error.error || `NVIDIA NIM chat failed (HTTP ${res.status})`); }
   const data = await res.json();
   return data.content ?? data.text ?? String(data);
 }
 
 async function llmWithImage(systemPrompt, userMessage, imageBlock, maxTokens = 2600) {
   const res = await fetch("/api/nvidia/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ systemPrompt, userMessage, imageBlock, maxTokens, temperature: 0.25 }) });
-  if (!res.ok) throw new Error("NVIDIA NIM vision failed");
+  if (!res.ok) { const error = await res.json().catch(() => ({})); throw new Error(error.error || `NVIDIA NIM vision failed (HTTP ${res.status})`); }
   const data = await res.json();
   return data.content ?? data.text ?? String(data);
 }
@@ -2855,7 +2855,7 @@ async function llmWithImages(systemPrompt, userMessage, imageBlocks, maxTokens =
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ systemPrompt, userMessage, imageBlocks, maxTokens, temperature: 0.2 }),
   });
-  if (!res.ok) throw new Error("NVIDIA NIM multi-image failed");
+  if (!res.ok) { const error = await res.json().catch(() => ({})); throw new Error(error.error || `NVIDIA NIM multi-image failed (HTTP ${res.status})`); }
   const data = await res.json();
   return data.content ?? data.text ?? String(data);
 }
