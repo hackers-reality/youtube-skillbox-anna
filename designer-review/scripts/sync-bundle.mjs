@@ -123,6 +123,11 @@ appJs = appJs.replace(/Anna host/g, "NVIDIA NIM host");
 appJs = appJs.replace(/Anna AI OS/g, "NVIDIA NIM + Skillbox Engine");
 appJs = appJs.replace(/Anna App/g, "NVIDIA NIM + Skillbox Engine");
 appJs = appJs.replace(/Anna/g, "NVIDIA NIM");
+appJs = appJs.replace("if (!profileState?.verified) { openOnboarding(profileState ? \"phrase\" : \"identity\"); return; }", "if (!profileState?.verified && !guestMode) { openOnboarding(profileState ? \"phrase\" : \"identity\"); return; }");
+appJs = appJs.replace("if (!profileState?.verified) throw new Error(\"Personal NVIDIA NIM chat unlocks after you verify your channel. Public research tools remain available in guest mode.\");", "");
+appJs = appJs.replace("Personal NVIDIA NIM chat is locked until you verify a channel.", "Guest mode includes AI chat, uploads and public research. Verify a channel to unlock channel-specific context.");
+appJs = appJs.replace("Guest mode keeps public research available; personal channel chat stays locked.", "Guest mode includes AI chat and public research; verify a channel for channel-specific context.");
+
 
 // FINAL SAFEGUARD: Ensure llmWithImages exists
 if (!appJs.includes("async function llmWithImages")) {
