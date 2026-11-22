@@ -3,6 +3,23 @@
 **Working branch:** `feat/creator-operating-system`  
 **Release policy:** feature branches and preview deployments only until explicitly approved.
 
+## Current progress — 2026-11-22
+
+### Phase 0 / 1
+- The Anna and Vercel runtimes remain separate: this branch uses the Anna host LLM and Executa tool bridge; the standalone NVIDIA NIM app remains on `feat/designer-review-nextjs`.
+- The existing app, tool routing, engine adapter, and test workflow were mapped before implementation.
+- Added this branch to the existing Anna validation workflow so pushes to Creator OS run the same strict checks as the original Anna feature branch.
+
+### Phase 2 — Channel DNA initial vertical slice
+- Added a deterministic `channel_dna` Executa tool and registered it in both the Python runtime manifest and the declarative Executa manifest.
+- Ask Anna now routes channel-niche / Channel DNA questions to a sample of up to 30 recent public videos plus public outliers, then passes a bounded evidence summary and the classifier result to the Anna LLM.
+- Topic scoring weights titles, transcripts, and descriptions; tags have zero classification weight and cannot independently establish a niche.
+- One-video topic clusters are reported as experimental topics instead of being promoted to the dominant niche.
+- Added regression fixtures for space/science, gaming, cooking, education, entertainment, technology, music, and business, including the space/science channel with one isolated AI/farmer experiment.
+- GitHub Actions validation passed on the Creator OS branch after the initial Channel DNA integration (Python, frontend, strict Anna manifest validation, and JSON/HTML checks).
+
+**Still open before the Phase 2 exit gate:** transcript enrichment is not yet wired into the sample pipeline; creator-confirmed niche/preferences need a first-class UI control; the lexical classifier needs validation against real representative channels and may return insufficient evidence for ambiguous samples. This is an initial vertical slice, not a completed Creator Intelligence department.
+
 ## Phase 0 — Stabilization and baseline
 - [ ] Preserve the current Anna app, verified channel profile, phrase, and APS data.
 - [ ] Re-run existing frontend, runtime, Python, strict manifest, and CI checks.
