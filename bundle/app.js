@@ -2326,9 +2326,9 @@ async function runLab(kind) {
     label.textContent = "MISSING INPUT";
     return false;
   };
-  if (["search", "ideas", "compete", "verdict", "chain", "trends", "track"].includes(kind)
+  if (["search", "ideas", "compete", "verdict", "chain", "trends", "track", "market-discover", "market-trend", "market-opportunity"].includes(kind)
       && !need(seed, "Enter a research seed or video idea first.")) return;
-  if (kind === "gap" && !need(seed && competitor, "Content gap needs a seed and competitor channel (for example, @channel).")) return;
+  if (["gap", "market-gap"].includes(kind) && !need(seed && competitor, "Content gap needs a seed and competitor channel (for example, @channel).")) return;
   if (kind === "outliers" && !need(competitor, "Competitor outliers needs a channel handle in the Competitor field.")) return;
   if (["info", "scorecard"].includes(kind) && !need(video, "This task needs a video URL or 11-character video ID.")) return;
   if (kind === "playlist" && !need(playlist, "Playlist contents needs a YouTube playlist URL or ID.")) return;
@@ -2389,6 +2389,21 @@ async function runLab(kind) {
     } else if (kind === "trends") {
       step("READING SAVED KEYWORD HISTORY…");
       html = renderJsonLab("Historical keyword trend", await tool("trends", { seed }, T));
+    } else if (kind === "market-discover") {
+      step("DISCOVERING COMPETITORS…");
+      const accessToken = await OAuth.getValidAccessToken();
+      if (!accessToken) throw new Error("No valid OAuth token. Connect your channel with Google first.");
+      html = renderJsonLab("Market Discover", await tool("market-discover", { seed, limit: 20, gl, hl, access_token: accessToken }, 90000));
+    } else if (kind === "market-trend") {
+      step("ANALYZING MARKET TREND…");
+      const accessToken = await OAuth.getValidAccessToken();
+      if (!accessToken) throw new Error("No valid OAuth token. Connect your channel with Google first.");
+      html = renderJsonLab("Market Trend", await tool("market-trend", { seed, days: 90, gl, hl, access_token: accessToken }, 90000));
+    } else if (kind === "market-opportunity") {
+      step("SCORING OPPORTUNITIES…");
+      const accessToken = await OAuth.getValidAccessToken();
+      if (!accessToken) throw new Error("No valid OAuth token. Connect your channel with Google first.");
+      html = renderJsonLab("Market Opportunity", await tool("market-opportunity", { seed, limit: 20, gl, hl, access_token: accessToken }, 120000));
     } else if (kind === "chain") {
       html = await runChain({ seed, competitor, video, gl, hl }, step, T);
     }

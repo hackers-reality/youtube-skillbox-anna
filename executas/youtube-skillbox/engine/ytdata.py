@@ -2707,6 +2707,40 @@ def main():
     p.add_argument("--access-token", help="OAuth access token")
     p.set_defaults(func=cmd_analytics_export)
 
+    # --- Market Research commands ---
+    p = sub.add_parser("market-discover", help="Discover competitors in a niche")
+    p.add_argument("seed", help="Seed topic or niche (e.g., 'python tutorials')")
+    p.add_argument("--limit", type=int, default=20, help="Max competitors to return")
+    p.add_argument("--gl", default="US", help="Region code")
+    p.add_argument("--hl", default="en", help="Language code")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_market_discover)
+
+    p = sub.add_parser("market-gap", help="Find content gaps vs competitors")
+    p.add_argument("seed", help="Seed topic")
+    p.add_argument("--competitor", help="Competitor channel handle or URL")
+    p.add_argument("--limit", type=int, default=20, help="Max gaps to return")
+    p.add_argument("--gl", default="US", help="Region code")
+    p.add_argument("--hl", default="en", help="Language code")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_market_gap)
+
+    p = sub.add_parser("market-trend", help="Analyze topic trend with source dates")
+    p.add_argument("seed", help="Topic or keyword")
+    p.add_argument("--days", type=int, default=90, help="Days of history")
+    p.add_argument("--gl", default="US", help="Region code")
+    p.add_argument("--hl", default="en", help="Language code")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_market_trend)
+
+    p = sub.add_parser("market-opportunity", help="Score content opportunities")
+    p.add_argument("seed", help="Topic or niche")
+    p.add_argument("--limit", type=int, default=20, help="Max opportunities")
+    p.add_argument("--gl", default="US", help="Region code")
+    p.add_argument("--hl", default="en", help="Language code")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_market_opportunity)
+
     
 
     a = ap.parse_args(_normalize_argv(sys.argv[1:]))
@@ -3225,6 +3259,216 @@ def _resolve_channel_id(handle, access_token):
         raise ValueError(f"Could not resolve channel: {handle}")
     except Exception as e:
         raise ValueError(f"Failed to resolve channel ID: {e}")
+
+
+def _get_search_service():
+    """Build YouTube search service."""
+    try:
+        from googleapiclient.discovery import build
+        return build('youtube', 'v3', cache_discovery=False)
+    except ImportError:
+        return None, "googleapiclient not installed. Install with: pip install google-api-python-client"
+    except Exception as e:
+        return None, f"Failed to build Search service: {e}"
+
+
+def cmd_market_discover(args):
+    """Discover competitors in a niche via YouTube search."""
+    try:
+        service, error = _get_search_service()
+        if error:
+            print(json.dumps({"success": False, "error": error}))
+            return
+        
+        request = service.search().list(
+            part='snippet',
+            q=args.seed,
+            type='channel',
+            maxResults=min(args.limit, 50),
+            order='relevance',
+            regionCode=args.gl,
+            relevanceLanguage=args.hl
+        )
+        
+        response = request.execute()
+        competitors = []
+        
+        for item in response.get('items', []):
+            snippet = item.get('snippet', {})
+            channel_id = item.get('id', {}).get('channelId', '')
+            competitors.append({
+                'channel_id': channel_id,
+                'title': snippet.get('title', ''),
+                'handle': snippet.get('customUrl', '').replace('@', ''),
+                'description': snippet.get('description', '')[:200],
+                'subscribers': 'N/A',
+                'thumbnails': snippet.get('thumbnails', {}),
+                'url': f"https://www.youtube.com/channel/{channel_id}" if channel_id else ''
+            })
+        
+        result = {
+            "success": True,
+            "data": {
+                "seed": args.seed,
+                "competitors": competitors,
+                "count": len(competitors),
+                "source": "YouTube Search API",
+                "timestamp": datetime.now().isoformat(),
+                "labels": {"competitors": "MEASURED", "metadata": "MEASURED"}
+            }
+        }
+        if args.json:
+            print(json.dumps(result))
+        else:
+            print(f"Found {len(competitors)} competitors for '{args.seed}'")
+            for c in competitors[:10]:
+                print(f"  {c['title']} (@{c['handle']}) - {c['url']}")
+        
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_market_gap(args):
+    """Find content gaps vs competitor."""
+    print(json.dumps({"success": False, "error": "Use the existing 'gap' tool for content gap analysis"}))
+
+
+def cmd_market_trend(args):
+    """Analyze topic trend with source dates."""
+    try:
+        with open(_TREND_LOG, encoding="utf-8") as f:
+            log = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        print(json.dumps({"success": False, "error": "No trend data yet \u2014 run 'keywords' a few times first"}))
+        return
+    
+    from datetime import datetime, timedelta
+    
+    cutoff = datetime.now() - timedelta(days=args.days)
+    entries = [e for e in log
+               if e["seed"].lower() == args.seed.lower()
+               and e["gl"].upper() == args.gl.upper()
+               and e["hl"].lower() == args.hl.lower()
+               and datetime.fromisoformat(e["timestamp"]) >= cutoff]
+    
+    if not entries:
+        print(json.dumps({"success": False, "error": f"No trend data for seed={args.seed!r} in last {args.days} days"}))
+        return
+    
+    # Aggregate by date
+    daily = {}
+    for e in entries:
+        date = e["timestamp"][:10]
+        for kw in e.get("keywords", []):
+            key = (date, kw["keyword"].lower())
+            if key not in daily:
+                daily[key] = {"date": date, "keyword": kw["keyword"], "opportunity": kw.get("opportunity_score", 0), "count": 0}
+            daily[key]["count"] += 1
+            daily[key]["opportunity"] = max(daily[key]["opportunity"], kw.get("opportunity_score", 0))
+    
+    trends = list(daily.values())
+    trends.sort(key=lambda x: (x["date"], -x["opportunity"]))
+    
+    result = {
+        "success": True,
+        "data": {
+            "seed": args.seed,
+            "period_days": args.days,
+            "trends": trends[:50],
+            "source": "Keyword research history (Skillbox local log)",
+            "labels": {"trends": "MEASURED", "opportunity_scores": "MEASURED", "freshness": "INFERRED"}
+        }
+    }
+    if args.json:
+        print(json.dumps(result))
+    else:
+        print(f"Trend data for '{args.seed}' over {args.days} days:")
+        for t in trends[:20]:
+            age = (datetime.now() - datetime.fromisoformat(t["date"])).days
+            freshness = "FRESH" if age <= 7 else "STALE" if age <= 30 else "OLD"
+            print(f"  {t['date']} [{freshness}] {t['keyword']} - opportunity: {t['opportunity']}")
+
+
+def cmd_market_opportunity(args):
+    """Score content opportunities combining demand and competition."""
+    try:
+        # Get keywords
+        class Args:
+            pass
+        kw_args = Args()
+        kw_args.seed = args.seed
+        kw_args.letters = ""
+        kw_args.patterns = True
+        kw_args.limit = args.limit
+        kw_args.gl = args.gl
+        kw_args.hl = args.hl
+        kw_args.sources = "yt,ddg"
+        kw_args.json = True
+        
+        import io, sys
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        try:
+            cmd_keywords(kw_args)
+            kw_output = sys.stdout.getvalue()
+        finally:
+            sys.stdout = old_stdout
+        kw_data = json.loads(kw_output)
+        
+        opportunities = []
+        for kw in kw_data.get("keywords", [])[:args.limit]:
+            # Get competition for each keyword
+            comp_args = Args()
+            comp_args.query = kw["keyword"]
+            comp_args.top = 10
+            comp_args.gl = args.gl
+            comp_args.hl = args.hl
+            comp_args.json = True
+            
+            old_stdout = sys.stdout
+            sys.stdout = io.StringIO()
+            try:
+                cmd_compete(comp_args)
+                comp_output = sys.stdout.getvalue()
+            finally:
+                sys.stdout = old_stdout
+            comp_data = json.loads(comp_output)
+            
+            opportunity = kw.get("opportunity_score", 0)
+            competition = comp_data.get("score", 50)
+            
+            # Simple opportunity score: high opportunity + low competition = good
+            score = (opportunity * (100 - competition)) / 100
+            
+            opportunities.append({
+                "keyword": kw["keyword"],
+                "opportunity_score": opportunity,
+                "competition_score": competition,
+                "combined_score": round(score, 1),
+                "demand_indicators": kw.get("demand_indicators", []),
+                "source": "YouTube Suggest + DDG + SERP analysis"
+            })
+        
+        opportunities.sort(key=lambda x: x["combined_score"], reverse=True)
+        
+        result = {
+            "success": True,
+            "data": {
+                "seed": args.seed,
+                "opportunities": opportunities[:args.limit],
+                "methodology": "Opportunity = demand_score * (100 - competition_score) / 100",
+                "labels": {"demand": "MEASURED", "competition": "MEASURED", "combined": "INFERRED"}
+            }
+        }
+        if args.json:
+            print(json.dumps(result))
+        else:
+            print(f"Top opportunities for '{args.seed}':")
+            for o in opportunities[:10]:
+                print(f"  {o['keyword']} - combined: {o['combined_score']} (demand: {o['opportunity_score']}, comp: {o['competition_score']})")
+        
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
 
 
 if __name__ == "__main__":
