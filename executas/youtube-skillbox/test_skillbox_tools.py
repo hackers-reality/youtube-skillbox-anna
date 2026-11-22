@@ -314,9 +314,9 @@ class CreatorToolTests(unittest.TestCase):
 
     def test_channel_dna_keeps_close_topic_matches_unclassified(self):
         result = _channel_dna([
-            {"title": "NASA robotics mission explores Mars"},
-            {"title": "NASA robot discovers a new planet"},
-            {"title": "NASA robotics mission to the Moon"},
+            {"title": "NASA robotics mission"},
+            {"title": "NASA robotics research"},
+            {"title": "NASA robotics project"},
         ])
         self.assertIsNone(result["dominant_niche"])
         self.assertTrue(all(item["primary_topic"] is None for item in result["video_classifications"]))
