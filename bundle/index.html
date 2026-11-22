@@ -44,6 +44,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4v16h18"/><path d="m6 9 4 3 3-5 5 7"/></svg>
           <span>Retention Fix</span>
         </button>
+        <button class="tab" id="tab-button-analytics" data-tab="analytics" role="tab" aria-controls="tab-analytics" aria-selected="false" tabindex="-1">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+          <span>Analytics</span>
+        </button>
         <div class="nav-spacer"></div>
         <button class="nav-profile" id="nav-profile" type="button" aria-label="Channel profile">
           <div class="nav-avatar" id="nav-avatar">?</div>
@@ -684,6 +688,66 @@
             </div>
             <div id="ret-view-history" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Analysis history</h2><p class="section-copy">Reopen previous retention reports saved in this Anna workspace.</p></div></div><div id="ret-history-list" class="ret-history-list"></div></div>
             <div id="ret-view-cache" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Saved analysis cache</h2><p class="section-copy">Previously analyzed exports are kept for quick reopening. Logging out clears this cache.</p></div></div><div id="ret-cache-list" class="ret-history-list"></div></div>
+          </section>
+
+          <section id="tab-analytics" class="panel" role="tabpanel" aria-labelledby="tab-button-analytics">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">ANALYTICS / 04</p>
+                <h1>Channel <em>Intelligence.</em></h1>
+                <p class="lead">Authorized YouTube Analytics data — views, watch time, demographics, traffic sources, devices, and content comparisons. All MEASURED, privacy-aware, and traceable to the API.</p>
+              </div>
+              <div class="evidence-legend" aria-label="Evidence labels">
+                <span class="ev ev-measured">MEASURED</span>
+                <span class="ev ev-inferred">INFERRED</span>
+                <span class="ev ev-hypothesis">HYPOTHESIS</span>
+              </div>
+            </div>
+
+            <div class="analytics-form">
+              <label class="sr-only" for="analytics-handle">Channel handle or URL</label>
+              <div class="input-shell">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+                <input id="analytics-handle" type="text" placeholder="@yourchannel or youtube.com/@yourchannel" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="analytics-options">
+                <div class="option-group">
+                  <label for="analytics-start">Start date</label>
+                  <input id="analytics-start" type="date" />
+                </div>
+                <div class="option-group">
+                  <label for="analytics-end">End date</label>
+                  <input id="analytics-end" type="date" />
+                </div>
+                <div class="option-group">
+                  <label for="analytics-report">Report</label>
+                  <select id="analytics-report">
+                    <option value="overview">Overview</option>
+                    <option value="demographics">Demographics</option>
+                    <option value="geography">Geography</option>
+                    <option value="traffic-sources">Traffic Sources</option>
+                    <option value="devices">Devices</option>
+                    <option value="content-comparison">Video vs Shorts</option>
+                    <option value="historical-trends">Historical Trends</option>
+                  </select>
+                </div>
+                <div class="option-group">
+                  <label for="analytics-format">Format</label>
+                  <select id="analytics-format">
+                    <option value="dashboard">Dashboard</option>
+                    <option value="json">JSON</option>
+                    <option value="csv">CSV</option>
+                  </select>
+                </div>
+              </div>
+              <div class="analytics-actions">
+                <button id="analytics-run" class="btn btn-primary" type="button">Run Report</button>
+                <button id="analytics-export" class="btn" type="button" disabled>Export CSV</button>
+              </div>
+              <div id="analytics-error" class="hint analytics-error" aria-live="polite"></div>
+            </div>
+
+            <div id="analytics-output" class="analytics-output hidden" aria-live="polite"></div>
           </section>
         </div>
       </main>

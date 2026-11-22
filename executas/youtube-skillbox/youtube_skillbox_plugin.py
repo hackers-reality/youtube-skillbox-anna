@@ -1290,6 +1290,93 @@ def invoke(method: str, args: dict) -> dict:
             return {"success": True, "data": _channel_dna(a.get("videos_json", "[]"), a.get("preferences", ""))}
         if method == "retention":
             return {"success": True, "data": _parse_retention_csv(a.get("csv", ""), a.get("duration"))}
+        if method == "analytics-overview":
+            argv = ["analytics-overview", _norm_handle(a.get("handle")), "--json"]
+            if "start_date" in a: argv.extend(["--start-date", str(a.get("start_date"))])
+            if "end_date" in a: argv.extend(["--end-date", str(a.get("end_date"))])
+            if "metrics" in a: argv.extend(["--metrics", str(a.get("metrics"))])
+            if "dimensions" in a: argv.extend(["--dimensions", str(a.get("dimensions"))])
+            if "filters" in a: argv.extend(["--filters", str(a.get("filters"))])
+            if "sort" in a: argv.extend(["--sort", str(a.get("sort"))])
+            if "max_results" in a: argv.extend(["--max-results", str(int(a.get("max_results", 100)))])
+            if "access_token" in a: argv.extend(["--access-token", str(a.get("access_token"))])
+            return _eng(*argv, timeout=AUDIT_TIMEOUT)
+        if method == "analytics-demographics":
+            argv = ["analytics-demographics", _norm_handle(a.get("handle")), "--json"]
+            if "start_date" in a: argv.extend(["--start-date", str(a.get("start_date"))])
+            if "end_date" in a: argv.extend(["--end-date", str(a.get("end_date"))])
+            if "metrics" in a: argv.extend(["--metrics", str(a.get("metrics"))])
+            if "dimensions" in a: argv.extend(["--dimensions", str(a.get("dimensions"))])
+            if "filters" in a: argv.extend(["--filters", str(a.get("filters"))])
+            if "sort" in a: argv.extend(["--sort", str(a.get("sort"))])
+            if "max_results" in a: argv.extend(["--max-results", str(int(a.get("max_results", 100)))])
+            if "access_token" in a: argv.extend(["--access-token", str(a.get("access_token"))])
+            return _eng(*argv, timeout=AUDIT_TIMEOUT)
+        if method == "analytics-geography":
+            argv = ["analytics-geography", _norm_handle(a.get("handle")), "--json"]
+            if "start_date" in a: argv.extend(["--start-date", str(a.get("start_date"))])
+            if "end_date" in a: argv.extend(["--end-date", str(a.get("end_date"))])
+            if "metrics" in a: argv.extend(["--metrics", str(a.get("metrics"))])
+            if "dimensions" in a: argv.extend(["--dimensions", str(a.get("dimensions"))])
+            if "filters" in a: argv.extend(["--filters", str(a.get("filters"))])
+            if "sort" in a: argv.extend(["--sort", str(a.get("sort"))])
+            if "max_results" in a: argv.extend(["--max-results", str(int(a.get("max_results", 100)))])
+            if "access_token" in a: argv.extend(["--access-token", str(a.get("access_token"))])
+            return _eng(*argv, timeout=AUDIT_TIMEOUT)
+        if method == "analytics-traffic-sources":
+            argv = ["analytics-traffic-sources", _norm_handle(a.get("handle")), "--json"]
+            if "start_date" in a: argv.extend(["--start-date", str(a.get("start_date"))])
+            if "end_date" in a: argv.extend(["--end-date", str(a.get("end_date"))])
+            if "metrics" in a: argv.extend(["--metrics", str(a.get("metrics"))])
+            if "dimensions" in a: argv.extend(["--dimensions", str(a.get("dimensions"))])
+            if "filters" in a: argv.extend(["--filters", str(a.get("filters"))])
+            if "sort" in a: argv.extend(["--sort", str(a.get("sort"))])
+            if "max_results" in a: argv.extend(["--max-results", str(int(a.get("max_results", 100)))])
+            if "access_token" in a: argv.extend(["--access-token", str(a.get("access_token"))])
+            return _eng(*argv, timeout=AUDIT_TIMEOUT)
+        if method == "analytics-devices":
+            argv = ["analytics-devices", _norm_handle(a.get("handle")), "--json"]
+            if "start_date" in a: argv.extend(["--start-date", str(a.get("start_date"))])
+            if "end_date" in a: argv.extend(["--end-date", str(a.get("end_date"))])
+            if "metrics" in a: argv.extend(["--metrics", str(a.get("metrics"))])
+            if "dimensions" in a: argv.extend(["--dimensions", str(a.get("dimensions"))])
+            if "filters" in a: argv.extend(["--filters", str(a.get("filters"))])
+            if "sort" in a: argv.extend(["--sort", str(a.get("sort"))])
+            if "max_results" in a: argv.extend(["--max-results", str(int(a.get("max_results", 100)))])
+            if "access_token" in a: argv.extend(["--access-token", str(a.get("access_token"))])
+            return _eng(*argv, timeout=AUDIT_TIMEOUT)
+        if method == "analytics-content-comparison":
+            argv = ["analytics-content-comparison", _norm_handle(a.get("handle")), "--json"]
+            if "start_date" in a: argv.extend(["--start-date", str(a.get("start_date"))])
+            if "end_date" in a: argv.extend(["--end-date", str(a.get("end_date"))])
+            if "metrics" in a: argv.extend(["--metrics", str(a.get("metrics"))])
+            if "dimensions" in a: argv.extend(["--dimensions", str(a.get("dimensions"))])
+            if "filters" in a: argv.extend(["--filters", str(a.get("filters"))])
+            if "sort" in a: argv.extend(["--sort", str(a.get("sort"))])
+            if "max_results" in a: argv.extend(["--max-results", str(int(a.get("max_results", 200)))])
+            if "access_token" in a: argv.extend(["--access-token", str(a.get("access_token"))])
+            return _eng(*argv, timeout=AUDIT_TIMEOUT)
+        if method == "analytics-historical-trends":
+            argv = ["analytics-historical-trends", _norm_handle(a.get("handle")), "--json"]
+            if "start_date" in a: argv.extend(["--start-date", str(a.get("start_date"))])
+            if "end_date" in a: argv.extend(["--end-date", str(a.get("end_date"))])
+            if "metrics" in a: argv.extend(["--metrics", str(a.get("metrics"))])
+            if "dimensions" in a: argv.extend(["--dimensions", str(a.get("dimensions"))])
+            if "filters" in a: argv.extend(["--filters", str(a.get("filters"))])
+            if "sort" in a: argv.extend(["--sort", str(a.get("sort"))])
+            if "max_results" in a: argv.extend(["--max-results", str(int(a.get("max_results", 365)))])
+            if "access_token" in a: argv.extend(["--access-token", str(a.get("access_token"))])
+            return _eng(*argv, timeout=AUDIT_TIMEOUT)
+        if method == "analytics-export":
+            argv = ["analytics-export", _norm_handle(a.get("handle")), "--json"]
+            if "report_type" in a: argv.extend(["--report-type", str(a.get("report_type"))])
+            if "start_date" in a: argv.extend(["--start-date", str(a.get("start_date"))])
+            if "end_date" in a: argv.extend(["--end-date", str(a.get("end_date"))])
+            if "format" in a: argv.extend(["--format", str(a.get("format"))])
+            if "output" in a: argv.extend(["--output", str(a.get("output"))])
+            if "access_token" in a: argv.extend(["--access-token", str(a.get("access_token"))])
+            return _eng(*argv, timeout=AUDIT_TIMEOUT)
+
         return {"success": False, "error": f"unknown method: {method}"}
     except Exception as e:
         return {"success": False, "error": f"{method} crashed: {e}"}

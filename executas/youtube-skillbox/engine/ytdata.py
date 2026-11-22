@@ -2604,9 +2604,627 @@ def main():
     p.add_argument("--log", default="~/.ytdata-ranklog.json", help="rank history file")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_track)
+    # --- YouTube Analytics API commands (require OAuth) ---
+    p = sub.add_parser("analytics-overview", help="Channel overview: views, watch time, subscribers, estimated revenue")
+    p.add_argument("handle", help="@handle, channel URL, or UC... ID")
+    p.add_argument("--start-date", help="Start date YYYY-MM-DD (default: 30 days ago)")
+    p.add_argument("--end-date", help="End date YYYY-MM-DD (default: yesterday)")
+    p.add_argument("--metrics", default="views,estimatedMinutesWatched,averageViewDuration,subscribersGained,subscribersLost",
+                   help="Comma-separated metrics (views,estimatedMinutesWatched,averageViewDuration,subscribersGained,subscribersLost,estimatedRevenue)")
+    p.add_argument("--dimensions", default="day", help="Comma-separated dimensions (day,video,subtitleLanguage,deviceType,subtitledVideo,playlist,liveOrOnDemand,insightTrafficSourceType,insightTrafficSourceDetail,country,province,ageGroup,gender,sharingService,subscriptionSource,contentType)")
+    p.add_argument("--filters", help="Filters as key=value,key2=value2 (e.g., video==VIDEO_ID,country==US)")
+    p.add_argument("--sort", default="-day", help="Sort order (e.g., -views, day)")
+    p.add_argument("--max-results", type=int, default=100)
+    p.add_argument("--access-token", help="OAuth access token (from Skillbox OAuth flow)")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_analytics_overview)
+
+    p = sub.add_parser("analytics-demographics", help="Audience demographics: age groups and gender")
+    p.add_argument("handle", help="@handle, channel URL, or UC... ID")
+    p.add_argument("--start-date", help="Start date YYYY-MM-DD (default: 30 days ago)")
+    p.add_argument("--end-date", help="End date YYYY-MM-DD (default: yesterday)")
+    p.add_argument("--metrics", default="viewerPercentage", help="Comma-separated metrics (viewerPercentage,views,estimatedMinutesWatched,averageViewDuration)")
+    p.add_argument("--dimensions", default="ageGroup,gender", help="Comma-separated dimensions (ageGroup,gender)")
+    p.add_argument("--filters", help="Filters as key=value,key2=value2")
+    p.add_argument("--sort", default="-viewerPercentage", help="Sort order")
+    p.add_argument("--max-results", type=int, default=100)
+    p.add_argument("--access-token", help="OAuth access token")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_analytics_demographics)
+
+    p = sub.add_parser("analytics-geography", help="Audience geography: countries and regions")
+    p.add_argument("handle", help="@handle, channel URL, or UC... ID")
+    p.add_argument("--start-date", help="Start date YYYY-MM-DD (default: 30 days ago)")
+    p.add_argument("--end-date", help="End date YYYY-MM-DD (default: yesterday)")
+    p.add_argument("--metrics", default="views,estimatedMinutesWatched,averageViewDuration", help="Comma-separated metrics")
+    p.add_argument("--dimensions", default="country", help="Comma-separated dimensions (country,province)")
+    p.add_argument("--filters", help="Filters as key=value,key2=value2")
+    p.add_argument("--sort", default="-views", help="Sort order")
+    p.add_argument("--max-results", type=int, default=100)
+    p.add_argument("--access-token", help="OAuth access token")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_analytics_geography)
+
+    p = sub.add_parser("analytics-traffic-sources", help="Traffic sources: where viewers come from")
+    p.add_argument("handle", help="@handle, channel URL, or UC... ID")
+    p.add_argument("--start-date", help="Start date YYYY-MM-DD (default: 30 days ago)")
+    p.add_argument("--end-date", help="End date YYYY-MM-DD (default: yesterday)")
+    p.add_argument("--metrics", default="views,estimatedMinutesWatched,averageViewDuration", help="Comma-separated metrics")
+    p.add_argument("--dimensions", default="insightTrafficSourceType,insightTrafficSourceDetail", help="Comma-separated dimensions")
+    p.add_argument("--filters", help="Filters as key=value,key2=value2")
+    p.add_argument("--sort", default="-views", help="Sort order")
+    p.add_argument("--max-results", type=int, default=100)
+    p.add_argument("--access-token", help="OAuth access token")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_analytics_traffic_sources)
+
+    p = sub.add_parser("analytics-devices", help="Device breakdown: desktop, mobile, tablet, TV")
+    p.add_argument("handle", help="@handle, channel URL, or UC... ID")
+    p.add_argument("--start-date", help="Start date YYYY-MM-DD (default: 30 days ago)")
+    p.add_argument("--end-date", help="End date YYYY-MM-DD (default: yesterday)")
+    p.add_argument("--metrics", default="views,estimatedMinutesWatched,averageViewDuration", help="Comma-separated metrics")
+    p.add_argument("--dimensions", default="deviceType", help="Comma-separated dimensions (deviceType,operatingSystem,browser)")
+    p.add_argument("--filters", help="Filters as key=value,key2=value2")
+    p.add_argument("--sort", default="-views", help="Sort order")
+    p.add_argument("--max-results", type=int, default=100)
+    p.add_argument("--access-token", help="OAuth access token")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_analytics_devices)
+
+    p = sub.add_parser("analytics-content-comparison", help="Compare video vs Shorts performance")
+    p.add_argument("handle", help="@handle, channel URL, or UC... ID")
+    p.add_argument("--start-date", help="Start date YYYY-MM-DD (default: 30 days ago)")
+    p.add_argument("--end-date", help="End date YYYY-MM-DD (default: yesterday)")
+    p.add_argument("--metrics", default="views,estimatedMinutesWatched,averageViewDuration,subscribersGained", help="Comma-separated metrics")
+    p.add_argument("--dimensions", default="contentType,day", help="Comma-separated dimensions (contentType,day,video)")
+    p.add_argument("--filters", help="Filters as key=value,key2=value2")
+    p.add_argument("--sort", default="-views", help="Sort order")
+    p.add_argument("--max-results", type=int, default=200)
+    p.add_argument("--access-token", help="OAuth access token")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_analytics_content_comparison)
+
+    p = sub.add_parser("analytics-historical-trends", help="Historical trends over time")
+    p.add_argument("handle", help="@handle, channel URL, or UC... ID")
+    p.add_argument("--start-date", help="Start date YYYY-MM-DD (default: 90 days ago)")
+    p.add_argument("--end-date", help="End date YYYY-MM-DD (default: yesterday)")
+    p.add_argument("--metrics", default="views,estimatedMinutesWatched,subscribersGained,subscribersLost,averageViewDuration", help="Comma-separated metrics")
+    p.add_argument("--dimensions", default="day", help="Comma-separated dimensions (day,week,month)")
+    p.add_argument("--filters", help="Filters as key=value,key2=value2")
+    p.add_argument("--sort", default="day", help="Sort order")
+    p.add_argument("--max-results", type=int, default=365)
+    p.add_argument("--access-token", help="OAuth access token")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_analytics_historical_trends)
+
+    p = sub.add_parser("analytics-export", help="Export analytics data to CSV/JSON")
+    p.add_argument("handle", help="@handle, channel URL, or UC... ID")
+    p.add_argument("--report-type", choices=["overview", "demographics", "geography", "traffic-sources", "devices", "content-comparison", "historical-trends"], default="overview")
+    p.add_argument("--start-date", help="Start date YYYY-MM-DD")
+    p.add_argument("--end-date", help="End date YYYY-MM-DD")
+    p.add_argument("--format", choices=["csv", "json"], default="json")
+    p.add_argument("--output", help="Output file path (default: stdout)")
+    p.add_argument("--access-token", help="OAuth access token")
+    p.set_defaults(func=cmd_analytics_export)
+
+    
 
     a = ap.parse_args(_normalize_argv(sys.argv[1:]))
     a.func(a)
+
+
+
+
+def _get_analytics_service(access_token):
+    """Build YouTube Analytics service with OAuth token."""
+    try:
+        from googleapiclient.discovery import build
+        from google.oauth2.credentials import Credentials
+        
+        credentials = Credentials(token=access_token)
+        return build('youtubeAnalytics', 'v2', credentials=credentials, cache_discovery=False)
+    except ImportError:
+        return None, "googleapiclient not installed. Install with: pip install google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2"
+    except Exception as e:
+        return None, f"Failed to build Analytics service: {e}"
+
+
+def _parse_date_range(start_date, end_date):
+    """Parse and validate date range, return (start, end) as strings."""
+    from datetime import datetime, timedelta, date
+    
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    
+    if not end_date:
+        end_date = yesterday.isoformat()
+    if not start_date:
+        start_date = (today - timedelta(days=30)).isoformat()
+    
+    # Validate format
+    try:
+        datetime.fromisoformat(start_date)
+        datetime.fromisoformat(end_date)
+    except ValueError:
+        raise ValueError("Dates must be in YYYY-MM-DD format")
+    
+    return start_date, end_date
+
+
+def _resolve_channel_id(handle, access_token):
+    """Resolve channel handle to UC... channel ID using YouTube Data API."""
+    try:
+        from googleapiclient.discovery import build
+        from google.oauth2.credentials import Credentials
+        
+        credentials = Credentials(token=access_token)
+        youtube = build('youtube', 'v3', credentials=credentials, cache_discovery=False)
+        
+        # Try to resolve handle
+        if handle.startswith('@'):
+            handle = handle[1:]
+        
+        # Search for channel
+        request = youtube.search().list(
+            part='snippet',
+            q=handle,
+            type='channel',
+            maxResults=1
+        )
+        response = request.execute()
+        
+        if response.get('items'):
+            return response['items'][0]['snippet']['channelId']
+        
+        # Try direct channel ID
+        if handle.startswith('UC') and len(handle) == 24:
+            return handle
+            
+        raise ValueError(f"Could not resolve channel: {handle}")
+    except Exception as e:
+        raise ValueError(f"Failed to resolve channel ID: {e}")
+
+
+def cmd_analytics_overview(args):
+    """Channel overview: views, watch time, subscribers."""
+    try:
+        service, error = _get_analytics_service(args.access_token)
+        if error:
+            print(json.dumps({"success": False, "error": error}))
+            return
+        
+        channel_id = _resolve_channel_id(args.handle, args.access_token)
+        start_date, end_date = _parse_date_range(args.start_date, args.end_date)
+        
+        metrics = args.metrics
+        dimensions = args.dimensions if args.dimensions else "day"
+        
+        request = service.reports().query(
+            ids=f"channel=={channel_id}",
+            startDate=start_date,
+            endDate=end_date,
+            metrics=metrics,
+            dimensions=dimensions,
+            filters=args.filters,
+            sort=args.sort,
+            maxResults=args.max_results
+        )
+        
+        response = request.execute()
+        
+        # Add metadata
+        response['_meta'] = {
+            'channel_id': channel_id,
+            'start_date': start_date,
+            'end_date': end_date,
+            'metrics': metrics,
+            'dimensions': dimensions,
+            'report_type': 'overview'
+        }
+        
+        if args.json:
+            print(json.dumps({"success": True, "data": response}))
+        else:
+            # Human readable output
+            rows = response.get('rows', [])
+            headers = response.get('columnHeaders', [])
+            print(f"Channel Analytics Overview ({start_date} to {end_date})")
+            print(f"Channel: {channel_id}")
+            print(f"Metrics: {metrics}")
+            print(f"Dimensions: {dimensions}")
+            print(f"Rows: {len(rows)}")
+            if headers:
+                print(' | '.join([h['name'] for h in headers]))
+                for row in rows[:20]:
+                    print(' | '.join(str(v) for v in row))
+            if len(rows) > 20:
+                print(f"... and {len(rows) - 20} more rows")
+        
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_analytics_demographics(args):
+    """Audience demographics: age groups and gender."""
+    try:
+        service, error = _get_analytics_service(args.access_token)
+        if error:
+            print(json.dumps({"success": False, "error": error}))
+            return
+        
+        channel_id = _resolve_channel_id(args.handle, args.access_token)
+        start_date, end_date = _parse_date_range(args.start_date, args.end_date)
+        
+        request = service.reports().query(
+            ids=f"channel=={channel_id}",
+            startDate=start_date,
+            endDate=end_date,
+            metrics=args.metrics,
+            dimensions=args.dimensions,
+            filters=args.filters,
+            sort=args.sort,
+            maxResults=args.max_results
+        )
+        
+        response = request.execute()
+        response['_meta'] = {
+            'channel_id': channel_id,
+            'start_date': start_date,
+            'end_date': end_date,
+            'report_type': 'demographics'
+        }
+        
+        if args.json:
+            print(json.dumps({"success": True, "data": response}))
+        else:
+            rows = response.get('rows', [])
+            headers = response.get('columnHeaders', [])
+            print(f"Audience Demographics ({start_date} to {end_date})")
+            if headers:
+                print(' | '.join([h['name'] for h in headers]))
+                for row in rows:
+                    print(' | '.join(str(v) for v in row))
+        
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_analytics_geography(args):
+    """Audience geography: countries and regions."""
+    try:
+        service, error = _get_analytics_service(args.access_token)
+        if error:
+            print(json.dumps({"success": False, "error": error}))
+            return
+        
+        channel_id = _resolve_channel_id(args.handle, args.access_token)
+        start_date, end_date = _parse_date_range(args.start_date, args.end_date)
+        
+        request = service.reports().query(
+            ids=f"channel=={channel_id}",
+            startDate=start_date,
+            endDate=end_date,
+            metrics=args.metrics,
+            dimensions=args.dimensions,
+            filters=args.filters,
+            sort=args.sort,
+            maxResults=args.max_results
+        )
+        
+        response = request.execute()
+        response['_meta'] = {
+            'channel_id': channel_id,
+            'start_date': start_date,
+            'end_date': end_date,
+            'report_type': 'geography'
+        }
+        
+        if args.json:
+            print(json.dumps({"success": True, "data": response}))
+        else:
+            rows = response.get('rows', [])
+            headers = response.get('columnHeaders', [])
+            print(f"Audience Geography ({start_date} to {end_date})")
+            if headers:
+                print(' | '.join([h['name'] for h in headers]))
+                for row in rows[:50]:
+                    print(' | '.join(str(v) for v in row))
+        
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_analytics_traffic_sources(args):
+    """Traffic sources: where viewers come from."""
+    try:
+        service, error = _get_analytics_service(args.access_token)
+        if error:
+            print(json.dumps({"success": False, "error": error}))
+            return
+        
+        channel_id = _resolve_channel_id(args.handle, args.access_token)
+        start_date, end_date = _parse_date_range(args.start_date, args.end_date)
+        
+        request = service.reports().query(
+            ids=f"channel=={channel_id}",
+            startDate=start_date,
+            endDate=end_date,
+            metrics=args.metrics,
+            dimensions=args.dimensions,
+            filters=args.filters,
+            sort=args.sort,
+            maxResults=args.max_results
+        )
+        
+        response = request.execute()
+        response['_meta'] = {
+            'channel_id': channel_id,
+            'start_date': start_date,
+            'end_date': end_date,
+            'report_type': 'traffic_sources'
+        }
+        
+        if args.json:
+            print(json.dumps({"success": True, "data": response}))
+        else:
+            rows = response.get('rows', [])
+            headers = response.get('columnHeaders', [])
+            print(f"Traffic Sources ({start_date} to {end_date})")
+            if headers:
+                print(' | '.join([h['name'] for h in headers]))
+                for row in rows:
+                    print(' | '.join(str(v) for v in row))
+        
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_analytics_devices(args):
+    """Device breakdown: desktop, mobile, tablet, TV."""
+    try:
+        service, error = _get_analytics_service(args.access_token)
+        if error:
+            print(json.dumps({"success": False, "error": error}))
+            return
+        
+        channel_id = _resolve_channel_id(args.handle, args.access_token)
+        start_date, end_date = _parse_date_range(args.start_date, args.end_date)
+        
+        request = service.reports().query(
+            ids=f"channel=={channel_id}",
+            startDate=start_date,
+            endDate=end_date,
+            metrics=args.metrics,
+            dimensions=args.dimensions,
+            filters=args.filters,
+            sort=args.sort,
+            maxResults=args.max_results
+        )
+        
+        response = request.execute()
+        response['_meta'] = {
+            'channel_id': channel_id,
+            'start_date': start_date,
+            'end_date': end_date,
+            'report_type': 'devices'
+        }
+        
+        if args.json:
+            print(json.dumps({"success": True, "data": response}))
+        else:
+            rows = response.get('rows', [])
+            headers = response.get('columnHeaders', [])
+            print(f"Device Breakdown ({start_date} to {end_date})")
+            if headers:
+                print(' | '.join([h['name'] for h in headers]))
+                for row in rows:
+                    print(' | '.join(str(v) for v in row))
+        
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_analytics_content_comparison(args):
+    """Compare video vs Shorts performance."""
+    try:
+        service, error = _get_analytics_service(args.access_token)
+        if error:
+            print(json.dumps({"success": False, "error": error}))
+            return
+        
+        channel_id = _resolve_channel_id(args.handle, args.access_token)
+        start_date, end_date = _parse_date_range(args.start_date, args.end_date)
+        
+        request = service.reports().query(
+            ids=f"channel=={channel_id}",
+            startDate=start_date,
+            endDate=end_date,
+            metrics=args.metrics,
+            dimensions=args.dimensions,
+            filters=args.filters,
+            sort=args.sort,
+            maxResults=args.max_results
+        )
+        
+        response = request.execute()
+        response['_meta'] = {
+            'channel_id': channel_id,
+            'start_date': start_date,
+            'end_date': end_date,
+            'report_type': 'content_comparison'
+        }
+        
+        if args.json:
+            print(json.dumps({"success": True, "data": response}))
+        else:
+            rows = response.get('rows', [])
+            headers = response.get('columnHeaders', [])
+            print(f"Content Comparison: Video vs Shorts ({start_date} to {end_date})")
+            if headers:
+                print(' | '.join([h['name'] for h in headers]))
+                for row in rows:
+                    print(' | '.join(str(v) for v in row))
+        
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_analytics_historical_trends(args):
+    """Historical trends over time."""
+    try:
+        service, error = _get_analytics_service(args.access_token)
+        if error:
+            print(json.dumps({"success": False, "error": error}))
+            return
+        
+        channel_id = _resolve_channel_id(args.handle, args.access_token)
+        start_date, end_date = _parse_date_range(args.start_date, args.end_date)
+        
+        request = service.reports().query(
+            ids=f"channel=={channel_id}",
+            startDate=start_date,
+            endDate=end_date,
+            metrics=args.metrics,
+            dimensions=args.dimensions,
+            filters=args.filters,
+            sort=args.sort,
+            maxResults=args.max_results
+        )
+        
+        response = request.execute()
+        response['_meta'] = {
+            'channel_id': channel_id,
+            'start_date': start_date,
+            'end_date': end_date,
+            'report_type': 'historical_trends'
+        }
+        
+        if args.json:
+            print(json.dumps({"success": True, "data": response}))
+        else:
+            rows = response.get('rows', [])
+            headers = response.get('columnHeaders', [])
+            print(f"Historical Trends ({start_date} to {end_date})")
+            if headers:
+                print(' | '.join([h['name'] for h in headers]))
+                for row in rows:
+                    print(' | '.join(str(v) for v in row))
+        
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def cmd_analytics_export(args):
+    """Export analytics data to CSV/JSON."""
+    try:
+        # Determine which report function to call
+        report_funcs = {
+            'overview': cmd_analytics_overview,
+            'demographics': cmd_analytics_demographics,
+            'geography': cmd_analytics_geography,
+            'traffic-sources': cmd_analytics_traffic_sources,
+            'devices': cmd_analytics_devices,
+            'content-comparison': cmd_analytics_content_comparison,
+            'historical-trends': cmd_analytics_historical_trends,
+        }
+        
+        func = report_funcs.get(args.report_type)
+        if not func:
+            print(json.dumps({"success": False, "error": f"Unknown report type: {args.report_type}"}))
+            return
+        
+        # Capture output
+        import io
+        import sys
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        
+        # Temporarily replace args to force json output
+        args.json = True
+        func(args)
+        
+        output = sys.stdout.getvalue()
+        sys.stdout = old_stdout
+        
+        if args.output:
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(output)
+            print(f"Exported to {args.output}")
+        else:
+            print(output)
+        
+    except Exception as e:
+        print(json.dumps({"success": False, "error": str(e)}))
+
+
+def _get_analytics_service(access_token):
+    """Build YouTube Analytics service with OAuth token."""
+    try:
+        from googleapiclient.discovery import build
+        from google.oauth2.credentials import Credentials
+        
+        credentials = Credentials(token=access_token)
+        return build('youtubeAnalytics', 'v2', credentials=credentials, cache_discovery=False)
+    except ImportError:
+        return None, "googleapiclient not installed. Install with: pip install google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2"
+    except Exception as e:
+        return None, f"Failed to build Analytics service: {e}"
+
+
+def _parse_date_range(start_date, end_date):
+    """Parse and validate date range, return (start, end) as strings."""
+    from datetime import datetime, timedelta, date
+    
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    
+    if not end_date:
+        end_date = yesterday.isoformat()
+    if not start_date:
+        start_date = (today - timedelta(days=30)).isoformat()
+    
+    # Validate format
+    try:
+        datetime.fromisoformat(start_date)
+        datetime.fromisoformat(end_date)
+    except ValueError:
+        raise ValueError("Dates must be in YYYY-MM-DD format")
+    
+    return start_date, end_date
+
+
+def _resolve_channel_id(handle, access_token):
+    """Resolve channel handle to UC... channel ID using YouTube Data API."""
+    try:
+        from googleapiclient.discovery import build
+        from google.oauth2.credentials import Credentials
+        
+        credentials = Credentials(token=access_token)
+        youtube = build('youtube', 'v3', credentials=credentials, cache_discovery=False)
+        
+        # Try to resolve handle
+        if handle.startswith('@'):
+            handle = handle[1:]
+        
+        # Search for channel
+        request = youtube.search().list(
+            part='snippet',
+            q=handle,
+            type='channel',
+            maxResults=1
+        )
+        response = request.execute()
+        
+        if response.get('items'):
+            return response['items'][0]['snippet']['channelId']
+        
+        # Try direct channel ID
+        if handle.startswith('UC') and len(handle) == 24:
+            return handle
+            
+        raise ValueError(f"Could not resolve channel: {handle}")
+    except Exception as e:
+        raise ValueError(f"Failed to resolve channel ID: {e}")
 
 
 if __name__ == "__main__":

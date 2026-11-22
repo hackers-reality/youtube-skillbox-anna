@@ -3180,6 +3180,174 @@ function wireRetention() {
 }
 
 /* ---------- boot ---------- */
+
+
+/* ---------- analytics ---------- */
+async function runAnalyticsReport() {
+  const handle = byId("analytics-handle").value.trim();
+  const reportType = byId("analytics-report").value;
+  const format = byId("analytics-format").value;
+  const startDate = byId("analytics-start").value;
+  const endDate = byId("analytics-end").value;
+  const output = byId("analytics-output");
+  const errorDiv = byId("analytics-error");
+  const runBtn = byId("analytics-run");
+  const exportBtn = byId("analytics-export");
+
+  if (!handle) {
+    errorDiv.textContent = "Enter a channel handle first — @yourchannel or youtube.com/@yourchannel";
+    errorDiv.classList.remove("hidden");
+    return;
+  }
+
+  errorDiv.textContent = "";
+  errorDiv.classList.add("hidden");
+  output.classList.add("hidden");
+  exportBtn.disabled = true;
+  runBtn.disabled = true;
+  runBtn.textContent = "Running...";
+  output.classList.remove("hidden");
+  output.innerHTML = '<div class="skeleton-stack"><span class="skeleton skeleton-wide"></span><span class="skeleton"></span><span class="skeleton skeleton-short"></span></div>';
+
+  try {
+    const accessToken = await OAuth.getValidAccessToken();
+    if (!accessToken) {
+      throw new Error("No valid OAuth token. Connect your channel with Google first.");
+    }
+
+    const reportMap = {
+      overview: "analytics-overview",
+      demographics: "analytics-demographics",
+      geography: "analytics-geography",
+      "traffic-sources": "analytics-traffic-sources",
+      devices: "analytics-devices",
+      "content-comparison": "analytics-content-comparison",
+      "historical-trends": "analytics-historical-trends",
+    };
+
+    const method = reportMap[byId("analytics-report").value];
+    if (!method) throw new Error("Unknown report type");
+
+    const args = {
+      handle: byId("analytics-handle").value.trim(),
+      access_token: accessToken,
+    };
+
+    if (byId("analytics-start").value) args.start_date = byId("analytics-start").value;
+    if (byId("analytics-end").value) args.end_date = byId("analytics-end").value;
+
+    const result = await tool(method, args, 180000);
+
+    if (!result || result.error) {
+      throw new Error(result?.error || "Analytics API returned no data");
+    }
+
+    const data = result.data || result;
+    const meta = data._meta || {};
+    const rows = data.rows || [];
+    const headers = data.columnHeaders || [];
+
+    // Render based on format
+    let html = "";
+    if (byId("analytics-format").value === "json") {
+      html = '<pre class="output-pre">' + escapeHtml(JSON.stringify(data, null, 2)) + '</pre>';
+    } else if (byId("analytics-format").value === "csv") {
+      if (headers.length && rows.length) {
+        const csvRows = [headers.map(h => h.name).join(",")];
+        rows.forEach(row => csvRows.push(row.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")));
+        html = '<pre class="output-pre">' + escapeHtml(csvRows.join("
+")) + '</pre>';
+        byId("analytics-export").disabled = false;
+        byId("analytics-export").onclick = () => downloadCSV(csvRows.join("
+"), 'analytics-' + byId("analytics-report").value + '-' + Date.now() + '.csv');
+      } else {
+        html = '<div class="note warn">No data rows to export as CSV</div>';
+      }
+    } else {
+      // Dashboard format
+      html = renderAnalyticsDashboard(data, meta, byId("analytics-report").value);
+      byId("analytics-export").disabled = false;
+      byId("analytics-export").onclick = () => {
+        // Switch to CSV and trigger download
+        const csvBtn = byId("analytics-format");
+        csvBtn.value = "csv";
+        runAnalyticsReport();
+      };
+    }
+
+    output.innerHTML = html;
+    output.classList.remove("hidden");
+  } catch (error) {
+    output.innerHTML = '<div class="note err"><b>Analytics report failed</b><span>' + escapeHtml(String(error.message || error)) + '</span></div>';
+    output.classList.remove("hidden");
+  } finally {
+    runBtn.disabled = false;
+    runBtn.textContent = "Run Report";
+  }
+}
+
+function renderAnalyticsDashboard(data, meta, reportType) {
+  const rows = data.rows || [];
+  const headers = data.columnHeaders || [];
+  const reportTitles = {
+    overview: "Channel Overview",
+    demographics: "Audience Demographics",
+    geography: "Audience Geography",
+    "traffic-sources": "Traffic Sources",
+    devices: "Device Breakdown",
+    "content-comparison": "Video vs Shorts Comparison",
+    "historical-trends": "Historical Trends",
+  }
+
+  let html = '<div class="analytics-dashboard">';
+  html += '<div class="analytics-header"><h3>' + (reportTitles[meta.report_type] || reportType) + '</h3>';
+  html += '<p class="hint">Channel: ' + (meta.channel_id || "—") + ' | ' + (meta.start_date || "—") + ' to ' + (meta.end_date || "—") + ' | ' + rows.length + ' rows</p></div>';
+
+  if (headers.length && rows.length) {
+    html += '<div class="table-wrap"><table class="tbl"><thead><tr>';
+    headers.forEach(h => html += '<th>' + escapeHtml(h.name) + '</th>');
+    html += '</tr></thead><tbody>';
+    rows.slice(0, 100).forEach(row => {
+      html += '<tr>';
+      row.forEach(v => html += '<td>' + escapeHtml(String(v)) + '</td>');
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    if (rows.length > 100) {
+      html += '<p class="hint">Showing 100 of ' + rows.length + ' rows. Use JSON/CSV export for full data.</p>';
+    }
+  } else {
+    html += '<div class="empty-state"><strong>No data returned</strong><span>Try adjusting the date range or report type.</span></div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function downloadCSV(csvText, filename) {
+  const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function wireAnalytics() {
+  byId("analytics-run")?.addEventListener("click", runAnalyticsReport);
+  byId("analytics-export")?.addEventListener("click", () => {
+    // Trigger CSV export by switching format
+    const fmt = byId("analytics-format");
+    fmt.value = "csv";
+    runAnalyticsReport();
+  });
+}
+
+/* ---------- analytics end ---------- */
+
 async function main() {
   // Handle OAuth callback before anything else
   if (location.pathname.endsWith("/oauth-callback") || location.search.includes("code=")) {
