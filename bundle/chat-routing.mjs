@@ -20,7 +20,7 @@ export function planChatTools({ message = "", handle = "", profile = {}, hasRete
     add("outliers", "outliers", { handle, min_ratio: 2 }, 180000);
   }
   if (handle && (asksIdentity || (asksMeasuredChannel && !asksPerformance))) add("profile", "profile", { handle });
-  if (/community|\bposts?\b/.test(lower)) add("community_posts", "posts", { handle, limit: 12 });
+  if (handle && /community|\bposts?\b/.test(lower)) add("community_posts", "posts", { handle, limit: 12 });
   if (handle && /home|shelf|featured/.test(lower)) add("home_shelves", "home", { handle, limit: 8, verbose: true });
   if (/\bshows?\b/.test(lower)) add("shows", "shows", { handle, limit: 12 });
 
