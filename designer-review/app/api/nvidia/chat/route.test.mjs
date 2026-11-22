@@ -140,3 +140,19 @@ test("chat endpoint rejects oversized requests before calling NVIDIA", async () 
   }));
   assert.equal(response.status, 413);
 });
+
+test("legacy single-image and multi-image client payloads are normalized for NVIDIA vision", async () => {
+  process.env.NVIDIA_API_KEY = "test-secret-not-for-output";
+  delete process.env.NVIDIA_VISION_MODEL;
+  let captured;
+  globalThis.fetch = async (_url, options) => {
+    captured = JSON.parse(options.body);
+    return Response.json({ choices: [{ message: { content: "Image reviewed." } }] });
+  };
+  const single = await post({ userMessage: "Review this thumbnail", imageBlock: { type: "image", mimeType: "image/png", data: "aGVsbG8=" } });
+  assert.equal(single.status, 200);
+  assert.equal(captured.messages[0].content[1].type, "image_url");
+  const multiple = await post({ userMessage: "Compare these thumbnails", imageBlocks: [{ mimeType: "image/jpeg", data: "aGVsbG8=" }] });
+  assert.equal(multiple.status, 200);
+  assert.equal(captured.messages[0].content[1].type, "image_url");
+});
