@@ -7,6 +7,7 @@ const html = await readFile(new URL("../public/skillbox/index.html", import.meta
 const page = await readFile(new URL("../app/page.jsx", import.meta.url), "utf8");
 const originalApp = await readFile(new URL("../../bundle/app.js", import.meta.url), "utf8");
 const skillboxApi = await readFile(new URL("../api/skillbox.py", import.meta.url), "utf8");
+const routing = await readFile(new URL("../public/skillbox/chat-routing.mjs", import.meta.url), "utf8");
 
 const functionNames = (source) => [...source.matchAll(/^(?:async\s+)?function\s+([\w$]+)\s*\(/gm)].map((match) => match[1]);
 
@@ -65,4 +66,11 @@ test("copy controls use the Clipboard API with a textarea fallback and visible f
   assert.ok(app.includes('byId("onboarding-copy")?.addEventListener("click", async () => { const copied = await copyWithFeedback'));
   assert.ok(app.includes('copyWithFeedback(original, byId("copy-description"))'));
   assert.ok(!app.includes("navigator.clipboard.writeText(profileState.phrase)"));
+});
+
+test("standalone runtime imports its chat planner and never falls back to the Anna host", () => {
+  assert.match(app, /^import \\{ planChatTools \\} from ["\x27]\\.\\/chat-routing\\.mjs["\x27];/);
+  assert.match(app, /Standalone preview — Skillbox tools and NVIDIA NIM are ready/);
+  assert.doesNotMatch(app, /Open this app inside NVIDIA NIM|open via anna-app dev/);
+  assert.match(routing, /export function planChatTools/);
 });
