@@ -1217,6 +1217,48 @@ function renderAuditCards(handle, ev, verdict) {
   ${kwRows ? `<div class="card"><h3>Keyword angles <span class="ev ev-measured">MEASURED</span> · <span class="hint" style="margin:0">verdicts are INFERRED</span></h3>
     <table class="tbl"><thead><tr><th>Idea</th><th>Opportunity</th><th>Competition</th><th>Call</th></tr></thead><tbody>${kwRows}</tbody></table></div>` : ""}
 
+  ${(function renderChannelDNA() {
+    const dna = ev.channel_dna;
+    if (!dna || dna.error) return "";
+    const status = dna.status || "unknown";
+    const dominant = dna.dominant_niche || "none detected";
+    const confidence = dna.confidence || "none";
+    const sample = dna.sample_size || 0;
+    const classified = dna.classified_video_count || 0;
+    const clusters = dna.topic_clusters || [];
+    const experimental = dna.experimental_topics || [];
+    const formatMix = dna.format_mix || [];
+    const focus = dna.creator_confirmed_focus || "";
+    const methodology = dna.methodology || {};
+
+    let html = `<div class="card"><h3>Channel DNA <span class="ev ev-${status === 'inferred' ? 'inferred' : 'hypothesis'}">${status === 'inferred' ? 'INFERRED' : status.toUpperCase()}</span></h3>`;
+    html += `<p class="hint">Sample: ${sample} videos, ${classified} classified. Dominant niche: <b>${escapeHtml(dominant)}</b> (${confidence} confidence).${focus ? ` Creator focus: "${escapeHtml(focus)}".` : ""}</p>`;
+
+    if (clusters.length) {
+      html += `<table class="tbl"><thead><tr><th>Niche</th><th>Videos</th><th>Share</th><th>Weighted score</th><th>Evidence</th></tr></thead><tbody>`;
+      for (const c of clusters) {
+        const evList = (c.evidence || []).map(e => `<li>${escapeHtml(e.title || "Untitled")}${e.url ? ` <a href="${escapeHtml(e.url)}" target="_blank" rel="noopener">link</a>` : ""}</li>`).join("");
+        html += `<tr><td>${escapeHtml(c.topic)}</td><td>${c.video_count}</td><td>${(c.share_of_classified_content * 100).toFixed(1)}%</td><td>${c.weighted_content_score.toFixed(1)}</td><td>${evList ? `<ul class="dna-evidence">${evList}</ul>` : "—"}</td></tr>`;
+      }
+      html += `</tbody></table>`;
+    }
+
+    if (experimental.length) {
+      html += `<div class="hint"><b>Experimental topics (single upload):</b> ${experimental.map(c => escapeHtml(c.topic)).join(", ")}</div>`;
+    }
+
+    if (formatMix.length) {
+      html += `<div class="hint"><b>Format mix:</b> ${formatMix.map(f => `${f.format} (${f.video_count})`).join(", ")}</div>`;
+    }
+
+    if (methodology.content_weights) {
+      html += `<details class="methodology"><summary>Methodology</summary><p class="hint">Content weights: title ${methodology.content_weights.title}, transcript ${methodology.content_weights.transcript}, description ${methodology.content_weights.description}, tags ${methodology.content_weights.tags}. Min video score: ${methodology.minimum_video_content_score}. Min dominant count: ${methodology.minimum_dominant_video_count}. Min dominant share: ${(methodology.minimum_dominant_share * 100).toFixed(0)}%. Min category margin: ${methodology.minimum_category_margin}.</p></details>`;
+    }
+
+    html += `</div>`;
+    return html;
+  })()}
+
   <div class="card bigfix">
     <div class="label">The Audit — evidence-only measurements</div>
     <div class="audit-report" style="margin-top:8px">${renderMd(verdict)}</div>

@@ -488,3 +488,13 @@ html[data-theme="light"] input[type="text"],html[data-theme="light"] input[type=
 .studio-result-detail:first-child{border-top:0}.studio-result-detail span{color:var(--text-dim);font-size:10px;text-transform:capitalize}
 .studio-result-detail strong{max-width:70%;text-align:right;color:var(--text);font-size:11px;font-weight:600}
 @media(max-width:620px){.studio-result-grid{grid-template-columns:1fr}.studio-result-card{padding:12px}}
+
+/* Channel DNA audit card */
+.dna-evidence{margin:0;padding-left:18px;font-size:11px;line-height:1.5;max-height:120px;overflow:auto}
+.dna-evidence li{padding:1px 0;color:var(--text-2)}
+.dna-evidence a{color:var(--blue);text-decoration:none}
+.dna-evidence a:hover{text-decoration:underline}
+.methodology{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+.methodology summary{cursor:pointer;color:var(--text-3);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.methodology summary:hover{color:var(--text-2)}
+.methodology .hint{font-size:10px;line-height:1.5}
