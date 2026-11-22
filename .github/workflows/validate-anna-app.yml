@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/anna-skillbox-studio-redesign
+      - feat/creator-operating-system
   pull_request:
     branches:
       - main
