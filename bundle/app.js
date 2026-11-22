@@ -558,6 +558,8 @@ async function chatContext(message, attachment = null) {
         views: item.views ?? item.view_count,
         format: item.format || item.kind || "video",
       }));
+      evidenceMap.channel_videos = { sample_count: dnaVideos.length, sampled_titles: dnaVideos.slice(0, 30).map((item) => item.title) };
+      evidenceMap.channel_outliers = { sample_count: outlierVideos.length, used_as_supporting_evidence: true };
       try {
         evidenceMap.channel_dna = await tool("channel_dna", {
           videos_json: JSON.stringify(dnaVideos),
