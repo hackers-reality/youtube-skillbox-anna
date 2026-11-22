@@ -14,6 +14,7 @@
 - Added a deterministic `channel_dna` Executa tool and registered it in both the Python runtime manifest and the declarative Executa manifest.
 - Ask Anna now routes channel-niche / Channel DNA questions to a sample of up to 30 recent public videos plus public outliers, then passes a bounded evidence summary and the classifier result to the Anna LLM.
 - Topic scoring weights titles, transcripts, and descriptions; tags have zero classification weight and cannot independently establish a niche.
+- Explicit Channel DNA requests enrich up to six representative videos with available original-language captions before classification; missing captions remain unavailable evidence, not negative signals.
 - One-video topic clusters are reported as experimental topics instead of being promoted to the dominant niche.
 - Added regression fixtures for space/science, gaming, cooking, education, entertainment, technology, music, and business, including the space/science channel with one isolated AI/farmer experiment.
 - GitHub Actions validation passed on the Creator OS branch after the initial Channel DNA integration (Python, frontend, strict Anna manifest validation, and JSON/HTML checks).
