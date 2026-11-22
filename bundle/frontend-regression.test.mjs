@@ -10,7 +10,8 @@ assert.deepEqual(planChatTools({ message: "Analyze these community posts", handl
 assert.deepEqual(planChatTools({ message: "Why does retention drop here?", handle: "@creator", hasRetentionAttachment: true }), []);
 assert.deepEqual(planChatTools({ message: "Research competition for space facts", handle: "@creator" }).map((item) => item.method), ["keywords", "search", "compete"]);
 assert.deepEqual(planChatTools({ message: "Analyze my channel DNA and niche", handle: "@creator" }).map((item) => item.method), ["channel", "outliers", "profile"]);
-assert.deepEqual(planChatTools({ message: "Research emerging topics about space science" }).map((item) => item.method), ["keywords", "search"]);\nassert.deepEqual(planChatTools({ message: "Audit my channel performance" }).map((item) => item.method), []);
+assert.deepEqual(planChatTools({ message: "Research emerging topics about space science" }).map((item) => item.method), ["keywords", "search"]);
+assert.deepEqual(planChatTools({ message: "Audit my channel performance" }).map((item) => item.method), []);
 assert.deepEqual(planChatTools({ message: "Analyze community posts" }).map((item) => item.method), []);
 
 // $() returns one DOM node; $$() is required for selector collections.
