@@ -560,6 +560,32 @@ async function chatContext(message, attachment = null) {
       }));
       evidenceMap.channel_videos = { sample_count: dnaVideos.length, sampled_titles: dnaVideos.slice(0, 30).map((item) => item.title) };
       evidenceMap.channel_outliers = { sample_count: outlierVideos.length, used_as_supporting_evidence: true };
+
+      // Caption availability varies by video. Enrich a small, bounded subset;
+      // never interpret missing captions as evidence that a topic is absent.
+      const transcriptCandidates = dnaVideos.filter((item) => item.id || item.url).slice(0, 6);
+      const transcriptResults = await Promise.allSettled(transcriptCandidates.map((item) =>
+        tool("transcribe", { video: item.url || item.id, language: "auto" }, 90000)
+      ));
+      let transcriptCount = 0;
+      transcriptResults.forEach((result, index) => {
+        if (result.status !== "fulfilled" || !result.value?.success) return;
+        const payload = result.value.data || result.value;
+        const transcript = String(payload.transcript || "").slice(0, 12000);
+        if (!transcript) return;
+        const candidate = transcriptCandidates[index];
+        const target = dnaVideos.find((item) => String(item.id || item.url) === String(candidate.id || candidate.url));
+        if (target) {
+          target.transcript = transcript;
+          target.transcript_language = payload.language || payload.original_language || "unknown";
+          transcriptCount += 1;
+        }
+      });
+      evidenceMap.transcripts = {
+        attempted: transcriptCandidates.length,
+        available: transcriptCount,
+        note: "Only returned captions are used; unavailable captions are not treated as negative topic evidence.",
+      };
       try {
         evidenceMap.channel_dna = await tool("channel_dna", {
           videos_json: JSON.stringify(dnaVideos),
