@@ -311,7 +311,7 @@ function renderOnboarding() {
   const avatar = profileAvatar(profile || {});
   if (onboardingStep === "guest") {
     title.textContent = "Guest workspace";
-    copy.textContent = "Public research remains available. Personal Anna chat is locked until you verify a channel.";
+    copy.textContent = "Guest mode includes Anna chat, public topic research and uploaded exports. Verify a channel to unlock channel-specific context.";
     content.innerHTML = `<div class="onboarding-actions"><button id="guest-connect" class="btn btn-primary" type="button">Connect a channel</button><button id="guest-logout" class="btn" type="button">Log out & clear saved data</button></div>`;
     byId("guest-connect")?.addEventListener("click", () => openOnboarding("identity"));
     byId("guest-logout")?.addEventListener("click", clearWorkspaceSession);
@@ -320,7 +320,7 @@ function renderOnboarding() {
   if (onboardingStep === "identity") {
     title.textContent = "Make Skillbox yours.";
     copy.textContent = "Enter your exact YouTube channel handle. We’ll show the public channel name and logo before you continue.";
-    content.innerHTML = `<label class="field"><span>YouTube channel handle</span><input id="onboarding-handle" type="text" placeholder="@yourchannel" autocomplete="off" spellcheck="false" /></label><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div><div class="onboarding-actions"><button id="onboarding-find" class="btn btn-primary" type="button">Find my channel</button><button id="onboarding-guest" class="btn" type="button">Continue as guest</button></div><p class="hint">Guest mode keeps public research available; personal channel chat stays locked.</p>`;
+    content.innerHTML = `<label class="field"><span>YouTube channel handle</span><input id="onboarding-handle" type="text" placeholder="@yourchannel" autocomplete="off" spellcheck="false" /></label><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div><div class="onboarding-actions"><button id="onboarding-find" class="btn btn-primary" type="button">Find my channel</button><button id="onboarding-guest" class="btn" type="button">Continue as guest</button></div><p class="hint">Guest mode includes Anna chat, public topic research and uploaded exports; verify a channel for channel-specific context.</p>`;
     byId("onboarding-find")?.addEventListener("click", async () => {
       const value = byId("onboarding-handle").value.trim();
       if (!value || (!value.startsWith("@") && !/youtube\.com\/(?:@|channel\/)/i.test(value))) {
@@ -396,7 +396,7 @@ function renderProfileState() {
     if (handle) handle.textContent = guestMode ? "Personal chat locked" : "Choose a channel";
     if (avatar) avatar.textContent = guestMode ? "G" : "?";
     byId("chat-guest-note")?.classList.toggle("hidden", !guestMode);
-    setPersonalChatEnabled(false);
+    setPersonalChatEnabled(guestMode);
     return;
   }
   const profile = profileState.profile;
@@ -407,14 +407,14 @@ function renderProfileState() {
   if (handle) handle.textContent = profileState.verified ? displayHandle + " · verified" : displayHandle;
   if (avatar) avatar.innerHTML = image ? `<img src="${escapeHtml(image)}" alt="" />` : escapeHtml(String(displayName).slice(0, 1).toUpperCase());
   byId("chat-guest-note")?.classList.toggle("hidden", !!profileState.verified);
-  setPersonalChatEnabled(!!profileState.verified);
+  setPersonalChatEnabled(!!profileState.verified || guestMode);
 }
 
 function setPersonalChatEnabled(enabled) {
   const input = byId("chat-input");
   const send = byId("chat-send");
   const attach = byId("chat-attach");
-  if (input) { input.disabled = !enabled; input.placeholder = enabled ? "Ask Anna about your channel…" : "Verify your channel to unlock personal chat…"; }
+  if (input) { input.disabled = !enabled; input.placeholder = enabled ? (profileState?.verified ? "Ask Anna about your channel…" : "Ask Anna for public research or upload an export…") : "Connect a channel or continue as guest…"; }
   if (send) send.disabled = !enabled;
   if (attach) attach.disabled = !enabled;
   $$("[data-chat-prompt]").forEach((button) => { button.disabled = !enabled; });
@@ -535,8 +535,8 @@ async function readChatAttachment(file) {
 
 async function chatContext(message, attachment = null) {
   let evidence = "";
-  if (profileState?.verified) {
-    const handle = profileState.handle;
+  if (profileState?.verified || guestMode) {
+    const handle = profileState?.verified ? profileState.handle : "";
     const requests = planChatTools({ message, handle, profile: profileState.profile, hasRetentionAttachment: !!attachment && !attachment.dataUrl });
     const calls = await Promise.allSettled(requests.map(({ method, args, timeout }) => tool(method, args, timeout)));
     const liveValues = calls.filter((call) => call.status === "fulfilled").map((call) => call.value);
@@ -758,7 +758,7 @@ function wireChat() {
   const send = async (message) => {
     const text = String(message || byId("chat-input").value || "").trim();
     const attachment = chatAttachment;
-    if (!profileState?.verified) { openOnboarding(profileState ? "phrase" : "identity"); return; }
+    if (!profileState?.verified && !guestMode) { openOnboarding(profileState ? "phrase" : "identity"); return; }
     if (!text && !attachment) { if (!anna || standalone) chatAdd("assistant", "Open this app inside Anna to use the live guide."); return; }
     if ((!anna || standalone) && attachment && !text) { chatAdd("assistant", "Open this app inside Anna to analyze an attachment."); return; }
     byId("chat-input").value = "";
@@ -771,12 +771,12 @@ function wireChat() {
     try {
       const system = "You are Anna inside YouTube Skillbox. Answer like a calm creator strategist. Separate MEASURED facts, INFERRED explanations, HYPOTHESES and RECOMMENDATIONS. Use only evidence present in this request; never invent channel numbers, and if context contains an error say the measurement is unavailable. Public view counts, titles, thumbnails and outlier ratios alone cannot establish audience preference, why a video performed, what the recommendation algorithm did, CTR, or causality. Do not state those as facts; if useful, label them HYPOTHESES and name the missing evidence. Never claim YouTube was edited or content was published. Treat prior interpretations as unverified, not evidence. For a thumbnail image, give a transparent heuristic score out of 10 for hook clarity, hierarchy, contrast, mobile legibility and promise match; call it INFERRED, not a prediction of CTR.";
       let response;
-      if (!profileState?.verified) throw new Error("Personal Anna chat unlocks after you verify your channel. Public research tools remain available in guest mode.");
-      if (!attachment && /(banner|logo|channel branding|brand identity)/i.test(userLabel) && /(score|rate|review|analy[sz]|feedback|improv|look)/i.test(userLabel)) {
+
+      if (profileState?.verified && !attachment && /(banner|logo|channel branding|brand identity)/i.test(userLabel) && /(score|rate|review|analy[sz]|feedback|improv|look)/i.test(userLabel)) {
         response = await scoreChannelBranding();
-      } else if (!attachment?.dataUrl && /(thumbnail|thumbs?)/i.test(userLabel) && /(score|rate|review|compare|analy[sz]|each|all)/i.test(userLabel)) {
+      } else if (profileState?.verified && !attachment?.dataUrl && /(thumbnail|thumbs?)/i.test(userLabel) && /(score|rate|review|compare|analy[sz]|each|all)/i.test(userLabel)) {
         response = await scoreChannelThumbnails((status) => { loading.querySelector("p").innerHTML = `<span class="typing-dots"><i></i><i></i><i></i></span> ${escapeHtml(status)}`; });
-      } else if (!attachment && /(transcript|transcribe|hook|opening|first\s*(?:15|30)\s*seconds)/i.test(userLabel)) {
+      } else if (profileState?.verified && !attachment && /(transcript|transcribe|hook|opening|first\s*(?:15|30)\s*seconds)/i.test(userLabel)) {
         const batch = await recentTranscriptContext((status) => { loading.querySelector("p").innerHTML = `<span class="typing-dots"><i></i><i></i><i></i></span> ${escapeHtml(status)}`; });
         const measured = batch.transcripts.map((item) => `${item.surface}: ${item.title} · ${item.views == null ? "views unavailable" : fmtViews(item.views) + " views"}\n${item.error ? "TRANSCRIPT UNAVAILABLE: " + item.error : `Captions: ${item.transcript_source} (${item.language || "language unavailable"})\nOpening cues: ${item.opening || "No opening caption cues returned."}`}`).join("\n\n");
         response = await llm(system, `Creator question: ${userLabel}\nChannel: ${profileName(profileState.profile)}\nRecent items returned: ${batch.videoCount} videos, ${batch.shortCount} Shorts. I fetched up to six recent transcripts to avoid excessive YouTube requests. Analyze the supplied openings for hook patterns and differences. Caption text is measured transcript evidence; hook-quality judgments are inferred. Do not claim retention is known: owner-only retention requires a Studio CSV supplied by the creator.\n\n${measured}`, 3200);
@@ -784,7 +784,7 @@ function wireChat() {
         const context = await chatContext(userLabel, attachment);
         if (attachment?.dataUrl) {
           response = await llmWithImage(system, context + "\n\nCreator question: " + userLabel + "\nScore this attached thumbnail using the requested rubric.", { type: "image", data: attachment.dataUrl.replace(/^data:[^;]+;base64,/, ""), mimeType: attachment.type }, 2800);
-        } else if (!attachment && /(thumbnail|thumb|visual|why|view|outlier|underperform|perform)/i.test(userLabel)) {
+        } else if (profileState?.verified && !attachment && /(thumbnail|thumb|visual|why|view|outlier|underperform|perform)/i.test(userLabel)) {
           const cached = await cachedThumbnailImages(profileState.handle, 4);
           const visualContext = cached.refs.length
             ? `\n\nCached channel thumbnail images supplied in matching order (reused from local image cache where available): ${cached.refs.map((item, index) => `${index + 1}. ${item.surface}: ${item.title || item.id} · ${item.id}`).join("; ")}`
