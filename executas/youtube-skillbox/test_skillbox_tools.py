@@ -13,6 +13,7 @@ from youtube_skillbox_plugin import (
     AUDIT_TIMEOUT,
     MANIFEST,
     _hookscore,
+    _channel_dna,
     _parse_retention_csv,
     _engine_script,
     _run_engine,
@@ -253,6 +254,52 @@ class CreatorToolTests(unittest.TestCase):
         result = _parse_retention_csv("foo,bar\n1,2\n3,4\n")
         self.assertIn("error", result)
         self.assertIn("columns", result)
+
+
+    def test_channel_dna_resists_isolated_ai_tags_and_experimental_uploads(self):
+        videos = [
+            {"title": "NASA discovers a new exoplanet", "description": "Astronomy and space science"},
+            {"title": "What happens inside a black hole?", "transcript": "Astrophysics and the universe"},
+            {"title": "The science of neutron stars", "description": "Physics in space"},
+            {"title": "How the solar system formed", "transcript": "Planets, stars and astronomy"},
+            {"title": "Could life exist on Europa?", "description": "Space science and NASA"},
+            {"title": "AI farmer builds a smart tractor", "tags": ["AI", "technology", "machine learning"]},
+        ]
+        result = _channel_dna(videos)
+        self.assertEqual(result["dominant_niche"], "space_science")
+        self.assertEqual(result["status"], "inferred")
+        self.assertEqual(result["topic_clusters"][0]["video_count"], 5)
+        self.assertEqual(result["experimental_topics"][0]["topic"], "technology")
+        self.assertEqual(result["methodology"]["content_weights"]["tags"], 0.0)
+
+    def test_channel_dna_supports_all_target_creator_archetypes(self):
+        fixtures = {
+            "gaming": ["Minecraft survival gameplay", "Roblox Blox Fruits update", "Fortnite boss fight"],
+            "cooking": ["Easy pasta recipe", "Homemade dessert baking", "Street food cooking"],
+            "education": ["Mathematics exam prep", "History lesson explained", "Physics study guide"],
+            "entertainment": ["Anime episode recap", "Movie review", "TV show trailer reaction"],
+            "technology": ["Open source software tutorial", "Python programming guide", "AI tool review"],
+            "music": ["Guitar song cover", "Piano instrumental", "Music production lesson"],
+            "business": ["Startup business strategy", "Personal finance basics", "Marketing for ecommerce"],
+            "space_science": ["NASA mission to Mars", "Black hole science explained", "Astronomy telescope guide"],
+        }
+        for expected, titles in fixtures.items():
+            with self.subTest(expected=expected):
+                result = _channel_dna([{"title": title} for title in titles])
+                self.assertEqual(result["dominant_niche"], expected)
+
+    def test_channel_dna_does_not_infer_a_niche_from_tags_alone(self):
+        result = _channel_dna([
+            {"title": "A day in my life", "tags": ["gaming", "minecraft", "AI"]},
+            {"title": "Weekend vlog", "tags": ["gaming", "minecraft"]},
+        ])
+        self.assertIsNone(result["dominant_niche"])
+        self.assertEqual(result["status"], "insufficient_evidence")
+
+    def test_channel_dna_accepts_creator_confirmed_focus_without_fabricating_sample(self):
+        result = _channel_dna([], "space and science documentaries")
+        self.assertEqual(result["status"], "insufficient_evidence")
+        self.assertEqual(result["creator_confirmed_focus"], "space and science documentaries")
 
 
 if __name__ == "__main__":
