@@ -3,7 +3,7 @@ export function planChatTools({ message = "", handle = "", profile = {}, hasRete
   const lower = String(message).toLowerCase();
   const requests = [];
   const add = (key, method, args, timeout = 85000) => requests.push({ key, method, args, timeout });
-  if (!handle) return requests;
+
 
   const asksPerformance = /\b(audit|outliers?|underperform(?:ing)?|performance|views?|view count|recent uploads?|why (?:did|does|is|are|isn't|aren't)|compare (?:my )?videos?)\b/.test(lower);
   const asksChannelDna = /\b(channel dna|niche|core topics|content identity|channel focus|what is my channel about)\b/.test(lower);
@@ -11,17 +11,17 @@ export function planChatTools({ message = "", handle = "", profile = {}, hasRete
   const asksMeasuredChannel = asksPerformance || /\b(my channel|this channel|our channel)\b/.test(lower);
 
   // A retention CSV/ZIP is self-contained; don't make redundant long YouTube calls.
-  if (asksChannelDna) {
+  if (handle && asksChannelDna) {
     add("channel_videos", "channel", { handle, limit: 30, tab: "videos" }, 180000);
     add("channel_outliers", "outliers", { handle, min_ratio: 2 }, 180000);
   }
-  if (asksPerformance && !hasRetentionAttachment) {
+  if (handle && asksPerformance && !hasRetentionAttachment) {
     add("latest", "latest", { handle, limit: 8 }, 180000);
     add("outliers", "outliers", { handle, min_ratio: 2 }, 180000);
   }
-  if (asksIdentity || (asksMeasuredChannel && !asksPerformance)) add("profile", "profile", { handle });
+  if (handle && (asksIdentity || (asksMeasuredChannel && !asksPerformance))) add("profile", "profile", { handle });
   if (/community|\bposts?\b/.test(lower)) add("community_posts", "posts", { handle, limit: 12 });
-  if (/home|shelf|featured/.test(lower)) add("home_shelves", "home", { handle, limit: 8, verbose: true });
+  if (handle && /home|shelf|featured/.test(lower)) add("home_shelves", "home", { handle, limit: 8, verbose: true });
   if (/\bshows?\b/.test(lower)) add("shows", "shows", { handle, limit: 12 });
 
   if (/ideas?|what should i (?:make|post)|topic|keywords?|trending|research|search demand|competit|competition/.test(lower)) {
