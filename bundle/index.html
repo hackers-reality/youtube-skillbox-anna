@@ -641,6 +641,7 @@
               <button class="retention-subtab is-active" data-ret-view="analyze" type="button">Analyze</button>
               <button class="retention-subtab" data-ret-view="history" type="button">History <span id="ret-history-count">0</span></button>
               <button class="retention-subtab" data-ret-view="cache" type="button">Cache <span id="ret-cache-count">0</span></button>
+              <button class="retention-subtab" data-ret-view="experiment" type="button">Experiments</button>
             </div>
             <div id="ret-view-analyze" class="retention-subview is-active">
             <div class="panel-head">
@@ -694,6 +695,170 @@
             </div>
             <div id="ret-view-history" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Analysis history</h2><p class="section-copy">Reopen previous retention reports saved in this Anna workspace.</p></div></div><div id="ret-history-list" class="ret-history-list"></div></div>
             <div id="ret-view-cache" class="retention-subview"><div class="section-head"><div><p class="eyebrow">PRIVATE WORKSPACE</p><h2>Saved analysis cache</h2><p class="section-copy">Previously analyzed exports are kept for quick reopening. Logging out clears this cache.</p></div></div><div id="ret-cache-list" class="ret-history-list"></div></div>
+
+            <div id="ret-view-experiment" class="retention-subview">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">OPTIMIZATION LAB / 04</p>
+                  <h2>Experiment planning & tracking</h2>
+                  <p class="section-copy">Plan A/B tests, track results, and separate heuristic scores from measured outcomes. Every claim is evidence-labelled.</p>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="section-head">
+                  <div><p class="eyebrow">EXPERIMENT PLANNER</p><h2>Plan a new test</h2><p class="section-copy">Define hypothesis, variant, metric, and success criteria before launching.</p></div>
+                </div>
+                <div class="studio-grid">
+                  <label class="field">
+                    <span>Experiment name</span>
+                    <input id="exp-name" type="text" placeholder="e.g. Thumbnail A vs B - CTR test" autocomplete="off" />
+                  </label>
+                  <label class="field">
+                    <span>Hypothesis (MEASURED/INFERRED/HYPOTHESIS)</span>
+                    <select id="exp-hypothesis-type">
+                      <option value="HYPOTHESIS" selected>HYPOTHESIS — unvalidated prediction</option>
+                      <option value="INFERRED">INFERRED — reasoned from measured data</option>
+                      <option value="MEASURED">MEASURED — directly observed</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Video URL or ID</span>
+                    <input id="exp-video" type="text" placeholder="https://youtube.com/watch?v=..." autocomplete="off" />
+                  </label>
+                  <label class="field">
+                    <span>Metric to optimize</span>
+                    <select id="exp-metric">
+                      <option value="CTR">CTR (Click-Through Rate)</option>
+                      <option value="AVD">AVD (Average View Duration)</option>
+                      <option value="RETENTION">Retention at 30s / 50%</option>
+                      <option value="CTR_AVD">CTR × AVD composite</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Variant A (control) — title / thumbnail text</span>
+                    <textarea id="exp-variant-a" rows="2" placeholder="Current title / thumbnail text"></textarea>
+                  </label>
+                  <label class="field">
+                    <span>Variant B (test) — title / thumbnail text</span>
+                    <textarea id="exp-variant-b" rows="2" placeholder="Test title / thumbnail text"></textarea>
+                  </label>
+                  <label class="field">
+                    <span>Minimum detectable effect %</span>
+                    <input id="exp-mde" type="number" min="1" max="100" value="10" placeholder="e.g. 10% lift" />
+                  </label>
+                  <label class="field">
+                    <span>Statistical power %</span>
+                    <input id="exp-power" type="number" min="50" max="99" value="80" placeholder="e.g. 80%" />
+                  </label>
+                  <label class="field">
+                    <span>Significance level (alpha) %</span>
+                    <input id="exp-alpha" type="number" min="1" max="10" value="5" placeholder="e.g. 5%" />
+                  </label>
+                  <label class="field field-wide">
+                    <span>Notes / context</span>
+                    <textarea id="exp-notes" rows="3" placeholder="Target audience, traffic source, seasonality notes..."></textarea>
+                  </label>
+                </div>
+                <div class="studio-actions">
+                  <button id="exp-plan" class="btn btn-primary" type="button">Plan experiment</button>
+                  <button id="exp-launch" class="btn" type="button" disabled>Launch (manual)</button>
+                </div>
+                <div id="exp-output" class="lab-result hidden" aria-live="polite"></div>
+              </div>
+
+              <div class="card mt">
+                <div class="section-head">
+                  <div><p class="eyebrow">TITLE / THUMBNAIL / HOOK REVIEW</p><h2>Pre-launch quality gate</h2><p class="section-copy">Review titles, thumbnails, and hooks against Skillbox heuristics before launching. All scores are INFERRED heuristics, not MEASURED performance predictions.</p></div>
+                </div>
+                <div class="studio-grid">
+                  <label class="field">
+                    <span>Title to review</span>
+                    <input id="review-title" type="text" placeholder="Paste title here" autocomplete="off" />
+                  </label>
+                  <label class="field">
+                    <span>Thumbnail text (optional)</span>
+                    <input id="review-thumb-text" type="text" placeholder="Words visible on thumbnail" autocomplete="off" />
+                  </label>
+                  <label class="field">
+                    <span>Hook (first 15s script)</span>
+                    <textarea id="review-hook" rows="3" placeholder="First 15 seconds of script..."></textarea>
+                  </label>
+                </div>
+                <div class="studio-actions">
+                  <button id="review-run" class="btn btn-primary" type="button">Run review</button>
+                </div>
+                <div id="review-output" class="lab-result hidden" aria-live="polite"></div>
+              </div>
+
+              <div class="card mt">
+                <div class="section-head">
+                  <div><p class="eyebrow">PACING GUIDANCE</p><h2>Retention pacing analysis</h2><p class="section-copy">Slide rate, cliff detection, and hook leak analysis with creative pacing recommendations. MEASURED from CSV, recommendations are INFERRED.</p></div>
+                </div>
+                <div class="studio-grid">
+                  <label class="field">
+                    <span>Retention CSV</span>
+                    <textarea id="pace-csv" rows="8" placeholder="Paste YouTube Studio retention CSV..."></textarea>
+                  </label>
+                  <label class="field">
+                    <span>Video duration (seconds)</span>
+                    <input id="pace-duration" type="number" min="1" placeholder="Optional — enables per-minute rates" />
+                  </label>
+                </div>
+                <div class="studio-actions">
+                  <button id="pace-analyze" class="btn btn-primary" type="button">Analyze pacing</button>
+                </div>
+                <div id="pace-output" class="lab-result hidden" aria-live="polite"></div>
+              </div>
+            </div>
+
+            <div class="card mt">
+              <div class="section-head">
+                <div><p class="eyebrow">EXPERIMENT TRACKER</p><h2>Track live results</h2><p class="section-copy">Record actual results vs predictions. MEASURED outcomes only — no invented data.</p></div>
+              </div>
+              <div class="studio-grid">
+                <label class="field">
+                  <span>Experiment ID</span>
+                  <select id="track-exp-id">
+                    <option value="">Select or enter new...</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Variant A result (CTR / AVD / retention)</span>
+                  <input id="track-a-result" type="text" placeholder="e.g. CTR: 4.2% | AVD: 2:15" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Variant B result</span>
+                  <input id="track-b-result" type="text" placeholder="e.g. CTR: 4.8% | AVD: 2:32" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Sample size A</span>
+                  <input id="track-a-n" type="number" min="1" placeholder="Impressions / views" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Sample size B</span>
+                  <input id="track-b-n" type="number" min="1" placeholder="Impressions / views" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Result label</span>
+                  <select id="track-label">
+                    <option value="INCONCLUSIVE">INCONCLUSIVE — not enough data</option>
+                    <option value="A_WINS">A wins (control)</option>
+                    <option value="B_WINS">B wins (test)</option>
+                    <option value="NO_DIFFERENCE">No statistically significant difference</option>
+                  </select>
+                </label>
+                <label class="field field-wide">
+                  <span>Notes</span>
+                  <textarea id="track-notes" rows="3" placeholder="Statistical test used, p-value, confidence interval, caveats..."></textarea>
+                </label>
+              </div>
+              <div class="studio-actions">
+                <button id="track-save" class="btn btn-primary" type="button">Save result</button>
+              </div>
+              <div id="track-list" class="mt" aria-live="polite"></div>
+            </div>
+
           </section>
 
           <section id="tab-analytics" class="panel" role="tabpanel" aria-labelledby="tab-button-analytics">

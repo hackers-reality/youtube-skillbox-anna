@@ -522,3 +522,31 @@ html[data-theme="light"] input[type="text"],html[data-theme="light"] input[type=
 @media(max-width:760px){
   .analytics-options{grid-template-columns:1fr}
 }
+
+/* Experiment / Optimization Lab */
+.pace-report{animation:fadeIn .2s var(--ease)}
+.pace-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px}
+.pace-card{padding:12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-1)}
+.pace-card h4{margin:0 0 8px;font-size:12px;font-weight:600}
+.pace-value{font-size:20px;font-weight:700;color:var(--text);font-family:var(--mono);margin:4px 0}
+.pace-grid .hint{font-size:11px;color:var(--text-3)}
+.pace-grid .hint.warn{color:var(--amber)}
+.cliff-item{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);font-size:11px}
+.cliff-item:last-child{border-bottom:none}
+.cliff-pos{color:var(--text-2)}
+.cliff-drop{color:var(--red);font-weight:600}
+.pace-report .hint.warn{color:var(--amber);font-weight:500}
+.pace-report .hint{font-size:11px}
+
+.exp-result-card{padding:12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-1);margin-bottom:8px}
+.exp-result-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13px}
+.exp-result-body{font-size:12px;color:var(--text-2)}
+.exp-result-card .hint{font-size:11px;margin-top:6px}
+
+.pace-card .hint.warn{color:var(--amber)}
+.cliff-drop{color:var(--red);font-weight:600}
+
+@media(max-width:760px){
+  .analytics-options{grid-template-columns:1fr}
+  .pace-grid{grid-template-columns:1fr}
+}

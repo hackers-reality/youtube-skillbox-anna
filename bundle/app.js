@@ -3130,8 +3130,249 @@ function wireRetentionHistory() {
     if (button) openRetentionRecord(Number(button.dataset.openRetention));
   }));
 }
+}
 
-function wireRetentionCarousel() {
+/* ---------- experiment / optimization lab ---------- */
+const EXP_STORAGE_KEY = "youtube-skillbox:experiments";
+const EXP_RESULT_KEY = "youtube-skillbox:exp-results";
+
+function wireExperiment() {
+  // Experiment planner
+  byId("exp-plan")?.addEventListener("click", async () => {
+    const name = byId("exp-name").value.trim();
+    const hypothesisType = byId("exp-hypothesis-type").value;
+    const video = byId("exp-video").value.trim();
+    const metric = byId("exp-metric").value;
+    const variantA = byId("exp-variant-a").value.trim();
+    const variantB = byId("exp-variant-b").value.trim();
+    const mde = Number(byId("exp-mde").value || 10);
+    const power = Number(byId("exp-power").value || 80);
+    const alpha = Number(byId("exp-alpha").value || 5);
+    const notes = byId("exp-notes").value.trim();
+    const output = byId("exp-output");
+
+    if (!name || !variantA || !variantB) {
+      output.textContent = "Fill in experiment name and both variants.";
+      output.classList.remove("hidden");
+      return;
+    }
+    if (!video) {
+      output.textContent = "Enter a video URL or ID.";
+      output.classList.remove("hidden");
+      return;
+    }
+
+    const plan = {
+      id: "exp_" + Date.now(),
+      name,
+      hypothesisType,
+      video,
+      metric,
+      variantA,
+      variantB,
+      mde,
+      power,
+      alpha,
+      notes,
+      createdAt: new Date().toISOString(),
+      status: "planned",
+    };
+
+    try {
+      const stored = await storageList(EXP_STORAGE_KEY);
+      stored.push(plan);
+      await storageSet(EXP_STORAGE_KEY, stored);
+      renderExperimentList();
+      byId("exp-output").innerHTML = '<div class="note"><b>Experiment planned:</b> ' + escapeHtml(name) + '<br><span class="ev ev-' + hypothesisType.toLowerCase() + '">' + hypothesisType + '</span> · Metric: ' + escapeHtml(metric) + ' · MDE: ' + mde + '% · Power: ' + power + '% · α: ' + alpha + '%</div>';
+      byId("exp-output").classList.remove("hidden");
+      byId("exp-launch").disabled = false;
+    } catch (e) {
+      byId("exp-output").innerHTML = '<div class="note err"><b>Failed to save</b><span>' + escapeHtml(e.message || e) + '</span></div>';
+      byId("exp-output").classList.remove("hidden");
+    }
+  });
+
+  byId("exp-launch")?.addEventListener("click", () => {
+    const output = byId("exp-output");
+    output.innerHTML = '<div class="note"><b>Manual launch required:</b> Deploy variants via YouTube Studio A/B test or manual rotation. Record results in the Tracker tab when data is available.</div>';
+    output.classList.remove("hidden");
+  });
+
+  // Title/Thumbnail/Hook Review
+  byId("review-run")?.addEventListener("click", async () => {
+    const title = byId("review-title").value.trim();
+    const thumbText = byId("review-thumb-text").value.trim();
+    const hook = byId("review-hook").value.trim();
+    const output = byId("review-output");
+
+    if (!title && !hook) {
+      output.textContent = "Enter at least a title or hook to review.";
+      output.classList.remove("hidden");
+      return;
+    }
+
+    output.classList.remove("hidden");
+    output.innerHTML = '<div class="skeleton-stack"><span class="skeleton skeleton-wide"></span><span class="skeleton"></span></div>';
+
+    try {
+      const results = [];
+
+      if (title) {
+        const linted = await tool("title_lint", { titles: [title], thumbnail_text: thumbText || undefined });
+        results.push(renderTitleLint(linted));
+      }
+      if (hook) {
+        const scored = await tool("hookscore", { hooks: [hook] });
+        results.push(renderHookScores(scored, [{ hook }]));
+      }
+
+      output.innerHTML = results.join("<hr>") + '<p class="hint">All scores are <span class="ev ev-inferred">INFERRED</span> heuristics — not <span class="ev ev-measured">MEASURED</span> performance predictions.</p>';
+    } catch (e) {
+      output.innerHTML = '<div class="note err"><b>Review failed</b><span>' + escapeHtml(String(e.message || e)) + '</span></div>';
+    }
+    output.classList.remove("hidden");
+  });
+
+  // Pacing Analysis
+  byId("pace-analyze")?.addEventListener("click", async () => {
+    const csv = byId("pace-csv").value.trim();
+    const duration = byId("pace-duration").value.trim();
+    const output = byId("pace-output");
+
+    if (!csv) {
+      output.textContent = "Paste a retention CSV first.";
+      output.classList.remove("hidden");
+      return;
+    }
+
+    output.classList.remove("hidden");
+    output.innerHTML = '<div class="skeleton-stack"><span class="skeleton skeleton-wide"></span><span class="skeleton"></span></div>';
+
+    try {
+      const findings = await tool("retention", { csv, duration: duration || undefined });
+      if (!findings || findings.error) {
+        throw new Error(findings?.error || "No findings returned");
+      }
+
+      const hookLeak = findings.hook_leak || {};
+      const cliffs = findings.cliffs || [];
+      const slide = findings.slide || {};
+
+      let html = '<div class="pace-report">';
+      html += '<h3>Pacing Analysis <span class="ev ev-measured">MEASURED</span></h3>';
+      html += '<div class="pace-grid">';
+
+      html += '<div class="pace-card"><h4>Hook Leak <span class="ev ev-measured">MEASURED</span></h4>';
+      if (hookLeak.loss_points !== undefined) {
+        html += '<p class="pace-value">' + hookLeak.loss_points.toFixed(1) + '% loss</p>';
+        html += '<p class="hint">Window: ' + escapeHtml(hookLeak.window || "first 30%") + '</p>';
+        html += '<p class="hint ' + (hookLeak.loss_points > 15 ? "warn" : "") + '">' + (hookLeak.loss_points > 15 ? "⚠ High hook leak — consider stronger opening" : "✓ Acceptable hook retention") + '</p>';
+      } else {
+        html += '<p class="hint">' + (hookLeak.severity || "Data unavailable") + '</p>';
+      }
+      html += '</div>';
+
+      html += '<div class="pace-card"><h4>Cliffs <span class="ev ev-measured">MEASURED</span></h4>';
+      if (cliffs.length) {
+        cliffs.slice(0, 5).forEach(c => {
+          html += '<div class="cliff-item"><span class="cliff-pos">' + escapeHtml(c.position) + '</span> <span class="cliff-drop">' + c.drop.toFixed(1) + '% drop</span></div>';
+        });
+      } else {
+        html += '<p class="hint">No significant cliffs detected</p>';
+      }
+      html += '</div>';
+
+      html += '<div class="pace-card"><h4>Slide Rate <span class="ev ev-measured">MEASURED</span></h4>';
+      if (slide.average_loss_points_per_minute !== undefined && slide.average_loss_points_per_minute !== null) {
+        html += '<p class="pace-value">' + slide.average_loss_points_per_minute.toFixed(2) + ' pp/min</p>';
+        html += '<p class="hint">Severity: ' + (slide.severity || "unknown") + '</p>';
+        if (slide.average_loss_points_per_minute > 1.5) {
+          html += '<p class="hint warn">⚠ Fast slide — consider tighter editing, more visual variety</p>';
+        } else {
+          html += '<p class="hint">✓ Acceptable slide rate</p>';
+        }
+      } else {
+        html += '<p class="hint">' + (slide.severity || "Duration needed for per-minute rate") + '</p>';
+      }
+      html += '</div>';
+
+      html += '</div></div>';
+      byId("pace-output").innerHTML = html;
+      byId("pace-output").classList.remove("hidden");
+    } catch (e) {
+      byId("pace-output").innerHTML = '<div class="note err"><b>Pacing analysis failed</b><span>' + escapeHtml(String(e.message || e)) + '</span></div>';
+      byId("pace-output").classList.remove("hidden");
+    }
+  });
+
+  // Experiment Tracker
+  async function renderExperimentList() {
+    try {
+      const experiments = await storageList(EXP_STORAGE_KEY);
+      const results = await storageList(EXP_RESULT_KEY);
+      const select = byId("track-exp-id");
+      select.innerHTML = '<option value="">Select or enter new...</option>';
+      experiments.forEach(exp => {
+        const opt = document.createElement("option");
+        opt.value = exp.id;
+        opt.textContent = exp.name;
+        select.appendChild(opt);
+      });
+    } catch (e) {
+      console.error("Failed to load experiments:", e);
+    }
+  }
+
+  byId("track-save")?.addEventListener("click", async () => {
+    const expId = byId("track-exp-id").value.trim();
+    const aResult = byId("track-a-result").value.trim();
+    const bResult = byId("track-b-result").value.trim();
+    const aN = Number(byId("track-a-n").value || 0);
+    const bN = Number(byId("track-b-n").value || 0);
+    const label = byId("track-label").value;
+    const notes = byId("track-notes").value.trim();
+    const list = byId("track-list");
+
+    if (!expId || !aN || !bN) {
+      alert("Fill in experiment ID and both sample sizes.");
+      return;
+    }
+
+    const record = {
+      id: "res_" + Date.now(),
+      expId,
+      aResult,
+      bResult,
+      aN,
+      bN,
+      label,
+      notes,
+      recordedAt: new Date().toISOString(),
+    };
+
+    try {
+      const stored = await storageList(EXP_RESULT_KEY);
+      stored.push(record);
+      await storageSet(EXP_RESULT_KEY, stored);
+
+      const exp = (await storageList(EXP_STORAGE_KEY)).find(e => e.id === expId);
+      const html = '<div class="exp-result-card"><div class="exp-result-head"><strong>' + escapeHtml(exp?.name || expId) + '</strong> <span class="ev ev-' + (label === "A_WINS" || label === "B_WINS" ? "measured" : label === "NO_DIFFERENCE" ? "inferred" : "hypothesis") + '">' + label + '</span></div><div class="exp-result-body">A: ' + escapeHtml(aResult) + ' (n=' + aN + ') · B: ' + escapeHtml(bResult) + ' (n=' + bN + ')</div>' + (notes ? '<div class="hint">' + escapeHtml(notes) + '</div>' : '') + '</div>';
+      list.insertAdjacentHTML("afterbegin", html);
+
+      byId("track-a-result").value = "";
+      byId("track-b-result").value = "";
+      byId("track-a-n").value = "";
+      byId("track-b-n").value = "";
+      byId("track-notes").value = "";
+    } catch (e) {
+      alert("Failed to save: " + e.message);
+    }
+  }
+
+  await renderExperimentList();
+}
+
+/* ---------- analytics end ---------- */
   const next = byId('ret-next');
   if (!next) return;
   next.addEventListener('click', () => {
@@ -3439,6 +3680,7 @@ async function main() {
   wireLab();
   wireRetention();
   wireRetentionHistory();
+  wireExperiment();
   // Render local workspace state and onboarding immediately. The Anna host
   // handshake can take time (or remain pending); it must never block the UI.
   const hostConnection = connect();
