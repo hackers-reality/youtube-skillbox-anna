@@ -484,7 +484,7 @@ def _engine_version():
 
 
 _CHANNEL_DNA_LEXICON = {
-    "space_science": ("space", "nasa", "astronomy", "universe", "planet", "galaxy", "black hole", "cosmos", "astrophysics", "rocket", "mars", "moon", "stars", "physics", "quantum", "telescope", "solar system", "exoplanet", "science experiment"),
+    "space_science": ("space", "nasa", "astronomy", "universe", "planet", "galaxy", "black hole", "cosmos", "astrophysics", "rocket", "mars", "moon", "stars", "quantum", "telescope", "solar system", "exoplanet", "science experiment"),
     "gaming": ("gameplay", "gaming", "minecraft", "roblox", "fortnite", "blox fruits", "video game", "game review", "walkthrough", "speedrun", "mod showcase", "boss fight", "game update", "valorant", "gta"),
     "cooking": ("recipe", "cooking", "cook", "baking", "ingredients", "homemade", "meal prep", "kitchen", "dessert", "food review", "street food"),
     "education": ("lesson", "study guide", "exam prep", "mathematics", "history lesson", "learn", "explained for beginners", "classroom", "tutorial", "solve", "chapter", "school project"),
@@ -539,9 +539,15 @@ def _channel_dna(videos, preferences=None):
                 + len(_dna_term_hits(transcript, terms)) * 2.2
                 + len(_dna_term_hits(description, terms)) * 1.0
             )
-        best = max(per_category, key=per_category.get)
-        best_score = per_category[best]
-        primary = best if best_score >= 1.0 else None
+        ranked = sorted(per_category.items(), key=lambda pair: pair[1], reverse=True)
+        best, best_score = ranked[0]
+        runner_up_score = ranked[1][1] if len(ranked) > 1 else 0.0
+        ambiguous_topics = (
+            [category for category, score in ranked[:3] if score >= 1.0]
+            if best_score >= 1.0 and runner_up_score >= 1.0 and best_score - runner_up_score < 1.0
+            else []
+        )
+        primary = best if best_score >= 1.0 and not ambiguous_topics else None
         tag_signals = []
         if primary:
             counts[primary] += 1
@@ -557,7 +563,7 @@ def _channel_dna(videos, preferences=None):
         fmt = _dna_text(video.get("format") or video.get("kind") or "unspecified").lower()
         format_counts[fmt] = format_counts.get(fmt, 0) + 1
         classifications.append({"title": title or "Untitled video", "primary_topic": primary,
-                                "content_score": round(best_score, 2), "tag_only_signals": tag_signals})
+                                "content_score": round(best_score, 2), "tag_only_signals": tag_signals, "ambiguous_topics": ambiguous_topics})
 
     ordered = sorted(counts, key=lambda key: (counts[key], scores[key]), reverse=True)
     total = sum(counts.values())
@@ -583,8 +589,8 @@ def _channel_dna(videos, preferences=None):
         "creator_confirmed_focus": creator_focus, "video_classifications": classifications,
         "methodology": {"content_weights": {"title": 3.0, "transcript": 2.2, "description": 1.0, "tags": 0.0},
                         "minimum_video_content_score": 1.0, "minimum_dominant_video_count": 2,
-                        "minimum_dominant_share": 0.30,
-                        "note": "Tags are low-trust context; they cannot classify a video or establish a niche."},
+                        "minimum_dominant_share": 0.30, "minimum_category_margin": 1.0,
+                        "note": "Tags are low-trust context; they cannot classify a video or establish a niche. Close category scores remain unclassified rather than being arbitrarily assigned."},
         "evidence_contract": "MEASURED = supplied public video metadata and sample counts; INFERRED = topic clusters and niche classification; creator_confirmed_focus is user-provided.",
         "limitations": ["This is a content-sample inference, not a measurement of audience preference.",
                         "A small or unrepresentative sample can misstate the channel's broader identity.",
