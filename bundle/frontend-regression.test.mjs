@@ -13,6 +13,7 @@ assert.deepEqual(planChatTools({ message: "Analyze my channel DNA and niche", ha
 assert.deepEqual(planChatTools({ message: "Research emerging topics about space science" }).map((item) => item.method), ["keywords", "search"]);
 assert.deepEqual(planChatTools({ message: "Audit my channel performance" }).map((item) => item.method), []);
 assert.deepEqual(planChatTools({ message: "Analyze community posts" }).map((item) => item.method), []);
+assert.deepEqual(planChatTools({ message: "Show my channel shelves" }).map((item) => item.method), []);
 
 // $() returns one DOM node; $$() is required for selector collections.
 const lines = source.split(/\r?\n/).map((line) => line.trim());
