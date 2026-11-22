@@ -393,7 +393,7 @@ function renderProfileState() {
   const avatar = byId("nav-avatar");
   if (!profileState || !profileState.profile) {
     if (name) name.textContent = guestMode ? "Guest workspace" : "Set up your channel";
-    if (handle) handle.textContent = guestMode ? "Personal chat locked" : "Choose a channel";
+    if (handle) handle.textContent = guestMode ? "Public research enabled" : "Choose a channel";
     if (avatar) avatar.textContent = guestMode ? "G" : "?";
     byId("chat-guest-note")?.classList.toggle("hidden", !guestMode);
     setPersonalChatEnabled(guestMode);
@@ -537,7 +537,7 @@ async function chatContext(message, attachment = null) {
   let evidence = "";
   if (profileState?.verified || guestMode) {
     const handle = profileState?.verified ? profileState.handle : "";
-    const requests = planChatTools({ message, handle, profile: profileState.profile, hasRetentionAttachment: !!attachment && !attachment.dataUrl });
+    const requests = planChatTools({ message, handle, profile: profileState?.profile || {}, hasRetentionAttachment: !!attachment && !attachment.dataUrl });
     const calls = await Promise.allSettled(requests.map(({ method, args, timeout }) => tool(method, args, timeout)));
     const liveValues = calls.filter((call) => call.status === "fulfilled").map((call) => call.value);
     await rememberThumbnailItems(handle, liveValues.flatMap((value) => channelItems(value).concat((Array.isArray(value) ? value : []).flatMap((section) => section?.items || []))));
