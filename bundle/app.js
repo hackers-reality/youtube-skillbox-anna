@@ -775,7 +775,8 @@ async function loadWorkspaceState() {
     themeToggleBound = true;
   }
   if (profileState?.verified && !profileState.restorationShown) openOnboarding("restore");
-  else if (!profileState?.verified && !guestMode) openOnboarding(profileState?.confirmed ? "phrase" : profileState ? "confirm" : "identity");
+  else if (guestMode) openOnboarding("guest");
+  else if (!profileState?.verified) openOnboarding(profileState?.confirmed ? "phrase" : profileState ? "confirm" : "identity");
 }
 
 /* ---------- tabs ---------- */
