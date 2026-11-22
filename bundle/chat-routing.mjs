@@ -6,10 +6,15 @@ export function planChatTools({ message = "", handle = "", profile = {}, hasRete
   if (!handle) return requests;
 
   const asksPerformance = /\b(audit|outliers?|underperform(?:ing)?|performance|views?|view count|recent uploads?|why (?:did|does|is|are|isn't|aren't)|compare (?:my )?videos?)\b/.test(lower);
+  const asksChannelDna = /\b(channel dna|niche|core topics|content identity|channel focus|what is my channel about)\b/.test(lower);
   const asksIdentity = /\b(channel profile|channel info|channel description|channel branding|logo|banner|audience|niche)\b/.test(lower);
   const asksMeasuredChannel = asksPerformance || /\b(my channel|this channel|our channel)\b/.test(lower);
 
   // A retention CSV/ZIP is self-contained; don't make redundant long YouTube calls.
+  if (asksChannelDna) {
+    add("channel_videos", "channel", { handle, limit: 30, tab: "videos" }, 180000);
+    add("channel_outliers", "outliers", { handle, min_ratio: 2 }, 180000);
+  }
   if (asksPerformance && !hasRetentionAttachment) {
     add("latest", "latest", { handle, limit: 8 }, 180000);
     add("outliers", "outliers", { handle, min_ratio: 2 }, 180000);
