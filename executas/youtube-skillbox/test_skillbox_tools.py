@@ -277,7 +277,7 @@ class CreatorToolTests(unittest.TestCase):
         fixtures = {
             "gaming": ["Minecraft survival gameplay", "Roblox Blox Fruits update", "Fortnite boss fight"],
             "cooking": ["Easy pasta recipe", "Homemade dessert baking", "Street food cooking"],
-            "education": ["Mathematics exam prep", "History lesson explained", "Physics study guide"],
+            "education": ["Mathematics exam prep", "History lesson explained", "Chemistry study guide"],
             "entertainment": ["Anime episode recap", "Movie review", "TV show trailer reaction"],
             "technology": ["Open source software tutorial", "Python programming guide", "AI tool review"],
             "music": ["Guitar song cover", "Piano instrumental", "Music production lesson"],
