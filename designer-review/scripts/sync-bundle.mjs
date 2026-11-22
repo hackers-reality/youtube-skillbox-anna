@@ -50,8 +50,21 @@ appJs = appJs.replace(
 );
 
 appJs = appJs.replace(
-  /async function storageList\(key\) \{[\s\S]*?return \[\];\s*\}/m,
-  "async function storageList(key) {\n  try { return JSON.parse(localStorage.getItem(key) || \"[]\"); } catch { return []; }"
+  /async function storageList\\(key\\) \\{[\\s\\S]*?(?=\\nconst PROFILE_KEY)/m,
+  `async function storageList(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+async function storageSet(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+`
 );
 
 appJs = appJs.replace(
