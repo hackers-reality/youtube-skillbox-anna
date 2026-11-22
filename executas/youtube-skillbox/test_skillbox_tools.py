@@ -263,7 +263,7 @@ class CreatorToolTests(unittest.TestCase):
             {"title": "The science of neutron stars", "description": "Physics in space"},
             {"title": "How the solar system formed", "transcript": "Planets, stars and astronomy"},
             {"title": "Could life exist on Europa?", "description": "Space science and NASA"},
-            {"title": "AI farmer builds a smart tractor", "tags": ["AI", "technology", "machine learning"]},
+            {"title": "AI tool helps farmers build a smart tractor", "tags": ["AI", "technology", "machine learning"]},
         ]
         result = _channel_dna(videos)
         self.assertEqual(result["dominant_niche"], "space_science")
@@ -300,6 +300,16 @@ class CreatorToolTests(unittest.TestCase):
         result = _channel_dna([], "space and science documentaries")
         self.assertEqual(result["status"], "insufficient_evidence")
         self.assertEqual(result["creator_confirmed_focus"], "space and science documentaries")
+
+
+    def test_channel_dna_is_exposed_as_an_executa_tool(self):
+        self.assertIn("channel_dna", {tool["name"] for tool in MANIFEST["tools"]})
+        result = invoke("channel_dna", {"videos_json": json.dumps([
+            {"title": "NASA mission to Mars"},
+            {"title": "Astronomy and black holes"},
+        ])})
+        self.assertTrue(result["success"])
+        self.assertEqual(result["data"]["dominant_niche"], "space_science")
 
 
 if __name__ == "__main__":
