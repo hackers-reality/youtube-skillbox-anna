@@ -1762,7 +1762,19 @@ const TASK_PROMPTS = {
   comments: "Triage the supplied YouTube comments into four piles: QUESTIONS, CORRECTIONS, PRAISE and BAIT. State the count in each pile before drafting. Answer the actual question first; acknowledge praise briefly and specifically; check corrections against supplied evidence and mark unverified claims for creator review; do not reply to bait. Keep each drafted reply under 30 words, use no emoji unless the creator's supplied voice notes use them, and never promise a future video. Recommend ONE comment to pin and explain why. Drafts only; do not claim anything was posted or hearted.",
   plan: "Plan one realistic week, sized to the creator's real capacity. Before building the calendar, require two inputs: available hours this week and what content is already half-made. If either is missing, ask for it instead of inventing a schedule. When supplied, plan one anchor video, one low-effort post built from existing material, and up to three Shorts cut from the anchor—not seven uploads in seven days. Use the channel's own best day only if measured analytics were supplied; otherwise leave the day flexible. Return a table with day, format, working title, one-sentence promise, existing assets and estimated hours; state total hours and what to drop first if the week goes wrong.",
   thumbnail: "Create three distinct title/thumbnail pairing briefs for the supplied video. For each, specify the subject/expression, framing, foreground/background contrast, no more than three words of thumbnail text, and what the title should communicate that the thumbnail does not. Do not invent thumbnail text as though the creator already supplied it. These are untested creative hypotheses; thumbnail image pixels have not been evaluated and no CTR or performance prediction is allowed.",
-  full: "Produce a practical creator pack: a concise script outline with a strong opening, title options, description and tags, chapters only when timestamps are supported by a transcript, and Shorts angles only when source content and timestamps are supplied. Separate measured facts, inference and creative hypotheses. No fake performance scores or CTR predictions."
+  full: "Produce a practical creator pack: a concise script outline with a strong opening, title options, description and tags, chapters only when timestamps are supported by a transcript, and Shorts angles only when source content and timestamps are supplied. Separate measured facts, inference and creative hypotheses. No fake performance scores or CTR predictions.",
+
+  brief: "Create a concise creative brief from the supplied research and topic. Structure: 1) Core Promise (one sentence), 2) Target Audience (who, what they want), 3) Key Insight (why this matters now), 4) Angle/Differentiation (why this creator), 5) Format & Structure (long-form/Shorts/series, script type), 6) Key Beats (3-5 bullet promises), 7) Visual Style Notes (lighting, pacing, graphics), 8) Thumbnail Direction (3 concepts), 9) Distribution Plan (title, description, tags, Shorts angles), 10) Success Metrics (what measurable outcome defines win). Cite research sources inline. Label MEASURED/INFERRED/HYPOTHESIS per claim. Do not invent metrics or CTR predictions.",
+
+  storyboard: "Create a shot-by-shot storyboard from the supplied script or brief. For each shot: timestamp (if script), visual description (subject, framing, camera angle, movement), on-screen text/graphics, audio cues (VO, music, SFX), duration estimate, transition to next shot. Mark which shots require B-roll, graphics, stock footage, or creator on-camera. Note any shots requiring specific location, props, or lighting. Output as ordered list. Do not invent visual details not implied by the script; mark gaps [STORYBOARD GAP].",
+
+  transcript_cleanup: "Clean and structure the supplied raw transcript. Tasks: 1) Remove filler (um, uh, like, you know), false starts, and repetitive restarts. 2) Merge fragmented sentences. 3) Add speaker labels if multiple speakers detected. 4) Insert [SOURCE NEEDED] for unsupported factual claims. 5) Generate a clean paragraph version and a timestamped cue version (if timestamps present). 6) Generate a 3-bullet summary and list of key entities/topics. 6) Flag any segment where speaker changes without label [SPEAKER CHANGE]. Preserve original timestamps where present; do not invent timestamps.",
+
+  shorts_extraction: "Extract up to 5 self-contained Shorts from the supplied timestamped transcript. For each: 1) Source start/end timecodes. 2) Original first line. 3) NEW context-free hook (different from spoken line). 4) On-screen text for first 2 seconds (different wording). 6) Loop point (end links to start). 7) Vertical-crop framing note (safe zones). 7) Why it survives standalone (curiosity gap, visual payoff, complete thought). 8) Suggested caption and hashtags. Each Short 20-55 seconds, opens on complete thought, contains turn (claim→complication/proof), ends on line not trail-off. If timestamps missing, do not invent; return ERROR: NO_TIMESTAMPS.",
+
+  quality_check: "Run quality checks on the supplied draft (script/brief/storyboard). Checks: 1) Source attribution - every factual claim has [SOURCE NEEDED] or inline citation. 2) Promise delivery - opening promise explicitly delivered in body. 3) No fake metrics - no CTR, view, revenue, rank predictions. 3) No fabricated evidence - no invented quotes, stats, personal results, sources. 4) Clear ask - exactly one CTA. 4) Timestamps valid - all timecodes traceable to source transcript. 5) Speaker labels - all dialogue attributed. 6) Visual cues - every [ON SCREEN:...] matches a storyboard shot. Output: PASS/FAIL per check + list of issues with locations.",
+
+  version_note: "Create a version note for the supplied draft. Include: timestamp (ISO), author context (channel handle if available), change summary (what changed from previous version), rationale (why), word count, estimated runtime, and link to previous version if available. Format as markdown.",
 };
 
 
@@ -1946,14 +1958,24 @@ function wireStudio() {
         output.textContent = "Add a video URL or ID in the Keyword Lab video field first.";
         return;
       }
-      if (!["transcript", "comments", "plan"].includes(task) && !topic) {
+      if (!["transcript", "comments", "plan", "brief", "transcript_cleanup", "shorts_extraction", "quality_check", "version_note"].includes(task) && !topic) {
         output.textContent = "Add a video idea first. A rough sentence is enough.";
         return;
       }
-      if (["comments", "edit"].includes(task) && !context) {
-        output.textContent = task === "comments"
-          ? "Paste the comment thread into Context first."
-          : "Fetch a transcript or paste one into Context before building an edit decision list.";
+      if (["comments", "edit", "transcript_cleanup", "shorts_extraction", "quality_check", "version_note"].includes(task) && !context) {
+        if (task === "transcript_cleanup") {
+          output.textContent = "Paste the raw transcript into Context first.";
+        } else if (task === "shorts_extraction") {
+          output.textContent = "Paste a timestamped transcript into Context first.";
+        } else if (task === "quality_check") {
+          output.textContent = "Paste a draft (script/brief/storyboard) into Context first.";
+        } else if (task === "version_note") {
+          output.textContent = "Paste the current draft into Context first.";
+        } else {
+          output.textContent = task === "comments"
+            ? "Paste the comment thread into Context first."
+            : "Fetch a transcript or paste one into Context before building an edit decision list.";
+        }
         return;
       }
       if (task === "plan" && !topic && !context) {
@@ -1991,7 +2013,7 @@ function wireStudio() {
           return;
         }
 
-        const contextLimit = ["chapters", "shorts", "edit", "script", "full"].includes(task) ? 20000 : 8000;
+        const contextLimit = ["chapters", "shorts", "edit", "script", "full", "brief", "storyboard", "transcript_cleanup", "shorts_extraction", "quality_check", "version_note"].includes(task) ? 20000 : 8000;
         const userMessage = "Topic: " + topic + "\n"
           + (profileState ? "Creator channel context: " + JSON.stringify(profileState.profile).slice(0, 6000) + "\n" : "")
           + (keyword ? "Target keyword: " + keyword + "\n" : "")
@@ -2029,6 +2051,59 @@ function wireStudio() {
             + "\n\nFULL SCRIPT DRAFT\nVoice note: use the supplied style notes only; no creator voice sample was inferred.\n\n"
             + script;
           label.textContent = "SCRIPT · TOP 2 OF 5 HOOKS SCORED";
+          return;
+        }
+
+        if (task === "brief") {
+          const generated = await llm(TASK_PROMPTS.brief, userMessage, 3200);
+          output.textContent = generated;
+          label.textContent = "CREATIVE BRIEF";
+          return;
+        }
+        if (task === "storyboard") {
+          const generated = await llm(TASK_PROMPTS.storyboard, userMessage, 4000);
+          output.textContent = generated;
+          label.textContent = "STORYBOARD";
+          return;
+        }
+        if (task === "transcript_cleanup") {
+          if (!context) {
+            output.textContent = "Paste the raw transcript into Context first.";
+            return;
+          }
+          const generated = await llm(TASK_PROMPTS.transcript_cleanup, userMessage, 4000);
+          output.textContent = generated;
+          label.textContent = "TRANSCRIPT CLEANUP";
+          return;
+        }
+        if (task === "shorts_extraction") {
+          if (!context) {
+            output.textContent = "Paste a timestamped transcript into Context first.";
+            return;
+          }
+          const generated = await llm(TASK_PROMPTS.shorts_extraction, userMessage, 3200);
+          output.textContent = generated;
+          label.textContent = "SHORTS EXTRACTION";
+          return;
+        }
+        if (task === "quality_check") {
+          if (!context) {
+            output.textContent = "Paste a draft (script/brief/storyboard) into Context first.";
+            return;
+          }
+          const generated = await llm(TASK_PROMPTS.quality_check, userMessage, 3000);
+          output.textContent = generated;
+          label.textContent = "QUALITY CHECK";
+          return;
+        }
+        if (task === "version_note") {
+          if (!context) {
+            output.textContent = "Paste the current draft into Context first.";
+            return;
+          }
+          const generated = await llm(TASK_PROMPTS.version_note, userMessage, 2000);
+          output.textContent = generated;
+          label.textContent = "VERSION NOTE";
           return;
         }
 
