@@ -23,6 +23,8 @@ assert.match(source, /youtube\\\.com\\\/shorts\\\//);
 assert.match(source, /Building an evidence-only audit/);
 assert.match(source, /evidenceMap\.channel_dna/);
 assert.match(source, /videos_json: JSON\.stringify\(dnaVideos\)/);
+assert.match(source, /transcriptCandidates = dnaVideos\.filter/);
+assert.match(source, /unavailable captions are not treated as negative topic evidence/);
 assert.match(source, /PARTIAL AUDIT · \$\{measuredSignals\.length\}\/\$\{auditSignals\.length\} measurements returned/);
 assert.match(source, /All five audit measurements returned\./);
 assert.match(source, /Partial audit · \$\{measuredCount\}\/5 measurements returned\./);
