@@ -73,5 +73,7 @@ test("standalone runtime imports its chat planner and never falls back to the An
   assert.ok(app.includes("Standalone preview — Skillbox tools and NVIDIA NIM are ready"));
   assert.ok(!app.includes("Open this app inside NVIDIA NIM"));
   assert.ok(!app.includes("open via anna-app dev"));
+  assert.ok(app.includes("if (!profileState?.verified && !guestMode)"));
+  assert.ok(app.includes("Guest mode includes AI chat and public research"));
   assert.ok(routing.includes("export function planChatTools"));
 });
