@@ -15,6 +15,67 @@ const DEV_TOOL_ID = "tool-dev-youtube-skillbox";
 const PRIMARY_TOOL_ID = typeof location !== "undefined" && /\/dev\//.test(location.pathname + location.search) ? DEV_TOOL_ID : TOOL_ID;
 const AUDITS_KEY = "youtube-skillbox:audits";
 
+/* ---------- feature flags & guest-mode boundaries ---------- */
+const FEATURES = {
+  // Core features always available
+  PUBLIC_RESEARCH: true,           // keywords, search, compete, gap, verdict
+  RETENTION_ANALYSIS: true,        // CSV/ZIP retention analysis
+  CHANNEL_DNA: true,               // Channel DNA classification
+  THUMBNAIL_SCORING: true,         // Hook/thumbnail heuristics
+
+  // Features requiring verified channel
+  CHANNEL_AUDIT: true,             // Full audit (profile, videos, shorts, outliers)
+  CHANNEL_SHELVES: true,           // Home shelves, shows, playlists, posts
+  CHANNEL_PROFILE: true,           // Channel identity, avatar, banner
+  OUTLIERS: true,                  // Outlier detection
+  CONTENT_STUDIO: true,            // AI content generation
+  CREATOR_PREFERENCES: true,       // Persistent creator focus/niche
+
+  // Guest mode explicit boundaries
+  GUEST_ALLOWED: ["PUBLIC_RESEARCH", "RETENTION_ANALYSIS", "CHANNEL_DNA", "THUMBNAIL_SCORING"],
+  GUEST_DENIED: ["CHANNEL_AUDIT", "CHANNEL_SHELVES", "CHANNEL_PROFILE", "OUTLIERS", "CONTENT_STUDIO", "CREATOR_PREFERENCES"],
+};
+
+function isFeatureEnabled(feature, guestMode) {
+  if (!FEATURES[feature]) return false;
+  if (!guestMode) return true;
+  return FEATURES.GUEST_ALLOWED.includes(feature);
+}
+
+function assertFeatureEnabled(feature, guestMode, context = "") {
+  if (!isFeatureEnabled(feature, guestMode)) {
+    throw new Error(`${feature} requires a verified channel${context ? ` (${context})` : ""}. Connect your YouTube channel to unlock this feature.`);
+  }
+}
+
+/* ---------- unified state components ---------- */
+const StateUI = {
+  loading: (message = "Loading…") =>
+    `<div class="skeleton-stack" role="status" aria-live="polite"><span class="skeleton skeleton-wide"></span><span class="skeleton"></span><span class="skeleton skeleton-short"></span><span class="sr-only">${escapeHtml(message)}</span></div>`,
+
+  empty: (title, description, action = null) =>
+    `<div class="empty-state"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(description)}</span>${action ? `<button class="btn btn-small" type="button" onclick="${escapeHtml(action)}">${escapeHtml(action.replace(/.*?(["'])(.*?)\1.*/, '$2'))}</button>` : ""}</div>`,
+
+  error: (title, message, retryAction = null) =>
+    `<div class="note err"><b>${escapeHtml(title)}</b><span>${escapeHtml(message)}</span>${retryAction ? `<button class="btn btn-small" type="button" onclick="${escapeHtml(retryAction)}">Retry</button>` : ""}</div>`,
+
+  partial: (measured, missing, retryKeys = null) => {
+    const missingList = missing.map(([key, label, reason]) => `• <strong>${escapeHtml(label)}</strong> — ${escapeHtml(reason)}`).join("<br>");
+    return `<div class="note warn"><b>PARTIAL RESULT — ${measured}/${measured + missing.length} measurements returned</b><span>${missingList}</span>${retryKeys ? `<button class="btn btn-small" type="button" data-retry-keys="${retryKeys.join(",")}">Retry missing</button>` : ""}</div>`;
+  },
+
+  unavailable: (feature, reason = "requires verified channel") =>
+    `<div class="note warn"><b>${escapeHtml(feature)} unavailable</b><span>${escapeHtml(reason)}</span></div>`,
+};
+
+/* ---------- evidence provenance helpers ---------- */
+const Evidence = {
+  measured: (data, meta = {}) => ({ provenance: "MEASURED", data, meta }),
+  inferred: (data, basis, meta = {}) => ({ provenance: "INFERRED", data, basis, meta }),
+  hypothesis: (data, rationale, meta = {}) => ({ provenance: "HYPOTHESIS", data, rationale, meta }),
+  label: (provenance) => `<span class="ev ev-${provenance.toLowerCase()}">${provenance}</span>`,
+};
+
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const byId = (id) => document.getElementById(id);
@@ -353,7 +414,7 @@ function renderOnboarding() {
     title.textContent = "Verify it’s really yours.";
     copy.textContent = "Copy this one-time phrase into your channel description manually. We never edit YouTube or ask for OAuth.";
     content.innerHTML = `<label class="field"><span>Unique verification phrase · read-only</span><div class="copy-field"><input id="onboarding-phrase" readonly value="${escapeHtml(profileState.phrase)}" /><button id="onboarding-copy" class="btn" type="button">Copy</button></div></label><div class="onboarding-actions"><button id="onboarding-verify" class="btn btn-primary" type="button">I added it — verify now</button><button id="onboarding-back" class="btn" type="button">Back</button></div><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div>`;
-    byId("onboarding-copy")?.addEventListener("click", async () => { await navigator.clipboard.writeText(profileState.phrase); byId("onboarding-copy").textContent = "Copied"; });
+    byId("onboarding-copy")?.addEventListener("click", async () => { const copied = await copyWithFeedback(profileState.phrase, byId("onboarding-copy"), byId("onboarding-error")); if (!copied) { byId("onboarding-error").textContent = "Copy failed \u2014 select and copy manually."; byId("onboarding-error").classList.remove("hidden"); } });
     byId("onboarding-back")?.addEventListener("click", () => { onboardingStep = "confirm"; renderOnboarding(); });
     byId("onboarding-verify")?.addEventListener("click", async () => {
       const button = byId("onboarding-verify"); button.disabled = true; button.textContent = "Checking public description…";
@@ -380,7 +441,7 @@ function renderOnboarding() {
       await storageSet(PROFILE_KEY, [profileState]);
       byId("save-creator-preferences").textContent = "Saved";
     });
-    byId("copy-description")?.addEventListener("click", async () => { await navigator.clipboard.writeText(original); byId("copy-description").textContent = "Copied"; });
+    byId("copy-description")?.addEventListener("click", async () => { const copied = await copyWithFeedback(original, byId("copy-description")); if (!copied) { byId("copy-description").textContent = "Copy failed \u2014 select and copy manually."; } });
     byId("onboarding-chat")?.addEventListener("click", () => { closeOnboarding(); byId("tab-button-chat")?.click(); byId("chat-input").value = "Help me refine my YouTube channel description. Keep my original meaning and voice. Here is my previous description:\n\n" + original; byId("chat-input").focus(); });
     byId("onboarding-restored")?.addEventListener("click", async () => { profileState.restorationShown = true; await storageSet(PROFILE_KEY, [profileState]); closeOnboarding(); });
     byId("workspace-logout")?.addEventListener("click", clearWorkspaceSession);
@@ -537,7 +598,7 @@ async function chatContext(message, attachment = null) {
   let evidence = "";
   if (profileState?.verified || guestMode) {
     const handle = profileState?.verified ? profileState.handle : "";
-    const requests = planChatTools({ message, handle, profile: profileState?.profile || {}, hasRetentionAttachment: !!attachment && !attachment.dataUrl });
+    const requests = planChatTools({ message, handle, profile: profileState?.profile || {}, hasRetentionAttachment: !!attachment && !attachment.dataUrl, guestMode });
     const calls = await Promise.allSettled(requests.map(({ method, args, timeout }) => tool(method, args, timeout)));
     const liveValues = calls.filter((call) => call.status === "fulfilled").map((call) => call.value);
     await rememberThumbnailItems(handle, liveValues.flatMap((value) => channelItems(value).concat((Array.isArray(value) ? value : []).flatMap((section) => section?.items || []))));
@@ -664,7 +725,7 @@ function channelItems(value) {
 }
 
 function publicThumbnail(item) {
-  const direct = item.thumbnail || item.thumbnail_url || item.thumb || item.image;
+  const direct = item.thumbnail || item.thumbnail_url || item.thumbnailUrl || item.thumb || item.image || (item.thumbnails && item.thumbnails[0]?.url);
   const videoId = String(item.id || item.video_id || "");
   return direct || (/^[\w-]{11}$/.test(videoId) ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "");
 }
@@ -898,6 +959,11 @@ Max ~900 words. Markdown.`;
 async function runAudit(handle, retryKeys = null) {
   handle = (handle || "").trim();
   if (!handle) return setAuditResult("<div class='card'><h3>Nothing to audit</h3><p>Enter a channel handle first — @YourChannel.</p></div>", false);
+
+  // Guest mode boundary: full audit requires verified channel
+  if (guestMode) {
+    return setAuditResult(StateUI.unavailable("Full channel audit", "requires a verified YouTube channel. Connect your channel or use public research tools instead."), false);
+  }
 
   const progress = byId("audit-progress");
   const bar = byId("audit-bar");
@@ -1353,6 +1419,13 @@ async function runExplorer(kind) {
     return;
   }
 
+  // Guest mode boundaries for explorer
+  const guestDenied = ["uploads", "shorts", "posts", "home", "shows"];
+  if (guestMode && guestDenied.includes(kind)) {
+    output.innerHTML = StateUI.unavailable(kind.charAt(0).toUpperCase() + kind.slice(1), "requires a verified YouTube channel. Connect your channel to browse its public surfaces.");
+    return;
+  }
+
   const requests = {
     uploads: {
       label: "First 15 public video uploads",
@@ -1424,7 +1497,8 @@ function listFrom(data, keys = []) {
 
 function explorerThumb(item) {
   const videoId = item && String(item.id || item.video_id || "");
-  const src = item && (item.thumbnail || item.thumbnail_url || item.thumb || item.image) || (/^[\w-]{11}$/.test(videoId) ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "");
+  const direct = item && (item.thumbnail || item.thumbnail_url || item.thumbnailUrl || item.thumb || item.image || (item.thumbnails && item.thumbnails[0]?.url));
+  const src = direct || (/^[\w-]{11}$/.test(videoId) ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "");
   return src ? `<img class="yt-thumb" loading="lazy" src="${escapeHtml(src)}" alt="Video thumbnail" onerror="this.closest('.yt-thumb-link')?.remove()" />` : '<div class="yt-thumb yt-thumb-empty">▶</div>';
 }
 
@@ -1464,11 +1538,11 @@ function renderShelves(data) {
     return `<section class="yt-shelf${featured ? ' is-featured-video' : ''}"><div class="shelf-head"><div><h3>${escapeHtml(String(name))}</h3><span class="shelf-kind">${escapeHtml(String(section.type || 'CHANNEL SECTION'))}</span></div><span>First ${visibleItems.length} of ${count} public items</span></div><div class="shelf-row">${visibleItems.map((item) => {
       const kind = String(item.kind || section.type || 'video');
       const videoId = String(item.id || item.video_id || '');
-      const cardItem = { ...item, thumbnail: item.thumbnail || (/^[\w-]{11}$/.test(videoId) ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '') };
+      const cardItem = { ...item, thumbnail: item.thumbnail || item.thumbnail_url || item.thumbnailUrl || item.thumb || item.image || (item.thumbnails && item.thumbnails[0]?.url) || (/^[\w-]{11}$/.test(videoId) ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '') };
       const visual = kind.toLowerCase() === 'post'
         ? `<div class="shelf-post-preview">${escapeHtml(String(item.title || '').slice(0, 190))}</div>`
         : kind.toLowerCase() === 'channel'
-          ? `<div class="shelf-channel-preview">${item.thumbnail ? `<img src="${escapeHtml(item.thumbnail)}" alt="" loading="lazy">` : `<span>${escapeHtml(String(item.title || 'C').slice(0, 1).toUpperCase())}</span>`}<strong>${escapeHtml(String(item.title || 'Channel'))}</strong></div>`
+          ? `<div class="shelf-channel-preview">${item.thumbnail || item.thumbnail_url || item.thumbnailUrl || item.image ? `<img src="${escapeHtml(item.thumbnail || item.thumbnail_url || item.thumbnailUrl || item.image)}" alt="" loading="lazy">` : `<span>${escapeHtml(String(item.title || 'C').slice(0, 1).toUpperCase())}</span>`}<strong>${escapeHtml(String(item.title || 'Channel'))}</strong></div>`
           : `<a class="shelf-thumb-link" href="${escapeHtml(item.url || '#')}" target="_blank" rel="noopener">${explorerThumb(cardItem)}</a>`;
       const k = kind.toLowerCase();
       return `<article class="shelf-item ${k === 'short' || k === 'shorts' ? 'is-short' : 'is-landscape'} ${k === 'playlist' ? 'is-playlist' : ''} ${k === 'post' ? 'is-post' : ''}">${visual}<span class="shelf-item-kind">${escapeHtml(kind)}</span>${k === 'post' ? '' : `<strong>${escapeHtml(String(item.title || item.name || item.id || 'Untitled'))}</strong>`}${explorerLink(item)}</article>`;
