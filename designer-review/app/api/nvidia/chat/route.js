@@ -58,7 +58,17 @@ export async function POST(request) {
 
   const systemPrompt = typeof input.systemPrompt === "string" ? input.systemPrompt.trim() : "";
   const userMessage = typeof input.userMessage === "string" ? input.userMessage.trim() : "";
-  const images = Array.isArray(input.images) ? input.images : [];
+  const imageCandidates = Array.isArray(input.images)
+    ? input.images
+    : Array.isArray(input.imageBlocks)
+      ? input.imageBlocks
+      : input.imageBlock && typeof input.imageBlock === "object"
+        ? [input.imageBlock]
+        : [];
+  const images = imageCandidates.map((image) => ({
+    ...image,
+    data: image?.data ?? (typeof image?.dataUrl === "string" ? image.dataUrl.replace(/^data:[^;]+;base64,/, "") : undefined),
+  }));
   if (!userMessage || userMessage.length > 16000 || systemPrompt.length > 8000) {
     return jsonError("Add a message under 16,000 characters; the system context limit is 8,000 characters.", 400);
   }
