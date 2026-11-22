@@ -536,7 +536,38 @@ async function chatContext(message, attachment = null) {
     const calls = await Promise.allSettled(requests.map(({ method, args, timeout }) => tool(method, args, timeout)));
     const liveValues = calls.filter((call) => call.status === "fulfilled").map((call) => call.value);
     await rememberThumbnailItems(handle, liveValues.flatMap((value) => channelItems(value).concat((Array.isArray(value) ? value : []).flatMap((section) => section?.items || []))));
-    evidence = JSON.stringify(Object.fromEntries(requests.map(({ key }, index) => [key, calls[index].status === "fulfilled" ? calls[index].value : { error: String(calls[index].reason) }]))).slice(0, 16000);
+    const evidenceMap = Object.fromEntries(requests.map(({ key }, index) => [key, calls[index].status === "fulfilled" ? calls[index].value : { error: String(calls[index].reason) }]));
+    const videoIndex = requests.findIndex(({ key }) => key === "channel_videos");
+    if (videoIndex >= 0 && calls[videoIndex]?.status === "fulfilled") {
+      const recentVideos = channelItems(calls[videoIndex].value);
+      const outlierIndex = requests.findIndex(({ key }) => key === "channel_outliers");
+      const outlierData = outlierIndex >= 0 && calls[outlierIndex]?.status === "fulfilled" ? calls[outlierIndex].value : {};
+      const outlierVideos = Array.isArray(outlierData?.outliers) ? outlierData.outliers : channelItems(outlierData);
+      const seen = new Set();
+      const dnaVideos = [...recentVideos, ...outlierVideos].filter((item) => {
+        const id = String(item?.id || item?.video_id || item?.url || item?.title || "");
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      }).slice(0, 40).map((item) => ({
+        id: item.id || item.video_id,
+        title: item.title || item.name || "",
+        description: item.description || "",
+        tags: item.tags || [],
+        url: item.url || item.video_url || "",
+        views: item.views ?? item.view_count,
+        format: item.format || item.kind || "video",
+      }));
+      try {
+        evidenceMap.channel_dna = await tool("channel_dna", {
+          videos_json: JSON.stringify(dnaVideos),
+          preferences: profileState?.creatorPreferences || profileState?.preferences || "",
+        }, 20000);
+      } catch (error) {
+        evidenceMap.channel_dna = { error: String(error?.message || error) };
+      }
+    }
+    evidence = JSON.stringify(evidenceMap).slice(0, 16000);
   }
   let attachmentContext = "No attachment was provided.";
   if (attachment) {
