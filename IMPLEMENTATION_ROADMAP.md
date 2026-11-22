@@ -10,7 +10,7 @@
 - The existing app, tool routing, engine adapter, and test workflow were mapped before implementation.
 - Added this branch to the existing Anna validation workflow so pushes to Creator OS run the same strict checks as the original Anna feature branch.
 
-### Phase 2 — Channel DNA initial vertical slice
+### Phase 1 — Guest-mode foundation\n- Guest users can use Anna chat, public keyword/search research, and uploaded exports without connecting a channel.\n- Channel-specific methods remain disabled until the channel is verified; the planner does not send handle-free calls to channel tools.\n\n### Phase 2 — Channel DNA initial vertical slice
 - Added a deterministic `channel_dna` Executa tool and registered it in both the Python runtime manifest and the declarative Executa manifest.
 - Ask Anna now routes channel-niche / Channel DNA questions to a sample of up to 30 recent public videos plus public outliers, then passes a bounded evidence summary and the classifier result to the Anna LLM.
 - Topic scoring weights titles, transcripts, and descriptions; tags have zero classification weight and cannot independently establish a niche.
