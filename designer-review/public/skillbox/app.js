@@ -259,7 +259,7 @@ function renderOnboarding() {
   const avatar = profileAvatar(profile || {});
   if (onboardingStep === "guest") {
     title.textContent = "Guest workspace";
-    copy.textContent = "Public research remains available. Personal NVIDIA NIM chat is locked until you verify a channel.";
+    copy.textContent = "Guest mode includes AI chat, uploads and public research. Verify a channel to unlock channel-specific context.";
     content.innerHTML = `<div class="onboarding-actions"><button id="guest-connect" class="btn btn-primary" type="button">Connect a channel</button><button id="guest-logout" class="btn" type="button">Log out & clear saved data</button></div>`;
     byId("guest-connect")?.addEventListener("click", () => openOnboarding("identity"));
     byId("guest-logout")?.addEventListener("click", clearWorkspaceSession);
@@ -268,7 +268,7 @@ function renderOnboarding() {
   if (onboardingStep === "identity") {
     title.textContent = "Make Skillbox yours.";
     copy.textContent = "Enter your exact YouTube channel handle. We’ll show the public channel name and logo before you continue.";
-    content.innerHTML = `<label class="field"><span>YouTube channel handle</span><input id="onboarding-handle" type="text" placeholder="@yourchannel" autocomplete="off" spellcheck="false" /></label><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div><div class="onboarding-actions"><button id="onboarding-find" class="btn btn-primary" type="button">Find my channel</button><button id="onboarding-guest" class="btn" type="button">Continue as guest</button></div><p class="hint">Guest mode keeps public research available; personal channel chat stays locked.</p>`;
+    content.innerHTML = `<label class="field"><span>YouTube channel handle</span><input id="onboarding-handle" type="text" placeholder="@yourchannel" autocomplete="off" spellcheck="false" /></label><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div><div class="onboarding-actions"><button id="onboarding-find" class="btn btn-primary" type="button">Find my channel</button><button id="onboarding-guest" class="btn" type="button">Continue as guest</button></div><p class="hint">Guest mode includes AI chat and public research; verify a channel for channel-specific context.</p>`;
     byId("onboarding-find")?.addEventListener("click", async () => {
       const value = byId("onboarding-handle").value.trim();
       if (!value || (!value.startsWith("@") && !/youtube\.com\/(?:@|channel\/)/i.test(value))) {
@@ -642,7 +642,7 @@ function wireChat() {
   const send = async (message) => {
     const text = String(message || byId("chat-input").value || "").trim();
     const attachment = chatAttachment;
-    if (!profileState?.verified) { openOnboarding(profileState ? "phrase" : "identity"); return; }
+    if (!profileState?.verified && !guestMode) { openOnboarding(profileState ? "phrase" : "identity"); return; }
     if (!text && !attachment) { chatAdd("assistant", "Type a message or attach a file to get started."); return; }
     byId("chat-input").value = "";
     const userLabel = text || "Please inspect this attachment.";
@@ -654,7 +654,6 @@ function wireChat() {
     try {
       const system = "You are NVIDIA NIM inside YouTube Skillbox. Answer like a calm creator strategist. Separate MEASURED facts, INFERRED explanations, HYPOTHESES and RECOMMENDATIONS. Use only evidence present in this request; never invent channel numbers, and if context contains an error say the measurement is unavailable. Public view counts, titles, thumbnails and outlier ratios alone cannot establish audience preference, why a video performed, what the recommendation algorithm did, CTR, or causality. Do not state those as facts; if useful, label them HYPOTHESES and name the missing evidence. Never claim YouTube was edited or content was published. Treat prior interpretations as unverified, not evidence. For a thumbnail image, give a transparent heuristic score out of 10 for hook clarity, hierarchy, contrast, mobile legibility and promise match; call it INFERRED, not a prediction of CTR.";
       let response;
-      if (!profileState?.verified) throw new Error("Personal NVIDIA NIM chat unlocks after you verify your channel. Public research tools remain available in guest mode.");
       if (!attachment && /(banner|logo|channel branding|brand identity)/i.test(userLabel) && /(score|rate|review|analy[sz]|feedback|improv|look)/i.test(userLabel)) {
         response = await scoreChannelBranding();
       } else if (!attachment?.dataUrl && /(thumbnail|thumbs?)/i.test(userLabel) && /(score|rate|review|compare|analy[sz]|each|all)/i.test(userLabel)) {
