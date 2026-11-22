@@ -44,12 +44,16 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4v16h18"/><path d="m6 9 4 3 3-5 5 7"/></svg>
           <span>Retention Fix</span>
         </button>
-        <button class="tab" id="tab-button-analytics" data-tab="analytics" role="tab" aria-controls="tab-analytics" aria-selected="false" tabindex="-1">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+        <button class="tab" id="        <button class="tab" id="tab-button-analytics" data-tab="analytics" role="tab" aria-controls="tab-analytics" aria-selected="false" tabindex="-1">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2V7h2v4z"/></svg>
           <span>Analytics</span>
         </button>
+        <button class="tab" id="tab-button-workspace" data-tab="workspace" role="tab" aria-controls="tab-workspace" aria-selected="false" tabindex="-1">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9 2-2-2zm0 12H4V8h16v10z"/></svg>
+          <span>Workspace</span>
+        </button>
         <div class="nav-spacer"></div>
-        <button class="nav-profile" id="nav-profile" type="button" aria-label="Channel profile">
+        <button class="nav-profile" id="nav-profile" type="button" aria-label="Channel profile">file">
           <div class="nav-avatar" id="nav-avatar">?</div>
           <div><strong id="nav-profile-name">Guest workspace</strong><span id="nav-profile-handle">Choose a channel</span></div>
         </button>
@@ -928,6 +932,112 @@
             <div id="analytics-output" class="analytics-output hidden" aria-live="polite"></div>
           </section>
         </div>
+      
+          <section id="tab-workspace" class="panel" role="tabpanel" aria-labelledby="tab-button-workspace">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">WORKSPACE / 05</p>
+                <h1>Your creator <em>workspace.</em></h1>
+                <p class="lead">Manage saved projects, plan content, track experiments, and organize multi-channel workflows.</p>
+              </div>
+            </div>
+
+            <div class="workspace-grid">
+              <!-- Saved Projects -->
+              <div class="card">
+                <div class="section-head">
+                  <div><p class="eyebrow">SAVED PROJECTS</p><h2>Briefs, scripts & reports</h2><p class="section-copy">Access your saved briefs, scripts, audit reports, and experiment records.
+</p></div>
+                </div>
+                <div class="workspace-list" id="workspace-projects">
+                  <div class="empty-state"><strong>No saved projects yet.</strong><span>Save a brief, script, or report from Content Studio or Analytics to see it here.
+                  </span></div>
+                </div>
+              </div>
+
+              <!-- Content Calendar -->
+              <div class="card">
+                <div class="section-head">
+                  <div><p class="eyebrow">CONTENT CALENDAR</p><h2>Plan & schedule</h2><p class="section-copy">Visualize your publishing pipeline. Drag to reschedule, link to saved projects.
+</p></div>
+                </div>
+                <div id="content-calendar" class="content-calendar">
+                  <div class="calendar-header">
+                    <button id="cal-prev" class="btn btn-quiet btn-small" type="button" aria-label="Previous month">‹</button>
+                    <h3 id="cal-title" class="calendar-title"></h3>
+                    <button id="cal-next" class="btn btn-quiet btn-small" type="button" aria-label="Next month">›</button>
+                  </div>
+                  <div class="calendar-grid" id="cal-grid" role="grid" aria-label="Content calendar"></div>
+                </div>
+              </div>
+
+              <!-- Task Workflow -->
+              <div class="card">
+                <div class="section-head">
+                  <div><p class="eyebrow">TASK WORKFLOW</p><h2>Kanban board</h2><p class="section-copy">Track production stages from idea to publish. Drag tasks between columns.
+</p></div>
+                </div>
+                <div class="kanban-board" id="kanban-board" role="list">
+                  <div class="kanban-column" data-status="backlog">
+                    <div class="kanban-header"><h4>Backlog</h4><span class="task-count">0</span></div>
+                    <div class="kanban-tasks" role="list" data-status="backlog"></div>
+                    <button class="btn btn-ghost btn-small add-task-btn" data-status="backlog" type="button">+ Add task</button>
+                  </div>
+                  <div class="kanban-column" data-status="research">
+                    <div class="kanban-header"><h4>Research</h4><span class="task-count">0</span></div>
+                    <div class="kanban-tasks" role="list" data-status="research"></div>
+                    <button class="btn btn-ghost btn-small add-task-btn" data-status="research" type="button">+ Add task</button>
+                  </div>
+                  <div class="kanban-column" data-status="production">
+                    <div class="kanban-header"><h4>Production</h4><span class="task-count">0</span></div>
+                    <div class="kanban-tasks" role="list" data-status="production"></div>
+                    <button class="btn btn-ghost btn-small add-task-btn" data-status="production" type="button">+ Add task</button>
+                  </div>
+                  <div class="kanban-column" data-status="review">
+                    <div class="kanban-header"><h4>Review</h4><span class="task-count">0</span></div>
+                    <div class="kanban-tasks" role="list" data-status="review"></div>
+                    <button class="btn btn-ghost btn-small add-task-btn" data-status="review" type="button">+ Add task</button>
+                  </div>
+                  <div class="kanban-column" data-status="ready">
+                    <div class="kanban-header"><h4>Ready to publish</h4><span class="task-count">0</span></div>
+                    <div class="kanban-tasks" role="list" data-status="ready"></div>
+                    <button class="btn btn-ghost btn-small add-task-btn" data-status="ready" type="button">+ Add task</button>
+                  </div>
+                  <div class="kanban-column" data-status="published">
+                    <div class="kanban-header"><h4>Published</h4><span class="task-count">0</span></div>
+                    <div class="kanban-tasks" role="list" data-status="published"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Multi-Channel Context -->
+              <div class="card">
+                <div class="section-head">
+                  <div><p class="eyebrow">MULTI-CHANNEL</p><h2>Channel workspace</h2><p class="section-copy">Manage multiple authorized channels. Switch context with one click.
+</p></div>
+                </div>
+                <div class="channel-workspace-list" id="channel-workspace-list">
+                  <div class="empty-state"><strong>No additional channels connected.</strong><span>Connect channels via OAuth to manage them here.
+</span></div>
+                </div>
+              </div>
+
+              <!-- Exports & Retention Controls -->
+              <div class="card">
+                <div class="section-head">
+                  <div><p class="eyebrow">EXPORTS & RETENTION</p><h2>Data management</h2><p class="section-copy">Export your workspace data, configure retention policies, or delete data.
+</p></div>
+                </div>
+                <div class="workspace-actions">
+                  <button id="export-workspace" class="btn btn-primary" type="button">Export workspace (JSON)</button>
+                  <button id="export-workspace-csv" class="btn" type="button">Export as CSV</button>
+                  <button id="retention-settings" class="btn" type="button">Retention settings</button>
+                  <button id="delete-workspace" class="btn btn-danger" type="button">Delete workspace</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
       </main>
 
     <div id="onboarding-modal" class="onboarding-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
@@ -935,21 +1045,16 @@
         <button id="onboarding-close" class="onboarding-close" type="button" aria-label="Close">×</button>
         <div class="eyebrow">YOUR CREATOR WORKSPACE</div>
         <h2 id="onboarding-title">Make Skillbox <em>yours.</em></h2>
-        <p id="onboarding-copy" class="section-copy">Enter your exact YouTube channel handle. We’ll show the public channel name and logo before you continue.</p>
+        <p id="onboarding-copy" class="section-copy">Enter your exact YouTube channel handle. We'll show the public channel name and logo before you continue.</p>
         <div id="onboarding-content"></div>
       </section>
     </div>
 
-      <footer class="statusbar">
-        <span id="status-dot" class="dot"></span>
-        <span id="status-text">Connecting to Anna host…</span>
-        <span class="spacer"></span>
-        <a id="repo-link" href="https://github.com/hackers-reality/youtube-skillbox-anna" target="_blank" rel="noopener">SOURCE REPOSITORY</a>
-        <span class="foot-note">MIT</span>
-      </footer>
-    </div>
-
-    <script src="anna-tool-ids.js"></script>
-    <script src="app.js" type="module"></script>
-  </body>
-</html>
+    <footer class="statusbar">
+      <span id="status-dot" class="dot"></span>
+      <span id="status-text">Connecting to Anna host...</span>
+      <span class="spacer"></span>
+      <a id="repo-link" href="https://github.com/hackers-reality/youtube-skillbox-anna" target="_blank" rel="noopener">SOURCE REPOSITORY</a>
+      <span class="foot-note">MIT</span>
+    </footer>
+  </div>

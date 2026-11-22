@@ -3677,7 +3677,194 @@ function wireAnalytics() {
   });
 }
 
+}
+}
+
 /* ---------- analytics end ---------- */
+
+/* ---------- workspace ---------- */
+const WORKSPACE_PROJECTS_KEY = "youtube-skillbox:workspace-projects";
+const WORKSPACE_TASKS_KEY = "youtube-skillbox:workspace-tasks";
+const WORKSPACE_CHANNELS_KEY = "youtube-skillbox:workspace-channels";
+const WORKSPACE_CALENDAR_KEY = "youtube-skillbox:workspace-calendar";
+const WORKSPACE_SETTINGS_KEY = "youtube-skillbox:workspace-settings";
+
+let workspaceProjects = [];
+let workspaceTasks = [];
+let workspaceChannels = [];
+let workspaceCalendar = [];
+let workspaceSettings = {
+  retentionDays: 365,
+  autoExport: false,
+  exportFormat: "json"
+};
+
+function wireWorkspace() {
+  // Load saved data
+  loadWorkspaceData();
+
+  // Saved Projects
+  renderWorkspaceProjects();
+
+  // Content Calendar
+  initCalendar();
+
+  // Kanban Board
+  initKanban();
+
+  // Channel Workspace
+  renderChannelWorkspace();
+
+  // Workspace Actions
+  byId("export-workspace")?.addEventListener("click", exportWorkspace);
+  byId("export-workspace-csv")?.addEventListener("click", () => exportWorkspace("csv"));
+  byId("retention-settings")?.addEventListener("click", openRetentionSettings);
+  byId("delete-workspace")?.addEventListener("click", confirmDeleteWorkspace);
+}
+
+async function loadWorkspaceData() {
+  try {
+    workspaceProjects = await storageList(WORKSPACE_PROJECTS_KEY) || [];
+    workspaceTasks = await storageList(WORKSPACE_TASKS_KEY) || [];
+    workspaceChannels = await storageList(WORKSPACE_CHANNELS_KEY) || [];
+    workspaceCalendar = await storageList(WORKSPACE_CALENDAR_KEY) || [];
+    const settings = await storageList(WORKSPACE_SETTINGS_KEY);
+    if (settings?.length) workspaceSettings = settings[0];
+  } catch (e) {
+    console.error("Failed to load workspace data:", e);
+  }
+}
+
+function renderWorkspaceProjects() {
+  const list = byId("workspace-projects");
+  if (!list) return;
+  if (!workspaceProjects.length) {
+    list.innerHTML = '<div class="empty-state"><strong>No saved projects yet.</strong><span>Save a brief, script, or report from Content Studio or Analytics to see it here.</span></div>';
+    return;
+  }
+  list.innerHTML = workspaceProjects.map((p, i) => `
+    <article class="workspace-item">
+      <div class="workspace-item-head">
+        <strong>${escapeHtml(p.title || "Untitled")}</strong>
+        <span class="workspace-type ev ev-${p.type === "brief" ? "inferred" : p.type === "script" ? "hypothesis" : p.type === "audit" ? "measured" : "inferred"}">${p.type?.toUpperCase() || "PROJECT"}</span>
+      </div>
+      <p class="workspace-item-meta">${escapeHtml(p.description || "")}</p>
+      <div class="workspace-item-meta">${new Date(p.savedAt).toLocaleDateString()} \u00b7 ${p.channel || "No channel"}</div>
+      <div class="workspace-item-actions">
+        <button class="btn btn-ghost btn-small" data-open-project="${i}">Open</button>
+        <button class="btn btn-ghost btn-small" data-duplicate-project="${i}">Duplicate</button>
+        <button class="btn btn-danger btn-small" data-delete-project="${i}">Delete</button>
+      </div>
+    </article>
+  `).join("");
+
+  $$("[data-open-project]", byId("workspace-projects")).forEach(b => {
+    b.addEventListener("click", () => openProject(Number(b.dataset.openProject)));
+  });
+  $$("[data-duplicate-project]", byId("workspace-projects")).forEach(b => {
+    b.addEventListener("click", () => duplicateProject(Number(b.dataset.duplicateProject)));
+  });
+  $$("[data-delete-project]", byId("workspace-projects")).forEach(b => {
+    b.addEventListener("click", () => confirmDeleteProject(Number(b.dataset.deleteProject)));
+  });
+}
+
+function openProject(index) {
+  const project = workspaceProjects[index];
+  if (!project) return;
+  byId("tab-button-studio")?.click();
+  if (project.type === "brief") {
+    byId("studio-topic").value = project.topic || "";
+    byId("studio-context").value = project.content || "";
+  } else if (project.type === "script") {
+    byId("studio-topic").value = project.topic || "";
+    byId("studio-context").value = project.content || "";
+  }
+  byId("tab-studio")?.scrollIntoView({ behavior: "smooth" });
+}
+
+function duplicateProject(index) {
+  const project = workspaceProjects[index];
+  if (!project) return;
+  const copy = { ...project, id: "proj_" + Date.now(), title: (project.title || "Untitled") + " (copy)", savedAt: new Date().toISOString() };
+  workspaceProjects.push(copy);
+  storageSet(WORKSPACE_PROJECTS_KEY, workspaceProjects);
+  renderWorkspaceProjects();
+}
+
+function confirmDeleteProject(index) {
+  if (!confirm("Delete this project? This cannot be undone.")) return;
+  workspaceProjects.splice(index, 1);
+  storageSet(WORKSPACE_PROJECTS_KEY, workspaceProjects);
+  renderWorkspaceProjects();
+}
+
+function exportWorkspace(format = "json") {
+  const data = {
+    projects: workspaceProjects,
+    tasks: workspaceTasks,
+    channels: workspaceChannels,
+    calendar: workspaceCalendar,
+    settings: workspaceSettings,
+    exportedAt: new Date().toISOString()
+  };
+  const blob = new Blob([format === "csv" ? toCSV(data) : JSON.stringify(data, null, 2)], { type: format === "csv" ? "text/csv" : "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "workspace-export-" + new Date().toISOString().slice(0,10) + "." + format;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function toCSV(data) {
+  if (Array.isArray(data)) {
+    if (!data.length) return "";
+    const headers = Object.keys(data[0]);
+    return [headers.join(","), ...data.map(row => headers.map(h => '"' + String(row[h] || "").replace(/"/g, '""') + '"').join(","))].join("\n");
+  }
+  return JSON.stringify(data, null, 2);
+}
+
+function openRetentionSettings() {
+  alert("Retention settings modal - to be implemented");
+}
+
+function confirmDeleteWorkspace() {
+  if (!confirm("DELETE ENTIRE WORKSPACE? This will permanently delete all saved projects, tasks, calendar events, channel connections, and settings. This cannot be undone.")) return;
+  if (!confirm("ARE YOU ABSOLUTELY SURE? Type 'DELETE' to confirm.")) return;
+  const input = prompt("Type DELETE to confirm:");
+  if (input !== "DELETE") return;
+  
+  storageSet(WORKSPACE_PROJECTS_KEY, []);
+  storageSet(WORKSPACE_TASKS_KEY, []);
+  storageSet(WORKSPACE_CHANNELS_KEY, []);
+  storageSet(WORKSPACE_CALENDAR_KEY, []);
+  storageSet(WORKSPACE_SETTINGS_KEY, []);
+  storageSet(WORKSPACE_PROJECTS_KEY, []);
+  storageSet(WORKSPACE_TASKS_KEY, []);
+  storageSet(WORKSPACE_CHANNELS_KEY, []);
+  storageSet(WORKSPACE_CALENDAR_KEY, []);
+  storageSet(WORKSPACE_SETTINGS_KEY, []);
+  
+  workspaceProjects = [];
+  workspaceTasks = [];
+  workspaceChannels = [];
+  workspaceCalendar = [];
+  workspaceSettings = { retentionDays: 365, autoExport: false, exportFormat: "json" };
+  
+  renderWorkspaceProjects();
+  renderWorkspaceTasks();
+  renderChannelWorkspace();
+  initCalendar();
+  alert("Workspace deleted.");
+}
+
+/* ---------- workspace end ---------- */
+
+async function main() {/* ---------- analytics end ---------- */
 
 async function main() {
   // Handle OAuth callback before anything else
