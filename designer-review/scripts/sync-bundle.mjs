@@ -22,12 +22,11 @@ appJs = appJs.replace(/let anna = null;\s*let standalone = false;/, "let anna = 
 
 appJs = appJs.replace(
   /async function connect\(\) \{[\s\S]*?^\}\s*(?=\nfunction|\nconst|\nlet|\nvar|\nimport|\/\*|$)/m,
-  "async function connect() {\n  standalone = true;\n  anna = null;\n  setStatus(\"Standalone preview \u2014 Skillbox tools via /api/skillbox\", true, true);\n  return false;\n}"
+  "async function connect() {\n  standalone = true;\n  anna = null;\n  setStatus(\"Standalone preview \u2014 Skillbox tools and NVIDIA NIM are ready\", true, true);\n  return true;\n}"
 );
 
 appJs = appJs.replace(/import \{ AnnaAppRuntime \} from "\/static\/anna-apps\/_sdk\/latest\/index\.js";\s*/, "");
 appJs = appJs.replace(/import \{ invokeAnnaTool \} from "\.\/anna-tool-runtime\.mjs";\s*/, "");
-appJs = appJs.replace(/import \{ planChatTools \} from "\.\/chat-routing\.mjs";\s*/, "");
 
 appJs = appJs.replace(
   /async function tool\(method, args, timeoutMs, options = \{\}\) \{[\s\S]*?return payload;\s*\}/m,
@@ -81,7 +80,6 @@ appJs = appJs.replace(
 
 appJs = appJs.replace(/import \{ AnnaAppRuntime \} from "\/static\/anna-apps\/_sdk\/latest\/index\.js";\s*/, "");
 appJs = appJs.replace(/import \{ invokeAnnaTool \} from "\.\/anna-tool-runtime\.mjs";\s*/, "");
-appJs = appJs.replace(/import \{ planChatTools \} from "\.\/chat-routing\.mjs";\s*/, "");
 
 appJs = appJs.replace(
   /async function tool\(method, args, timeoutMs, options = \{\}\) \{[\s\S]*?return payload;\s*\}/m,
@@ -116,7 +114,6 @@ appJs = appJs.replace(
 // Keep copy-description event registration in the original onboarding initializer.
 appJs = appJs.replace(/import \{ AnnaAppRuntime \} from "\/static\/anna-apps\/_sdk\/latest\/index\.js";\s*/, "");
 appJs = appJs.replace(/import \{ invokeAnnaTool \} from "\.\/anna-tool-runtime\.mjs";\s*/, "");
-appJs = appJs.replace(/import \{ planChatTools \} from "\.\/chat-routing\.mjs";\s*/, "");
 
 appJs = appJs.replace(/AnnaAppRuntime/g, "");
 appJs = appJs.replace(/anna\.llm\.complete/g, "");
