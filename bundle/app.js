@@ -15,6 +15,24 @@ const DEV_TOOL_ID = "tool-dev-youtube-skillbox";
 const PRIMARY_TOOL_ID = typeof location !== "undefined" && /\/dev\//.test(location.pathname + location.search) ? DEV_TOOL_ID : TOOL_ID;
 const AUDITS_KEY = "youtube-skillbox:audits";
 
+/* ---------- Google OAuth configuration ---------- */
+const OAUTH_CONFIG = {
+  clientId: "skillbox-oauth-client-id", // To be configured per deployment
+  scopes: [
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/userinfo.email",
+  ],
+  redirectUri: typeof location !== "undefined" ? `${location.origin}${location.pathname}oauth-callback` : "",
+  authEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+  tokenEndpoint: "https://oauth2.googleapis.com/token",
+  revokeEndpoint: "https://oauth2.googleapis.com/revoke",
+};
+
+const OAUTH_STORAGE_KEY = "youtube-skillbox:oauth-tokens";
+const OAUTH_STATE_KEY = "youtube-skillbox:oauth-state";
+
 /* ---------- feature flags & guest-mode boundaries ---------- */
 const FEATURES = {
   // Core features always available
@@ -74,6 +92,138 @@ const Evidence = {
   inferred: (data, basis, meta = {}) => ({ provenance: "INFERRED", data, basis, meta }),
   hypothesis: (data, rationale, meta = {}) => ({ provenance: "HYPOTHESIS", data, rationale, meta }),
   label: (provenance) => `<span class="ev ev-${provenance.toLowerCase()}">${provenance}</span>`,
+};
+
+/* ---------- Google OAuth helpers ---------- */
+const OAuth = {
+  generateState() {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
+  },
+
+  buildAuthUrl(state) {
+    const params = new URLSearchParams({
+      client_id: OAUTH_CONFIG.clientId,
+      redirect_uri: OAUTH_CONFIG.redirectUri,
+      response_type: "code",
+      scope: OAUTH_CONFIG.scopes.join(" "),
+      state,
+      access_type: "offline",
+      prompt: "consent",
+      include_granted_scopes: "true",
+    });
+    return `${OAUTH_CONFIG.authEndpoint}?${params.toString()}`;
+  },
+
+  async exchangeCodeForTokens(code) {
+    const params = new URLSearchParams({
+      client_id: OAUTH_CONFIG.clientId,
+      client_secret: OAUTH_CONFIG.clientSecret || "", // Required for confidential clients; omitted for public client flow
+      code,
+      grant_type: "authorization_code",
+      redirect_uri: OAUTH_CONFIG.redirectUri,
+    });
+
+    const response = await fetch(OAUTH_CONFIG.tokenEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Token exchange failed" }));
+      throw new Error(error.error_description || error.error || "Token exchange failed");
+    }
+
+    return response.json(); // { access_token, refresh_token, expires_in, token_type, scope, id_token }
+  },
+
+  async refreshAccessToken(refreshToken) {
+    const params = new URLSearchParams({
+      client_id: OAUTH_CONFIG.clientId,
+      client_secret: OAUTH_CONFIG.clientSecret || "",
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    });
+
+    const response = await fetch(OAUTH_CONFIG.tokenEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Token refresh failed" }));
+      throw new Error(error.error_description || error.error || "Token refresh failed");
+    }
+
+    return response.json();
+  },
+
+  async revokeToken(accessToken) {
+    const params = new URLSearchParams({ token: accessToken });
+    await fetch(`${OAUTH_CONFIG.revokeEndpoint}?${params.toString()}`, { method: "POST" });
+  },
+
+  async storeTokens(tokens) {
+    const payload = {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_at: Date.now() + (tokens.expires_in || 3600) * 1000,
+      scope: tokens.scope,
+      token_type: tokens.token_type,
+      id_token: tokens.id_token,
+      stored_at: Date.now(),
+    };
+    await storageSet(OAUTH_STORAGE_KEY, [payload]);
+    return payload;
+  },
+
+  async getStoredTokens() {
+    try {
+      const stored = await storageList(OAUTH_STORAGE_KEY);
+      return stored[0] || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async clearTokens() {
+    await storageSet(OAUTH_STORAGE_KEY, []);
+  },
+
+  async getValidAccessToken() {
+    const tokens = await this.getStoredTokens();
+    if (!tokens) return null;
+
+    // Check if access token is still valid (with 5 min buffer)
+    if (tokens.expires_at && tokens.expires_at > Date.now() + 5 * 60 * 1000) {
+      return tokens.access_token;
+    }
+
+    // Try to refresh
+    if (tokens.refresh_token) {
+      try {
+        const newTokens = await this.refreshAccessToken(tokens.refresh_token);
+        const stored = await this.storeTokens({ ...tokens, ...newTokens });
+        return stored.access_token;
+      } catch (error) {
+        await this.clearTokens();
+        throw new Error(`Token refresh failed: ${error.message}`);
+      }
+    }
+
+    return null;
+  },
+
+  async disconnect() {
+    const tokens = await this.getStoredTokens();
+    if (tokens?.access_token) {
+      try { await this.revokeToken(tokens.access_token); } catch (_) {}
+    }
+    await this.clearTokens();
+  },
 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -380,17 +530,23 @@ function renderOnboarding() {
   }
   if (onboardingStep === "identity") {
     title.textContent = "Make Skillbox yours.";
-    copy.textContent = "Enter your exact YouTube channel handle. We’ll show the public channel name and logo before you continue.";
-    content.innerHTML = `<label class="field"><span>YouTube channel handle</span><input id="onboarding-handle" type="text" placeholder="@yourchannel" autocomplete="off" spellcheck="false" /></label><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div><div class="onboarding-actions"><button id="onboarding-find" class="btn btn-primary" type="button">Find my channel</button><button id="onboarding-guest" class="btn" type="button">Continue as guest</button></div><p class="hint">Guest mode includes Anna chat, public topic research and uploaded exports; verify a channel for channel-specific context.</p>`;
+    copy.textContent = "Enter your exact YouTube channel handle, or connect directly with Google for instant verification.";
+    content.innerHTML = `<label class="field"><span>YouTube channel handle</span><input id="onboarding-handle" type="text" placeholder="@yourchannel" autocomplete="off" spellcheck="false" /></label><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div><div class="onboarding-actions"><button id="onboarding-find" class="btn btn-primary" type="button">Find my channel</button><button id="onboarding-oauth" class="btn" type="button"><svg viewBox="0 0 24 24" width="18" height="18" style="margin-right:8px"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.45 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Connect with Google</button><button id="onboarding-guest" class="btn" type="button">Continue as guest</button></div><p class="hint">Guest mode includes Anna chat, public topic research and uploaded exports; verify a channel for channel-specific context.</p>`;
     byId("onboarding-find")?.addEventListener("click", async () => {
       const value = byId("onboarding-handle").value.trim();
       if (!value || (!value.startsWith("@") && !/youtube\.com\/(?:@|channel\/)/i.test(value))) {
         byId("onboarding-error").textContent = "Enter the exact @handle shown on your YouTube channel.";
         return;
       }
-      const button = byId("onboarding-find"); button.disabled = true; button.innerHTML = '<span class="spinner"></span> Finding channel…';
+      const button = byId("onboarding-find"); button.disabled = true; button.innerHTML = '<span class="spinner"></span> Finding channel...';
       try { await fetchProfile(value); onboardingStep = "confirm"; renderOnboarding(); }
       catch (error) { byId("onboarding-error").textContent = `Could not find that channel. ${error.message || error}`; button.disabled = false; button.textContent = "Try again"; }
+    });
+    byId("onboarding-oauth")?.addEventListener("click", async () => {
+      const state = OAuth.generateState();
+      sessionStorage.setItem(OAUTH_STATE_KEY, state);
+      const authUrl = OAuth.buildAuthUrl(state);
+      window.location.href = authUrl;
     });
     byId("onboarding-guest")?.addEventListener("click", async () => {
       guestMode = true; await storageSet(GUEST_KEY, [true]); renderProfileState(); closeOnboarding();
@@ -410,14 +566,20 @@ function renderOnboarding() {
     byId("onboarding-no")?.addEventListener("click", async () => { profileState = null; await storageSet(PROFILE_KEY, []); onboardingStep = "identity"; renderOnboarding(); renderProfileState(); });
     return;
   }
-  if (onboardingStep === "phrase") {
+  if (if (onboardingStep === "phrase") {
     title.textContent = "Verify it’s really yours.";
-    copy.textContent = "Copy this one-time phrase into your channel description manually. We never edit YouTube or ask for OAuth.";
-    content.innerHTML = `<label class="field"><span>Unique verification phrase · read-only</span><div class="copy-field"><input id="onboarding-phrase" readonly value="${escapeHtml(profileState.phrase)}" /><button id="onboarding-copy" class="btn" type="button">Copy</button></div></label><div class="onboarding-actions"><button id="onboarding-verify" class="btn btn-primary" type="button">I added it — verify now</button><button id="onboarding-back" class="btn" type="button">Back</button></div><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div>`;
-    byId("onboarding-copy")?.addEventListener("click", async () => { const copied = await copyWithFeedback(profileState.phrase, byId("onboarding-copy"), byId("onboarding-error")); if (!copied) { byId("onboarding-error").textContent = "Copy failed \u2014 select and copy manually."; byId("onboarding-error").classList.remove("hidden"); } });
+    copy.textContent = "Copy this one-time phrase into your channel description manually. We never edit YouTube or ask for OAuth. Or use Google OAuth below for instant verification.";
+    content.innerHTML = `<label class="field"><span>Unique verification phrase • read-only</span><div class="copy-field"><input id="onboarding-phrase" readonly value="${escapeHtml(profileState.phrase)}" /><button id="onboarding-copy" class="btn" type="button">Copy</button></div></label><div class="onboarding-actions"><button id="onboarding-verify" class="btn btn-primary" type="button">I added it — verify now</button><button id="onboarding-back" class="btn" type="button">Back</button><button id="onboarding-oauth-alt" class="btn" type="button"><svg viewBox="0 0 24 24" width="18" height="18" style="margin-right:8px"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.45 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Verify with Google OAuth</button></div><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div>`;
+    byId("onboarding-copy")?.addEventListener("click", async () => { const copied = await copyWithFeedback(profileState.phrase, byId("onboarding-copy"), byId("onboarding-error")); if (!copied) { byId("onboarding-error").textContent = "Copy failed — select and copy manually."; byId("onboarding-error").classList.remove("hidden"); } });
     byId("onboarding-back")?.addEventListener("click", () => { onboardingStep = "confirm"; renderOnboarding(); });
+    byId("onboarding-oauth-alt")?.addEventListener("click", async () => {
+      const state = OAuth.generateState();
+      sessionStorage.setItem(OAUTH_STATE_KEY, state);
+      const authUrl = OAuth.buildAuthUrl(state);
+      window.location.href = authUrl;
+    });
     byId("onboarding-verify")?.addEventListener("click", async () => {
-      const button = byId("onboarding-verify"); button.disabled = true; button.textContent = "Checking public description…";
+      const button = byId("onboarding-verify"); button.disabled = true; button.textContent = "Checking public description...";
       try {
         const refreshed = await tool("profile", { handle: profileState.handle }, 85000);
         const description = String(refreshed.description || refreshed.about || "");
@@ -430,22 +592,45 @@ function renderOnboarding() {
       } catch (error) { byId("onboarding-error").textContent = `Verification could not be checked: ${error.message || error}`; button.disabled = false; button.textContent = "Retry verification"; }
     });
     return;
-  }
+  }}
   if (onboardingStep === "restore") {
-    title.textContent = "You’re verified.";
-    copy.textContent = "Your original description was saved before verification. Restore it in YouTube when you’re ready; nothing was changed automatically.";
+    title.textContent = "You're verified.";
+    copy.textContent = "Your original description was saved before verification. Restore it in YouTube when you're ready; nothing was changed automatically.";
     const original = String(profileState.originalDescription ?? "");
-    content.innerHTML = `<div class="onboarding-identity">${avatar ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(name)} channel logo" />` : `<span>${escapeHtml(name.slice(0,1).toUpperCase())}</span>`}<div><strong>${escapeHtml(name)}</strong><small>✓ Channel verified · ${escapeHtml(handle)}</small></div></div><label class="field mt"><span>Creator focus & goals · used to personalize Channel DNA</span><textarea id="creator-preferences" rows="3" placeholder="e.g. Space and science documentaries for curious beginners; prioritize long-form explainers; avoid unrelated AI trends.">${escapeHtml(profileState.creatorPreferences || "")}</textarea></label><div class="onboarding-actions"><button id="save-creator-preferences" class="btn btn-primary" type="button">Save creator focus</button></div><p class="hint">Your stated focus is considered alongside published videos. It does not overwrite measured channel evidence.</p><label class="field mt"><span>${original ? "Your previous description · saved exactly" : "Previous description not available"}</span><textarea id="original-description" readonly rows="6">${escapeHtml(original)}</textarea></label><div class="onboarding-actions"><button id="copy-description" class="btn" type="button" ${original ? "" : "disabled"}>Copy old description</button><button id="onboarding-chat" class="btn btn-primary" type="button" ${original ? "" : "disabled"}>Ask Anna to refine</button><button id="onboarding-restored" class="btn" type="button">I restored it</button><button id="workspace-logout" class="btn" type="button">Log out & clear saved data</button></div><p class="hint">${original ? "Nothing is changed on YouTube automatically. Copy it back yourself, or ask Anna to refine it first." : "This channel was connected before the original-description backup existed. No original text can be reconstructed, so the current description was not changed."}</p>`;
+    const oauthConnected = profileState.oauthConnected || false;
+    content.innerHTML = `<div class="onboarding-identity">${avatar ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(name)} channel logo" />` : `<span>${escapeHtml(name.slice(0,1).toUpperCase())}</span>`}<div><strong>${escapeHtml(name)}</strong><small>✓ Channel verified · ${escapeHtml(handle)}${oauthConnected ? ` · Google OAuth connected` : ""}</small></div></div><label class="field mt"><span>Creator focus & goals · used to personalize Channel DNA</span><textarea id="creator-preferences" rows="3" placeholder="e.g. Space and science documentaries for curious beginners; prioritize long-form explainers; avoid unrelated AI trends.">${escapeHtml(profileState.creatorPreferences || "")}</textarea></label><div class="onboarding-actions"><button id="save-creator-preferences" class="btn btn-primary" type="button">Save creator focus</button></div><p class="hint">Your stated focus is considered alongside published videos. It does not overwrite measured channel evidence.</p><label class="field mt"><span>${original ? "Your previous description · saved exactly" : "Previous description not available"}</span><textarea id="original-description" readonly rows="6">${escapeHtml(original)}</textarea></label><div class="onboarding-actions"><button id="copy-description" class="btn" type="button" ${original ? "" : "disabled"}>Copy old description</button><button id="onboarding-chat" class="btn btn-primary" type="button" ${original ? "" : "disabled"}>Ask Anna to refine</button><button id="onboarding-restored" class="btn" type="button">I restored it</button>${oauthConnected ? `<button id="onboarding-disconnect" class="btn btn-danger" type="button">Disconnect Google</button>` : ""}<button id="workspace-logout" class="btn" type="button">Log out & clear saved data</button></div><p class="hint">${original ? "Nothing is changed on YouTube automatically. Copy it back yourself, or ask Anna to refine it first." : "This channel was connected before the original-description backup existed. No original text can be reconstructed, so the current description was not changed."}</p>`;
     byId("save-creator-preferences")?.addEventListener("click", async () => {
       profileState.creatorPreferences = String(byId("creator-preferences")?.value || "").trim().slice(0, 1200);
       await storageSet(PROFILE_KEY, [profileState]);
       byId("save-creator-preferences").textContent = "Saved";
     });
-    byId("copy-description")?.addEventListener("click", async () => { const copied = await copyWithFeedback(original, byId("copy-description")); if (!copied) { byId("copy-description").textContent = "Copy failed \u2014 select and copy manually."; } });
-    byId("onboarding-chat")?.addEventListener("click", () => { closeOnboarding(); byId("tab-button-chat")?.click(); byId("chat-input").value = "Help me refine my YouTube channel description. Keep my original meaning and voice. Here is my previous description:\n\n" + original; byId("chat-input").focus(); });
+    byId("copy-description")?.addEventListener("click", async () => { const copied = await copyWithFeedback(original, byId("copy-description")); if (!copied) { byId("copy-description").textContent = "Copy failed — select and copy manually."; } });
+    byId("onboarding-chat")?.addEventListener("click", () => { closeOnboarding(); byId("tab-button-chat")?.click(); byId("chat-input").value = "Help me refine my YouTube channel description. Keep my original meaning and voice. Here is my previous description:
+
+" + original; byId("chat-input").focus(); });
     byId("onboarding-restored")?.addEventListener("click", async () => { profileState.restorationShown = true; await storageSet(PROFILE_KEY, [profileState]); closeOnboarding(); });
+    byId("onboarding-disconnect")?.addEventListener("click", async () => {
+      const button = byId("onboarding-disconnect");
+      button.disabled = true;
+      button.textContent = "Disconnecting...";
+      try {
+        await OAuth.disconnect();
+        profileState.verified = false;
+        profileState.oauthConnected = false;
+        await storageSet(PROFILE_KEY, [profileState]);
+        guestMode = true;
+        await storageSet(GUEST_KEY, [true]);
+        setStatus("Google account disconnected.", true);
+        renderProfileState();
+        renderOnboarding();
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = "Disconnect Google";
+        setStatus(`Disconnect failed: ${error.message || error}`, false, true);
+      }
+    });
     byId("workspace-logout")?.addEventListener("click", clearWorkspaceSession);
-  }
+  }}
 }
 
 function renderProfileState() {
@@ -2996,6 +3181,13 @@ function wireRetention() {
 
 /* ---------- boot ---------- */
 async function main() {
+  // Handle OAuth callback before anything else
+  if (location.pathname.endsWith("/oauth-callback") || location.search.includes("code=")) {
+    await handleOAuthCallback();
+    // Clean URL after handling
+    history.replaceState({}, document.title, location.pathname.replace("/oauth-callback", "") + location.hash);
+  }
+
   wireTabs();
   wireRail();
   wireChat();
@@ -3026,6 +3218,49 @@ async function main() {
     // AnnaAppRuntime.connect() already emits window.ready after the handshake.
   }
   if (!ok) setStatus("Standalone preview — open via `anna-app dev` for the real host.", false, true);
+}
+
+/* ---------- OAuth callback handler ---------- */
+async function handleOAuthCallback() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get("code");
+  const state = params.get("state");
+  const error = params.get("error");
+
+  const storedState = sessionStorage.getItem(OAUTH_STATE_KEY);
+  sessionStorage.removeItem(OAUTH_STATE_KEY);
+
+  if (error) {
+    setStatus(`OAuth error: ${error}`, false, true);
+    return;
+  }
+
+  if (!code || !state || state !== storedState) {
+    setStatus("OAuth callback invalid: missing code or state mismatch.", false, true);
+    return;
+  }
+
+  setStatus("Exchanging OAuth code for tokens...", true, true);
+  try {
+    const tokens = await OAuth.exchangeCodeForTokens(code);
+    await OAuth.storeTokens(tokens);
+    setStatus("Channel connected via Google OAuth!", true);
+
+    // If we were in onboarding, complete the verification
+    if (profileState && !profileState.verified) {
+      profileState.verified = true;
+      profileState.oauthConnected = true;
+      await storageSet(PROFILE_KEY, [profileState]);
+      guestMode = false;
+      await storageSet(GUEST_KEY, [false]);
+      renderProfileState();
+      renderOnboarding();
+    } else {
+      renderProfileState();
+    }
+  } catch (e) {
+    setStatus(`OAuth token exchange failed: ${e.message}`, false, true);
+  }
 }
 
 main().catch((e) => setStatus(`Fatal: ${e.message || e}`, false));
