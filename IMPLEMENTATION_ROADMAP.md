@@ -5,6 +5,8 @@
 
 ## Current progress — 2026-11-22
 
+> **Verification update (2026-11-23):** Phase-labelled commits do not establish completion. See [`report.md`](report.md) for current acceptance status and runtime evidence. Media rendering and a guided tour are added. Secure **local Windows OAuth/Analytics** is implemented with offline security tests; real Google consent/API verification now requires the setup in [`GOOGLE_OAUTH_SETUP.md`](GOOGLE_OAUTH_SETUP.md). Production hosted identity and real APS/authorized multi-channel acceptance remain outstanding. No release or current-worktree remote CI success is claimed.
+
 ### Phase 0 / 1
 - The Anna and Vercel runtimes remain separate: this branch uses the Anna host LLM and Executa tool bridge; the standalone NVIDIA NIM app remains on `feat/designer-review-nextjs`.
 - The existing app, tool routing, engine adapter, and test workflow were mapped before implementation.

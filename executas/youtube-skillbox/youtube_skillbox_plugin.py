@@ -17,6 +17,7 @@ import re
 import sys
 import time
 import traceback
+from oauth_local import invoke_oauth
 
 VERSION = "0.7.0"
 ENGINE_TIMEOUT = 90
@@ -267,6 +268,14 @@ MANIFEST = {
     "credentials": [],
     "runtime": {"type": "python"},
 }
+
+# Local OAuth uses backend-owned grants, never client-supplied Google tokens.
+MANIFEST["tools"].extend([
+    {"name": "oauth_begin", "description": "Start local read-only Google authorization; returns a consent URL, not credentials.", "parameters": [], "timeout": 30},
+    {"name": "oauth_status", "description": "List locally authorized account/channel identities without exposing credentials.", "parameters": [{"name": "attempt_id", "type": "string", "required": False}], "timeout": 30},
+    {"name": "oauth_disconnect", "description": "Explicitly revoke a local Google account grant; does not clear the public creator profile.", "parameters": [{"name": "grant_id", "type": "string", "required": True}], "timeout": 60},
+    {"name": "oauth_analytics", "description": "Read authorized Analytics for a channel owned by a backend grant; no Google token in RPC.", "parameters": [{"name": name, "type": "string", "required": required} for name, required in [("grant_id", True), ("channel_id", True), ("report", True), ("start_date", False), ("end_date", False)]], "timeout": 150}
+])
 
 
 def _strip_nulls(obj):
@@ -1165,6 +1174,8 @@ def _parse_retention_csv(csv_text, duration_seconds=None):
 
 
 def invoke(method: str, args: dict) -> dict:
+    if method in {"oauth_begin", "oauth_status", "oauth_disconnect", "oauth_analytics"}:
+        return invoke_oauth(method, args or {})
     a = args or {}
     try:
         if method == "ping":

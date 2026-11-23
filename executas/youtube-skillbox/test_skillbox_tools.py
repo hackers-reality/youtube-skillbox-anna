@@ -28,6 +28,44 @@ from youtube_skillbox_plugin import (
 
 
 class CreatorToolTests(unittest.TestCase):
+    def _source_engine(self):
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location("skillbox_media_test_engine", Path(__file__).parent / "engine" / "ytdata.py")
+        engine = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(engine)
+        return engine
+
+    def test_upload_normalization_preserves_thumbnails(self):
+        engine = self._source_engine()
+        url = "https://i.ytimg.com/vi/abcdefghijk/custom.jpg"
+        self.assertEqual(engine.slim({"id": "abcdefghijk", "thumbnails": [{"url": url}]})["thumbnail"], url)
+        self.assertEqual(engine.slim({"id": "abcdefghijk"})["thumbnail"], "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg")
+
+    def test_channel_handle_always_uses_selected_tab(self):
+        from types import SimpleNamespace
+        engine = self._source_engine()
+        for tab in ["videos", "shorts", "streams"]:
+            with patch.object(engine, "dump_entries", return_value=[]) as fetch, patch.object(engine, "print_list"):
+                engine.cmd_channel(SimpleNamespace(handle="@creator", tab=tab, limit=15, json=True))
+            self.assertEqual(fetch.call_args.args[0][0], "https://www.youtube.com/@creator/" + tab)
+
+    def test_runtime_declares_its_direct_ytdlp_dependency(self):
+        import tomllib
+        from pathlib import Path
+        config = tomllib.loads(Path(__file__).with_name("pyproject.toml").read_text(encoding="utf-8"))
+        self.assertTrue(any(dep.startswith("yt-dlp") for dep in config["project"]["dependencies"]))
+
+    def test_upload_fallback_uses_the_plugin_python_interpreter(self):
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location("skillbox_test_engine", Path(__file__).parent / "engine" / "ytdata.py")
+        engine = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(engine)
+        with patch.object(engine.subprocess, "run") as run:
+            engine._ytdlp_fallback(["--version"])
+        self.assertEqual(run.call_args.args[0][:3], [sys.executable, "-m", "yt_dlp"])
+
     @patch("youtube_skillbox_plugin._engine_script", return_value="/fake/engine")
     def test_engine_preserves_stderr_when_cli_exits_nonzero(self, _engine_path):
         fake_engine = ModuleType("ytdata")

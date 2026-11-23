@@ -487,6 +487,46 @@ html[data-theme="light"] input[type="text"],html[data-theme="light"] input[type=
 .studio-result-detail{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-top:1px solid var(--line)}
 .studio-result-detail:first-child{border-top:0}.studio-result-detail span{color:var(--text-dim);font-size:10px;text-transform:capitalize}
 .studio-result-detail strong{max-width:70%;text-align:right;color:var(--text);font-size:11px;font-weight:600}
+
+/* Creator workspace: native dialogs work in Anna's sandbox without allow-modals. */
+.workspace-grid{display:grid;gap:16px;min-width:0}
+.media-frame{display:block;position:relative;width:100%;height:100%;overflow:hidden;background:var(--surface-3)}
+.media-frame img{display:block;width:100%;height:100%;object-fit:cover}
+.media-frame img[hidden],.media-fallback[hidden]{display:none!important}
+.media-fallback{display:grid;place-items:center;width:100%;height:100%;min-height:52px;padding:8px;color:var(--text-3);font-size:10px;text-align:center}
+.audit-upload>.media-frame{aspect-ratio:16/9}.audit-upload-grid.is-shorts .audit-upload>.media-frame{aspect-ratio:9/16}
+.shelf-thumb-link>.media-frame{aspect-ratio:16/9}.shelf-item.is-short .shelf-thumb-link>.media-frame{aspect-ratio:9/16}
+.shelf-channel-preview>.media-frame.is-avatar{width:68px;height:68px;border-radius:50%}
+.media-frame.is-avatar .media-fallback{font-size:24px;color:var(--red);background:var(--red-soft)}
+#google-dialog,#tour-dialog{margin:auto;color:var(--text)}
+#google-dialog::backdrop,#tour-dialog::backdrop{background:rgba(5,6,9,.72);backdrop-filter:blur(8px)}
+#google-dialog [hidden]{display:none!important}
+.tour-visual{display:flex;align-items:center;justify-content:center;gap:8px;min-height:120px;margin:20px 0;border:1px solid var(--line);border-radius:18px;background:linear-gradient(135deg,var(--red-soft),var(--surface-1))}
+.tour-visual>span{display:grid;place-items:center;width:64px;height:64px;border:1px solid var(--line-strong);border-radius:18px;background:var(--bg-2);color:var(--red);font-size:32px;box-shadow:var(--shadow)}
+.tour-visual>i{width:12px;height:12px;border-radius:4px;background:var(--red);opacity:.15}
+.tour-enter>span{animation:tour-card-in .45s var(--ease) both}.tour-enter>i{animation:tour-dot-in .6s var(--ease) both}.tour-enter>i:nth-child(3){animation-delay:.1s}.tour-enter>i:nth-child(4){animation-delay:.2s}
+.tour-progress-track{height:4px;margin-top:20px;background:var(--surface-3);border-radius:10px;overflow:hidden}#tour-progress{height:100%;background:var(--red);transition:width .25s var(--ease)}
+.tab.tour-target{outline:1px solid var(--red);outline-offset:2px}
+@keyframes tour-card-in{from{opacity:0;transform:translateY(10px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes tour-dot-in{from{opacity:0;transform:translateX(-6px)}to{opacity:.35;transform:none}}
+.workspace-item,.workspace-task{padding:12px;margin:8px 0;border:1px solid var(--line);border-radius:12px;background:var(--surface-1);overflow-wrap:anywhere}
+.workspace-item>.ev{margin-left:10px}
+.workspace-actions,.calendar-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.calendar-header{justify-content:space-between}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-top:10px;font-size:10px}
+.calendar-day{min-height:72px;padding:4px;border:1px solid var(--line);border-radius:8px;background:var(--bg-2)}
+.calendar-add,.calendar-entry button{border:0;padding:4px;background:transparent;color:var(--text);cursor:pointer;text-align:left;font:inherit;overflow-wrap:anywhere}
+.calendar-entry{display:flex;border-radius:5px;background:var(--red-soft);margin-top:3px;overflow:hidden}
+.calendar-entry button:first-child{flex:1;min-width:0}
+.kanban-board{display:grid;grid-template-columns:repeat(6,minmax(170px,1fr));gap:10px;overflow-x:auto;padding-bottom:8px}
+.kanban-column{min-height:180px;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--bg-2)}
+.kanban-header{display:flex;align-items:center;justify-content:space-between;font-size:11px}
+.kanban-tasks{min-height:60px}
+.workspace-preview{max-height:50vh;overflow:auto;white-space:pre-wrap;font-size:12px;line-height:1.6}
+#workspace-dialog{margin:auto;color:var(--text)}
+#workspace-dialog::backdrop{background:rgba(5,6,9,.72);backdrop-filter:blur(8px)}
+#workspace-dialog .field{margin-top:12px}
+@media(max-width:760px){.calendar-day{min-height:60px;padding:2px}.calendar-entry{font-size:9px}.workspace-grid>.card{min-width:0}.workspace-actions .btn{max-width:100%;white-space:normal}}
 @media(max-width:620px){.studio-result-grid{grid-template-columns:1fr}.studio-result-card{padding:12px}}
 
 /* Channel DNA audit card */

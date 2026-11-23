@@ -9,29 +9,19 @@
 import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
 import { invokeAnnaTool } from "./anna-tool-runtime.mjs";
 import { planChatTools } from "./chat-routing.mjs";
+import { mountWorkspace, csvCell } from "./workspace.mjs";
+import { mediaImage, mediaCandidates, wireMedia } from "./media.mjs";
+import { mountGoogleConnection } from "./oauth-client.mjs";
+import { mountTour } from "./tour.mjs";
+import { googleWorkspaceProfile, matchesOwnedChannel, profileChannelId, initialOnboardingStep } from "./auth-workspace.mjs";
 
 const TOOL_ID = (typeof window !== "undefined" && window.__ANNA_TOOL_IDS__ && window.__ANNA_TOOL_IDS__["youtube-skillbox"]) || "bundled:youtube-skillbox";
 const DEV_TOOL_ID = "tool-dev-youtube-skillbox";
 const PRIMARY_TOOL_ID = typeof location !== "undefined" && /\/dev\//.test(location.pathname + location.search) ? DEV_TOOL_ID : TOOL_ID;
 const AUDITS_KEY = "youtube-skillbox:audits";
 
-/* ---------- Google OAuth configuration ---------- */
-const OAUTH_CONFIG = {
-  clientId: "skillbox-oauth-client-id", // To be configured per deployment
-  scopes: [
-    "https://www.googleapis.com/auth/youtube.readonly",
-    "https://www.googleapis.com/auth/youtube.force-ssl",
-    "https://www.googleapis.com/auth/userinfo.profile",
-    "https://www.googleapis.com/auth/userinfo.email",
-  ],
-  redirectUri: typeof location !== "undefined" ? `${location.origin}${location.pathname}oauth-callback` : "",
-  authEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-  tokenEndpoint: "https://oauth2.googleapis.com/token",
-  revokeEndpoint: "https://oauth2.googleapis.com/revoke",
-};
-
-const OAUTH_STORAGE_KEY = "youtube-skillbox:oauth-tokens";
-const OAUTH_STATE_KEY = "youtube-skillbox:oauth-state";
+/* Local OAuth is owned by the Python backend, never this static iframe. */
+const OAUTH_UNAVAILABLE = "Google callbacks must finish at the local backend, not inside this iframe. Return to Analytics and check your connection.";
 
 /* ---------- feature flags & guest-mode boundaries ---------- */
 const FEATURES = {
@@ -94,137 +84,9 @@ const Evidence = {
   label: (provenance) => `<span class="ev ev-${provenance.toLowerCase()}">${provenance}</span>`,
 };
 
-/* ---------- Google OAuth helpers ---------- */
-const OAuth = {
-  generateState() {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
-  },
-
-  buildAuthUrl(state) {
-    const params = new URLSearchParams({
-      client_id: OAUTH_CONFIG.clientId,
-      redirect_uri: OAUTH_CONFIG.redirectUri,
-      response_type: "code",
-      scope: OAUTH_CONFIG.scopes.join(" "),
-      state,
-      access_type: "offline",
-      prompt: "consent",
-      include_granted_scopes: "true",
-    });
-    return `${OAUTH_CONFIG.authEndpoint}?${params.toString()}`;
-  },
-
-  async exchangeCodeForTokens(code) {
-    const params = new URLSearchParams({
-      client_id: OAUTH_CONFIG.clientId,
-      client_secret: OAUTH_CONFIG.clientSecret || "", // Required for confidential clients; omitted for public client flow
-      code,
-      grant_type: "authorization_code",
-      redirect_uri: OAUTH_CONFIG.redirectUri,
-    });
-
-    const response = await fetch(OAUTH_CONFIG.tokenEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params.toString(),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Token exchange failed" }));
-      throw new Error(error.error_description || error.error || "Token exchange failed");
-    }
-
-    return response.json(); // { access_token, refresh_token, expires_in, token_type, scope, id_token }
-  },
-
-  async refreshAccessToken(refreshToken) {
-    const params = new URLSearchParams({
-      client_id: OAUTH_CONFIG.clientId,
-      client_secret: OAUTH_CONFIG.clientSecret || "",
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    });
-
-    const response = await fetch(OAUTH_CONFIG.tokenEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params.toString(),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "Token refresh failed" }));
-      throw new Error(error.error_description || error.error || "Token refresh failed");
-    }
-
-    return response.json();
-  },
-
-  async revokeToken(accessToken) {
-    const params = new URLSearchParams({ token: accessToken });
-    await fetch(`${OAUTH_CONFIG.revokeEndpoint}?${params.toString()}`, { method: "POST" });
-  },
-
-  async storeTokens(tokens) {
-    const payload = {
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expires_at: Date.now() + (tokens.expires_in || 3600) * 1000,
-      scope: tokens.scope,
-      token_type: tokens.token_type,
-      id_token: tokens.id_token,
-      stored_at: Date.now(),
-    };
-    await storageSet(OAUTH_STORAGE_KEY, [payload]);
-    return payload;
-  },
-
-  async getStoredTokens() {
-    try {
-      const stored = await storageList(OAUTH_STORAGE_KEY);
-      return stored[0] || null;
-    } catch {
-      return null;
-    }
-  },
-
-  async clearTokens() {
-    await storageSet(OAUTH_STORAGE_KEY, []);
-  },
-
-  async getValidAccessToken() {
-    const tokens = await this.getStoredTokens();
-    if (!tokens) return null;
-
-    // Check if access token is still valid (with 5 min buffer)
-    if (tokens.expires_at && tokens.expires_at > Date.now() + 5 * 60 * 1000) {
-      return tokens.access_token;
-    }
-
-    // Try to refresh
-    if (tokens.refresh_token) {
-      try {
-        const newTokens = await this.refreshAccessToken(tokens.refresh_token);
-        const stored = await this.storeTokens({ ...tokens, ...newTokens });
-        return stored.access_token;
-      } catch (error) {
-        await this.clearTokens();
-        throw new Error(`Token refresh failed: ${error.message}`);
-      }
-    }
-
-    return null;
-  },
-
-  async disconnect() {
-    const tokens = await this.getStoredTokens();
-    if (tokens?.access_token) {
-      try { await this.revokeToken(tokens.access_token); } catch (_) {}
-    }
-    await this.clearTokens();
-  },
-};
+// This boundary intentionally fails closed. Legacy stored credentials are
+// neither read nor cleared automatically; migration/revocation needs approval.
+let OAuth = null;
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -380,6 +242,7 @@ async function storageSet(key, value) {
 }
 
 const PROFILE_KEY = "youtube-skillbox:profile";
+const CHANNEL_PROFILES_KEY = "youtube-skillbox:channel-profiles";
 const CHAT_KEY = "youtube-skillbox:chat";
 const THEME_KEY = "youtube-skillbox:theme";
 const GUEST_KEY = "youtube-skillbox:guest";
@@ -390,6 +253,9 @@ let thumbnailDbPromise = null;
 let profileState = null;
 let guestMode = false;
 let onboardingStep = "identity";
+let onboardingExplicit = false;
+let googleOnboardingDecided = false;
+let workspaceTour = null;
 let chatHistory = [];
 let chatAttachment = null;
 let retentionHistory = [];
@@ -503,13 +369,54 @@ function profileName(profile) { return profile && (profile.name || profile.title
 function profileHandle(profile) { return profile && (profile.handle || profile.custom_url || profile.channel || profile.channel_url || ""); }
 function profileAvatar(profile) { return profile && (profile.avatar || profile.avatar_url || profile.thumbnail || profile.image); }
 
-function openOnboarding(step = "identity") {
+function openOnboarding(step = "identity", explicit = true) {
+  onboardingExplicit = explicit;
   onboardingStep = step;
   renderOnboarding();
   byId("onboarding-modal")?.classList.remove("hidden");
 }
 
-function closeOnboarding() { byId("onboarding-modal")?.classList.add("hidden"); }
+function closeOnboarding() { onboardingExplicit = false; byId("onboarding-modal")?.classList.add("hidden"); }
+
+async function useGoogleWorkspace(channel) {
+  const authorized = await OAuth.refresh();
+  const owned = authorized.connections.flatMap((connection) => connection.channels).find((item) => item.id === channel.id);
+  if (!owned) throw new Error("Select a channel returned by your Google connection; a typed handle cannot verify ownership.");
+  let metadata = {};
+  try { metadata = await tool("profile", { handle: owned.id }, 85000); } catch (_) { /* Google's owned identity remains valid if public artwork is unavailable. */ }
+  const history = await storageList(CHANNEL_PROFILES_KEY);
+  const previous = profileState;
+  const saved = history.find((entry) => profileChannelId(entry) === owned.id);
+  const base = matchesOwnedChannel(previous, owned) ? previous : saved;
+  const next = googleWorkspaceProfile(base, owned, metadata);
+  const records = new Map(history.map((entry) => [profileChannelId(entry) || entry.handle, entry]));
+  if (previous?.profile) records.set(profileChannelId(previous) || previous.handle, previous);
+  records.set(owned.id, next);
+  // Keep per-channel backups/preferences before changing the active profile.
+  await storageSet(CHANNEL_PROFILES_KEY, [...records.values()]);
+  await storageSet(PROFILE_KEY, [next]);
+  await storageSet(GUEST_KEY, [false]);
+  profileState = next;
+  guestMode = false;
+  workspaceTour?.defer();
+  closeOnboarding();
+  renderProfileState();
+  byId("audit-handle").value = next.handle;
+  setStatus("Verified channel workspace · Google ownership confirmed", true);
+}
+
+function decideInitialOnboarding(result = { connections: [] }) {
+  if (googleOnboardingDecided) return;
+  googleOnboardingDecided = true;
+  const hasGoogle = !!result.connections?.length;
+  if (hasGoogle) workspaceTour?.defer();
+  if (!onboardingExplicit) {
+    const step = initialOnboardingStep(profileState, guestMode, hasGoogle);
+    if (step) openOnboarding(step, false);
+    else closeOnboarding();
+  }
+  if (!hasGoogle) workspaceTour?.maybeStart();
+}
 
 function renderOnboarding() {
   const content = byId("onboarding-content");
@@ -530,7 +437,7 @@ function renderOnboarding() {
   }
   if (onboardingStep === "identity") {
     title.textContent = "Make Skillbox yours.";
-    copy.textContent = "Enter your exact YouTube channel handle, or connect directly with Google for instant verification.";
+    copy.textContent = "Enter your exact YouTube channel handle for manual read-only verification. Google authorization separately connects your own private Analytics.";
     content.innerHTML = `<label class="field"><span>YouTube channel handle</span><input id="onboarding-handle" type="text" placeholder="@yourchannel" autocomplete="off" spellcheck="false" /></label><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div><div class="onboarding-actions"><button id="onboarding-find" class="btn btn-primary" type="button">Find my channel</button><button id="onboarding-oauth" class="btn" type="button"><svg viewBox="0 0 24 24" width="18" height="18" style="margin-right:8px"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.45 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Connect with Google</button><button id="onboarding-guest" class="btn" type="button">Continue as guest</button></div><p class="hint">Guest mode includes Anna chat, public topic research and uploaded exports; verify a channel for channel-specific context.</p>`;
     byId("onboarding-find")?.addEventListener("click", async () => {
       const value = byId("onboarding-handle").value.trim();
@@ -543,10 +450,7 @@ function renderOnboarding() {
       catch (error) { byId("onboarding-error").textContent = `Could not find that channel. ${error.message || error}`; button.disabled = false; button.textContent = "Try again"; }
     });
     byId("onboarding-oauth")?.addEventListener("click", async () => {
-      const state = OAuth.generateState();
-      sessionStorage.setItem(OAUTH_STATE_KEY, state);
-      const authUrl = OAuth.buildAuthUrl(state);
-      window.location.href = authUrl;
+      await OAuth.begin({ linkWorkspace: true });
     });
     byId("onboarding-guest")?.addEventListener("click", async () => {
       guestMode = true; await storageSet(GUEST_KEY, [true]); renderProfileState(); closeOnboarding();
@@ -566,17 +470,14 @@ function renderOnboarding() {
     byId("onboarding-no")?.addEventListener("click", async () => { profileState = null; await storageSet(PROFILE_KEY, []); onboardingStep = "identity"; renderOnboarding(); renderProfileState(); });
     return;
   }
-  if (if (onboardingStep === "phrase") {
+  if (onboardingStep === "phrase") {
     title.textContent = "Verify it’s really yours.";
-    copy.textContent = "Copy this one-time phrase into your channel description manually. We never edit YouTube or ask for OAuth. Or use Google OAuth below for instant verification.";
+    copy.textContent = "Copy this one-time phrase into your channel description manually. We never edit YouTube automatically. Google connects private Analytics separately; it does not verify an arbitrary public handle.";
     content.innerHTML = `<label class="field"><span>Unique verification phrase • read-only</span><div class="copy-field"><input id="onboarding-phrase" readonly value="${escapeHtml(profileState.phrase)}" /><button id="onboarding-copy" class="btn" type="button">Copy</button></div></label><div class="onboarding-actions"><button id="onboarding-verify" class="btn btn-primary" type="button">I added it — verify now</button><button id="onboarding-back" class="btn" type="button">Back</button><button id="onboarding-oauth-alt" class="btn" type="button"><svg viewBox="0 0 24 24" width="18" height="18" style="margin-right:8px"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.45 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>Verify with Google OAuth</button></div><div id="onboarding-error" class="hint onboarding-error" aria-live="polite"></div>`;
     byId("onboarding-copy")?.addEventListener("click", async () => { const copied = await copyWithFeedback(profileState.phrase, byId("onboarding-copy"), byId("onboarding-error")); if (!copied) { byId("onboarding-error").textContent = "Copy failed — select and copy manually."; byId("onboarding-error").classList.remove("hidden"); } });
     byId("onboarding-back")?.addEventListener("click", () => { onboardingStep = "confirm"; renderOnboarding(); });
     byId("onboarding-oauth-alt")?.addEventListener("click", async () => {
-      const state = OAuth.generateState();
-      sessionStorage.setItem(OAUTH_STATE_KEY, state);
-      const authUrl = OAuth.buildAuthUrl(state);
-      window.location.href = authUrl;
+      await OAuth.begin({ linkWorkspace: true });
     });
     byId("onboarding-verify")?.addEventListener("click", async () => {
       const button = byId("onboarding-verify"); button.disabled = true; button.textContent = "Checking public description...";
@@ -592,12 +493,14 @@ function renderOnboarding() {
       } catch (error) { byId("onboarding-error").textContent = `Verification could not be checked: ${error.message || error}`; button.disabled = false; button.textContent = "Retry verification"; }
     });
     return;
-  }}
+  }
   if (onboardingStep === "restore") {
     title.textContent = "You're verified.";
     copy.textContent = "Your original description was saved before verification. Restore it in YouTube when you're ready; nothing was changed automatically.";
     const original = String(profileState.originalDescription ?? "");
-    const oauthConnected = profileState.oauthConnected || false;
+    // Google ownership is displayed by the backend-bound Analytics selector,
+    // not by an old boolean on an unrelated public profile.
+    const oauthConnected = false;
     content.innerHTML = `<div class="onboarding-identity">${avatar ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(name)} channel logo" />` : `<span>${escapeHtml(name.slice(0,1).toUpperCase())}</span>`}<div><strong>${escapeHtml(name)}</strong><small>✓ Channel verified · ${escapeHtml(handle)}${oauthConnected ? ` · Google OAuth connected` : ""}</small></div></div><label class="field mt"><span>Creator focus & goals · used to personalize Channel DNA</span><textarea id="creator-preferences" rows="3" placeholder="e.g. Space and science documentaries for curious beginners; prioritize long-form explainers; avoid unrelated AI trends.">${escapeHtml(profileState.creatorPreferences || "")}</textarea></label><div class="onboarding-actions"><button id="save-creator-preferences" class="btn btn-primary" type="button">Save creator focus</button></div><p class="hint">Your stated focus is considered alongside published videos. It does not overwrite measured channel evidence.</p><label class="field mt"><span>${original ? "Your previous description · saved exactly" : "Previous description not available"}</span><textarea id="original-description" readonly rows="6">${escapeHtml(original)}</textarea></label><div class="onboarding-actions"><button id="copy-description" class="btn" type="button" ${original ? "" : "disabled"}>Copy old description</button><button id="onboarding-chat" class="btn btn-primary" type="button" ${original ? "" : "disabled"}>Ask Anna to refine</button><button id="onboarding-restored" class="btn" type="button">I restored it</button>${oauthConnected ? `<button id="onboarding-disconnect" class="btn btn-danger" type="button">Disconnect Google</button>` : ""}<button id="workspace-logout" class="btn" type="button">Log out & clear saved data</button></div><p class="hint">${original ? "Nothing is changed on YouTube automatically. Copy it back yourself, or ask Anna to refine it first." : "This channel was connected before the original-description backup existed. No original text can be reconstructed, so the current description was not changed."}</p>`;
     byId("save-creator-preferences")?.addEventListener("click", async () => {
       profileState.creatorPreferences = String(byId("creator-preferences")?.value || "").trim().slice(0, 1200);
@@ -605,9 +508,7 @@ function renderOnboarding() {
       byId("save-creator-preferences").textContent = "Saved";
     });
     byId("copy-description")?.addEventListener("click", async () => { const copied = await copyWithFeedback(original, byId("copy-description")); if (!copied) { byId("copy-description").textContent = "Copy failed — select and copy manually."; } });
-    byId("onboarding-chat")?.addEventListener("click", () => { closeOnboarding(); byId("tab-button-chat")?.click(); byId("chat-input").value = "Help me refine my YouTube channel description. Keep my original meaning and voice. Here is my previous description:
-
-" + original; byId("chat-input").focus(); });
+    byId("onboarding-chat")?.addEventListener("click", () => { closeOnboarding(); byId("tab-button-chat")?.click(); byId("chat-input").value = "Help me refine my YouTube channel description. Keep my original meaning and voice. Here is my previous description:\n\n" + original; byId("chat-input").focus(); });
     byId("onboarding-restored")?.addEventListener("click", async () => { profileState.restorationShown = true; await storageSet(PROFILE_KEY, [profileState]); closeOnboarding(); });
     byId("onboarding-disconnect")?.addEventListener("click", async () => {
       const button = byId("onboarding-disconnect");
@@ -615,11 +516,7 @@ function renderOnboarding() {
       button.textContent = "Disconnecting...";
       try {
         await OAuth.disconnect();
-        profileState.verified = false;
-        profileState.oauthConnected = false;
-        await storageSet(PROFILE_KEY, [profileState]);
-        guestMode = true;
-        await storageSet(GUEST_KEY, [true]);
+        // Revocation is not public-profile logout/verification deletion.
         setStatus("Google account disconnected.", true);
         renderProfileState();
         renderOnboarding();
@@ -630,7 +527,19 @@ function renderOnboarding() {
       }
     });
     byId("workspace-logout")?.addEventListener("click", clearWorkspaceSession);
-  }}
+  }
+  if (onboardingStep === "profile") {
+    title.textContent = "Your verified channel";
+    copy.textContent = "Google confirmed ownership of this channel. No description change is required. Google authorization for private reports is managed in Analytics.";
+    content.innerHTML = `<div class="onboarding-identity">${avatar ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(name)} channel logo" />` : `<span>${escapeHtml(name.slice(0, 1))}</span>`}<div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(handle)} · verified via Google</small></div></div><label class="field"><span>Creator focus & goals</span><textarea id="creator-preferences" rows="3">${escapeHtml(profileState.creatorPreferences || "")}</textarea></label><div class="onboarding-actions"><button id="save-creator-preferences" class="btn btn-primary" type="button">Save creator focus</button><button id="profile-open-analytics" class="btn" type="button">Google & Analytics</button><button id="profile-done" class="btn" type="button">Done</button></div>${profileState.originalDescription != null ? `<details class="mt"><summary>Preserved description backup</summary><textarea readonly rows="5">${escapeHtml(profileState.originalDescription)}</textarea><p class="hint">This existing backup was preserved. Google authorization did not edit your YouTube description.</p></details>` : ""}`;
+    byId("save-creator-preferences").addEventListener("click", async () => {
+      profileState.creatorPreferences = String(byId("creator-preferences").value).trim().slice(0, 1200);
+      await storageSet(PROFILE_KEY, [profileState]);
+      byId("save-creator-preferences").textContent = "Saved";
+    });
+    byId("profile-done").addEventListener("click", closeOnboarding);
+    byId("profile-open-analytics").addEventListener("click", () => { closeOnboarding(); byId("tab-button-analytics").click(); });
+  }
 }
 
 function renderProfileState() {
@@ -910,9 +819,7 @@ function channelItems(value) {
 }
 
 function publicThumbnail(item) {
-  const direct = item.thumbnail || item.thumbnail_url || item.thumbnailUrl || item.thumb || item.image || (item.thumbnails && item.thumbnails[0]?.url);
-  const videoId = String(item.id || item.video_id || "");
-  return direct || (/^[\w-]{11}$/.test(videoId) ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "");
+  return mediaCandidates(item)[0] || "";
 }
 
 async function scoreChannelThumbnails(onProgress) {
@@ -1061,9 +968,9 @@ function wireChat() {
     if (profileState?.profile && (!profileAvatar(profileState.profile) || !(profileState.profile.banner_url || profileState.profile.banner || profileState.profile.channel_banner))) {
       try { await fetchProfile(profileState.handle); } catch (_) { /* Keep the saved identity and retry on the next profile open. */ }
     }
-    openOnboarding(profileState?.verified ? "restore" : guestMode ? "guest" : profileState?.confirmed ? "phrase" : profileState ? "confirm" : "identity");
+    openOnboarding(profileState?.verified ? profileState.verificationMethod === "google-oauth" ? "profile" : "restore" : guestMode ? "guest" : profileState?.confirmed ? "phrase" : profileState ? "confirm" : "identity");
   });
-  byId("onboarding-close")?.addEventListener("click", () => { if (!profileState?.verified && !guestMode) return; closeOnboarding(); });
+  byId("onboarding-close")?.addEventListener("click", () => { if (!profileState?.verified && !guestMode && !OAuth.hasConnections()) return; closeOnboarding(); });
 }
 
 async function loadWorkspaceState() {
@@ -1084,9 +991,8 @@ async function loadWorkspaceState() {
     byId("theme-toggle")?.addEventListener("click", cycleTheme);
     themeToggleBound = true;
   }
-  if (profileState?.verified && !profileState.restorationShown) openOnboarding("restore");
-  else if (guestMode) openOnboarding("guest");
-  else if (!profileState?.verified) openOnboarding(profileState?.confirmed ? "phrase" : profileState ? "confirm" : "identity");
+  // Decide first-run identity after the optional Google connection lookup.
+  // Guest mode and an existing Google connection must not reopen manual steps.
 }
 
 /* ---------- tabs ---------- */
@@ -1322,10 +1228,10 @@ async function runAudit(handle, retryKeys = null) {
       `- Channel: ${p.name || handle} (${handle})`,
       `- Subscribers: ${p.subscribers == null ? "unavailable" : Number(p.subscribers).toLocaleString()}`,
       `- Public upload count: ${p.video_count == null ? "unavailable" : Number(p.video_count).toLocaleString()}`,
-      `- Video sample: ${videos.length} returned; request capped at first 15.`,
-      `- Shorts sample: ${shorts.length} returned; request capped at first 15.`,
-      `- Outlier check: ${outs.length} uploads above ${evidence.outliers?.min_ratio ?? "configured"}× views/subscribers in this engine result.`,
-      top ? `- Highest measured outlier: ${top.title || top.video_id || "upload"} — ${Number(top.views || 0).toLocaleString()} views, ${top.ratio}×.` : "- Highest measured outlier: none returned.",
+      useful("videos", evidence.videos) ? `- Video sample: ${videos.length} returned; request capped at first 15.` : "- Video sample: unavailable; no upload count was measured.",
+      useful("shorts", evidence.shorts) ? `- Shorts sample: ${shorts.length} returned; request capped at first 15.` : "- Shorts sample: unavailable; no upload count was measured.",
+      useful("outliers", evidence.outliers) ? `- Outlier check: ${outs.length} uploads above ${evidence.outliers?.min_ratio ?? "configured"}× views/subscribers in this engine result.` : "- Outlier check: unavailable; no outlier result was measured.",
+      top ? `- Highest measured outlier: ${top.title || top.video_id || "upload"} — ${top.views == null ? "unavailable" : Number(top.views).toLocaleString()} views, ${top.ratio}×.` : useful("outliers", evidence.outliers) ? "- Highest measured outlier: none returned in the measured sample." : "- Highest measured outlier: unavailable.",
       "",
       "### Measurement status",
       unavailable || "- None of the core measurements were marked unavailable.",
@@ -1382,7 +1288,7 @@ async function runAudit(handle, retryKeys = null) {
   await renderSavedList();
 }
 
-function renderAuditCards(handle, ev, verdict) {
+export function renderAuditCards(handle, ev, verdict) {
   const sec = (ev.snapshot && ev.snapshot.sections) || {};
   const prof = ev.profile || (ev.snapshot && ev.snapshot.profile) || {};
   const listData = (value) => (value && (Array.isArray(value) ? value : (value.items || value.videos || value.uploads || []))) || [];
@@ -1439,9 +1345,8 @@ function renderAuditCards(handle, ev, verdict) {
     const sample = items.slice(0, 15);
     const entries = sample.map((item) => {
       const title = String(item.title || item.name || item.id || "Untitled upload");
-      const image = item.thumbnail || item.thumbnail_url || item.thumbnailUrl || item.thumbnails?.[0]?.url;
       const href = item.url || item.video_url || (item.id ? `https://www.youtube.com/watch?v=${encodeURIComponent(item.id)}` : "");
-      const media = image ? `<img loading="lazy" src="${escapeHtml(image)}" alt="" />` : `<span class="audit-upload-placeholder">${kind === "shorts" ? "SHORT" : "VIDEO"}</span>`;
+      const media = mediaImage(item, { kind: kind === "shorts" ? "short" : "video", className: "audit-thumb", alt: title });
       return `<a class="audit-upload" ${href ? `href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer"` : ""}>${media}<span>${escapeHtml(title)}</span></a>`;
     }).join("");
     const coverage = source && source.sample_count != null ? source.sample_count : sample.length;
@@ -1548,7 +1453,10 @@ styleTag.textContent = `
 .audit-upload.is-shorts img{aspect-ratio:9/16}
 .audit-upload-grid.is-shorts{grid-template-columns:repeat(auto-fill,minmax(110px,150px))}
 .audit-upload-grid.is-shorts .audit-upload img,.audit-upload-grid.is-shorts .audit-upload-placeholder{aspect-ratio:9/16}
-.audit-upload span:last-child{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.audit-upload>.media-frame{height:auto;aspect-ratio:16/9;border-radius:9px;margin-bottom:7px}
+.audit-upload-grid.is-shorts .audit-upload>.media-frame{aspect-ratio:9/16}
+.audit-upload .media-frame img{display:block;height:100%;aspect-ratio:auto;margin:0}
+.audit-upload>span:last-child{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .audit-upload-placeholder{font-size:10px;letter-spacing:.1em;color:var(--text-dim)}
 @media(max-width:620px){.audit-upload-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.audit-upload-grid.is-shorts{grid-template-columns:repeat(3,minmax(0,1fr))}}
 `;
@@ -1681,10 +1589,7 @@ function listFrom(data, keys = []) {
 }
 
 function explorerThumb(item) {
-  const videoId = item && String(item.id || item.video_id || "");
-  const direct = item && (item.thumbnail || item.thumbnail_url || item.thumbnailUrl || item.thumb || item.image || (item.thumbnails && item.thumbnails[0]?.url));
-  const src = direct || (/^[\w-]{11}$/.test(videoId) ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "");
-  return src ? `<img class="yt-thumb" loading="lazy" src="${escapeHtml(src)}" alt="Video thumbnail" onerror="this.closest('.yt-thumb-link')?.remove()" />` : '<div class="yt-thumb yt-thumb-empty">▶</div>';
+  return mediaImage(item, { kind: item.kind === "short" ? "short" : "video", alt: item.title || "Video thumbnail" });
 }
 
 function explorerLink(item) {
@@ -1707,7 +1612,7 @@ function renderPosts(items, label) {
   return `<div class="yt-post-feed">${items.slice(0, 15).map((item) => `<article class="yt-post-card"><div class="yt-post-head"><div class="post-avatar">${escapeHtml(String(item.author || 'C').slice(0, 1).toUpperCase())}</div><div><strong>${escapeHtml(item.author || 'Channel')}</strong><span>${escapeHtml(item.published || item.date || 'Public post')}</span></div></div><p>${escapeHtml(item.text || item.body || item.title || '')}</p><div class="yt-post-foot"><span>♡ ${escapeHtml(String(item.likes ?? item.like_count ?? 0))}</span>${explorerLink(item)}</div></article>`).join('')}</div>`;
 }
 
-function renderShelves(data) {
+export function renderShelves(data) {
   const shelves = data && (data.shelves || data.sections || data.items || data);
   if (!shelves || typeof shelves !== 'object') return '<div class="empty-state"><strong>No home shelves returned.</strong><span>Try again later if YouTube rate-limited the public home page.</span></div>';
   const sections = Array.isArray(shelves) ? shelves : Object.entries(shelves).map(([title, items]) => ({ title, items }));
@@ -1727,7 +1632,7 @@ function renderShelves(data) {
       const visual = kind.toLowerCase() === 'post'
         ? `<div class="shelf-post-preview">${escapeHtml(String(item.title || '').slice(0, 190))}</div>`
         : kind.toLowerCase() === 'channel'
-          ? `<div class="shelf-channel-preview">${item.thumbnail || item.thumbnail_url || item.thumbnailUrl || item.image ? `<img src="${escapeHtml(item.thumbnail || item.thumbnail_url || item.thumbnailUrl || item.image)}" alt="" loading="lazy">` : `<span>${escapeHtml(String(item.title || 'C').slice(0, 1).toUpperCase())}</span>`}<strong>${escapeHtml(String(item.title || 'Channel'))}</strong></div>`
+          ? `<div class="shelf-channel-preview">${mediaImage(item, { kind: "channel", className: "channel-avatar-image", alt: (item.title || "Channel") + " avatar" })}<strong>${escapeHtml(String(item.title || 'Channel'))}</strong></div>`
           : `<a class="shelf-thumb-link" href="${escapeHtml(item.url || '#')}" target="_blank" rel="noopener">${explorerThumb(cardItem)}</a>`;
       const k = kind.toLowerCase();
       return `<article class="shelf-item ${k === 'short' || k === 'shorts' ? 'is-short' : 'is-landscape'} ${k === 'playlist' ? 'is-playlist' : ''} ${k === 'post' ? 'is-post' : ''}">${visual}<span class="shelf-item-kind">${escapeHtml(kind)}</span>${k === 'post' ? '' : `<strong>${escapeHtml(String(item.title || item.name || item.id || 'Untitled'))}</strong>`}${explorerLink(item)}</article>`;
@@ -2157,7 +2062,7 @@ function wireStudio() {
         label.textContent = "FAILED";
       } finally {
         if (output.textContent.trim()) renderStudioOutput(output, task, output.textContent);
-        $(".studio-actions [data-task]").forEach((item) => (item.disabled = false));
+        $$(".studio-actions [data-task]").forEach((item) => (item.disabled = false));
       }
     });
   });
@@ -2389,21 +2294,8 @@ async function runLab(kind) {
     } else if (kind === "trends") {
       step("READING SAVED KEYWORD HISTORY…");
       html = renderJsonLab("Historical keyword trend", await tool("trends", { seed }, T));
-    } else if (kind === "market-discover") {
-      step("DISCOVERING COMPETITORS…");
-      const accessToken = await OAuth.getValidAccessToken();
-      if (!accessToken) throw new Error("No valid OAuth token. Connect your channel with Google first.");
-      html = renderJsonLab("Market Discover", await tool("market-discover", { seed, limit: 20, gl, hl, access_token: accessToken }, 90000));
-    } else if (kind === "market-trend") {
-      step("ANALYZING MARKET TREND…");
-      const accessToken = await OAuth.getValidAccessToken();
-      if (!accessToken) throw new Error("No valid OAuth token. Connect your channel with Google first.");
-      html = renderJsonLab("Market Trend", await tool("market-trend", { seed, days: 90, gl, hl, access_token: accessToken }, 90000));
-    } else if (kind === "market-opportunity") {
-      step("SCORING OPPORTUNITIES…");
-      const accessToken = await OAuth.getValidAccessToken();
-      if (!accessToken) throw new Error("No valid OAuth token. Connect your channel with Google first.");
-      html = renderJsonLab("Market Opportunity", await tool("market-opportunity", { seed, limit: 20, gl, hl, access_token: accessToken }, 120000));
+    } else if (["market-discover", "market-trend", "market-opportunity"].includes(kind)) {
+      throw new Error("Advanced market reports are not yet wired to the Anna tool bridge. Use Live search, Competition, Content gap or Keyword trends for public research; Google login is not a workaround.");
     } else if (kind === "chain") {
       html = await runChain({ seed, competitor, video, gl, hl }, step, T);
     }
@@ -3145,13 +3037,12 @@ function wireRetentionHistory() {
     if (button) openRetentionRecord(Number(button.dataset.openRetention));
   }));
 }
-}
 
 /* ---------- experiment / optimization lab ---------- */
 const EXP_STORAGE_KEY = "youtube-skillbox:experiments";
 const EXP_RESULT_KEY = "youtube-skillbox:exp-results";
 
-function wireExperiment() {
+async function wireExperiment() {
   // Experiment planner
   byId("exp-plan")?.addEventListener("click", async () => {
     const name = byId("exp-name").value.trim();
@@ -3241,7 +3132,7 @@ function wireExperiment() {
         results.push(renderHookScores(scored, [{ hook }]));
       }
 
-      output.innerHTML = results.join("<hr>") + '<p class="hint">All scores are <span class="ev ev-inferred">INFERRED</span> heuristics — not <span class="ev ev-measured">MEASURED</span> performance predictions.</p>';
+      output.innerHTML = results.map((text) => '<pre class="output-pre">' + escapeHtml(text) + '</pre>').join("<hr>") + '<p class="hint">All scores are <span class="ev ev-inferred">INFERRED</span> heuristics — not <span class="ev ev-measured">MEASURED</span> performance predictions.</p>';
     } catch (e) {
       output.innerHTML = '<div class="note err"><b>Review failed</b><span>' + escapeHtml(String(e.message || e)) + '</span></div>';
     }
@@ -3279,9 +3170,9 @@ function wireExperiment() {
 
       html += '<div class="pace-card"><h4>Hook Leak <span class="ev ev-measured">MEASURED</span></h4>';
       if (hookLeak.loss_points !== undefined) {
-        html += '<p class="pace-value">' + hookLeak.loss_points.toFixed(1) + '% loss</p>';
+        html += '<p class="pace-value">' + Number(hookLeak.loss_points).toFixed(1) + ' percentage points lost</p>';
         html += '<p class="hint">Window: ' + escapeHtml(hookLeak.window || "first 30%") + '</p>';
-        html += '<p class="hint ' + (hookLeak.loss_points > 15 ? "warn" : "") + '">' + (hookLeak.loss_points > 15 ? "⚠ High hook leak — consider stronger opening" : "✓ Acceptable hook retention") + '</p>';
+        html += '<p class="hint">Engine diagnostic: ' + escapeHtml(hookLeak.severity || "not available") + '. This does not establish why viewers left.</p>';
       } else {
         html += '<p class="hint">' + (hookLeak.severity || "Data unavailable") + '</p>';
       }
@@ -3290,7 +3181,7 @@ function wireExperiment() {
       html += '<div class="pace-card"><h4>Cliffs <span class="ev ev-measured">MEASURED</span></h4>';
       if (cliffs.length) {
         cliffs.slice(0, 5).forEach(c => {
-          html += '<div class="cliff-item"><span class="cliff-pos">' + escapeHtml(c.position) + '</span> <span class="cliff-drop">' + c.drop.toFixed(1) + '% drop</span></div>';
+          html += '<div class="cliff-item"><span class="cliff-pos">' + escapeHtml(String(c.from) + '–' + String(c.to) + ' ' + String(c.axis || findings.axis || '')) + '</span> <span class="cliff-drop">' + Number(c.drop_points).toFixed(1) + ' percentage-point drop</span></div>';
         });
       } else {
         html += '<p class="hint">No significant cliffs detected</p>';
@@ -3382,12 +3273,12 @@ function wireExperiment() {
     } catch (e) {
       alert("Failed to save: " + e.message);
     }
-  }
+  });
 
   await renderExperimentList();
 }
 
-/* ---------- analytics end ---------- */
+function wireRetentionCarousel() {
   const next = byId('ret-next');
   if (!next) return;
   next.addEventListener('click', () => {
@@ -3534,6 +3425,8 @@ async function runAnalyticsReport() {
   errorDiv.textContent = "";
   errorDiv.classList.add("hidden");
   output.classList.add("hidden");
+  delete output.dataset.saveContent;
+  delete output.dataset.csv;
   exportBtn.disabled = true;
   runBtn.disabled = true;
   runBtn.textContent = "Running...";
@@ -3541,33 +3434,12 @@ async function runAnalyticsReport() {
   output.innerHTML = '<div class="skeleton-stack"><span class="skeleton skeleton-wide"></span><span class="skeleton"></span><span class="skeleton skeleton-short"></span></div>';
 
   try {
-    const accessToken = await OAuth.getValidAccessToken();
-    if (!accessToken) {
-      throw new Error("No valid OAuth token. Connect your channel with Google first.");
-    }
-
-    const reportMap = {
-      overview: "analytics-overview",
-      demographics: "analytics-demographics",
-      geography: "analytics-geography",
-      "traffic-sources": "analytics-traffic-sources",
-      devices: "analytics-devices",
-      "content-comparison": "analytics-content-comparison",
-      "historical-trends": "analytics-historical-trends",
-    };
-
-    const method = reportMap[byId("analytics-report").value];
-    if (!method) throw new Error("Unknown report type");
-
-    const args = {
-      handle: byId("analytics-handle").value.trim(),
-      access_token: accessToken,
-    };
+    const args = { report: reportType };
 
     if (byId("analytics-start").value) args.start_date = byId("analytics-start").value;
     if (byId("analytics-end").value) args.end_date = byId("analytics-end").value;
 
-    const result = await tool(method, args, 180000);
+    const result = await OAuth.report(args);
 
     if (!result || result.error) {
       throw new Error(result?.error || "Analytics API returned no data");
@@ -3577,6 +3449,10 @@ async function runAnalyticsReport() {
     const meta = data._meta || {};
     const rows = data.rows || [];
     const headers = data.columnHeaders || [];
+    if (headers.length && rows.length) {
+      output.dataset.csv = [headers.map((h) => h.name), ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
+      exportBtn.disabled = false;
+    }
 
     // Render based on format
     let html = "";
@@ -3586,27 +3462,18 @@ async function runAnalyticsReport() {
       if (headers.length && rows.length) {
         const csvRows = [headers.map(h => h.name).join(",")];
         rows.forEach(row => csvRows.push(row.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")));
-        html = '<pre class="output-pre">' + escapeHtml(csvRows.join("
-")) + '</pre>';
+        html = '<pre class="output-pre">' + escapeHtml(csvRows.join("\n")) + '</pre>';
         byId("analytics-export").disabled = false;
-        byId("analytics-export").onclick = () => downloadCSV(csvRows.join("
-"), 'analytics-' + byId("analytics-report").value + '-' + Date.now() + '.csv');
       } else {
         html = '<div class="note warn">No data rows to export as CSV</div>';
       }
     } else {
       // Dashboard format
       html = renderAnalyticsDashboard(data, meta, byId("analytics-report").value);
-      byId("analytics-export").disabled = false;
-      byId("analytics-export").onclick = () => {
-        // Switch to CSV and trigger download
-        const csvBtn = byId("analytics-format");
-        csvBtn.value = "csv";
-        runAnalyticsReport();
-      };
     }
 
     output.innerHTML = html;
+    output.dataset.saveContent = output.textContent.trim();
     output.classList.remove("hidden");
   } catch (error) {
     output.innerHTML = '<div class="note err"><b>Analytics report failed</b><span>' + escapeHtml(String(error.message || error)) + '</span></div>';
@@ -3631,8 +3498,8 @@ function renderAnalyticsDashboard(data, meta, reportType) {
   }
 
   let html = '<div class="analytics-dashboard">';
-  html += '<div class="analytics-header"><h3>' + (reportTitles[meta.report_type] || reportType) + '</h3>';
-  html += '<p class="hint">Channel: ' + (meta.channel_id || "—") + ' | ' + (meta.start_date || "—") + ' to ' + (meta.end_date || "—") + ' | ' + rows.length + ' rows</p></div>';
+  html += '<div class="analytics-header"><h3>' + escapeHtml(reportTitles[meta.report_type] || reportType) + '</h3>';
+  html += '<p class="hint">Channel: ' + escapeHtml(meta.channel_id || "—") + ' | ' + escapeHtml(meta.start_date || "—") + ' to ' + escapeHtml(meta.end_date || "—") + ' | ' + rows.length + ' rows</p></div>';
 
   if (headers.length && rows.length) {
     html += '<div class="table-wrap"><table class="tbl"><thead><tr>';
@@ -3648,7 +3515,7 @@ function renderAnalyticsDashboard(data, meta, reportType) {
       html += '<p class="hint">Showing 100 of ' + rows.length + ' rows. Use JSON/CSV export for full data.</p>';
     }
   } else {
-    html += '<div class="empty-state"><strong>No data returned</strong><span>Try adjusting the date range or report type.</span></div>';
+    html += '<div class="empty-state"><strong>No eligible report rows returned by Google</strong><span>This can reflect privacy thresholds, insufficient eligible data or processing delays for this date range. It is not a measured zero audience, and does not mean your Google connection failed.</span></div>';
   }
 
   html += '</div>';
@@ -3670,203 +3537,38 @@ function downloadCSV(csvText, filename) {
 function wireAnalytics() {
   byId("analytics-run")?.addEventListener("click", runAnalyticsReport);
   byId("analytics-export")?.addEventListener("click", () => {
-    // Trigger CSV export by switching format
-    const fmt = byId("analytics-format");
-    fmt.value = "csv";
-    runAnalyticsReport();
+    const csv = byId("analytics-output").dataset.csv;
+    if (csv) downloadCSV(csv, 'analytics-' + byId("analytics-report").value + '-' + Date.now() + '.csv');
   });
-}
-
-}
 }
 
 /* ---------- analytics end ---------- */
 
 /* ---------- workspace ---------- */
-const WORKSPACE_PROJECTS_KEY = "youtube-skillbox:workspace-projects";
-const WORKSPACE_TASKS_KEY = "youtube-skillbox:workspace-tasks";
-const WORKSPACE_CHANNELS_KEY = "youtube-skillbox:workspace-channels";
-const WORKSPACE_CALENDAR_KEY = "youtube-skillbox:workspace-calendar";
-const WORKSPACE_SETTINGS_KEY = "youtube-skillbox:workspace-settings";
-
-let workspaceProjects = [];
-let workspaceTasks = [];
-let workspaceChannels = [];
-let workspaceCalendar = [];
-let workspaceSettings = {
-  retentionDays: 365,
-  autoExport: false,
-  exportFormat: "json"
-};
-
 function wireWorkspace() {
-  // Load saved data
-  loadWorkspaceData();
-
-  // Saved Projects
-  renderWorkspaceProjects();
-
-  // Content Calendar
-  initCalendar();
-
-  // Kanban Board
-  initKanban();
-
-  // Channel Workspace
-  renderChannelWorkspace();
-
-  // Workspace Actions
-  byId("export-workspace")?.addEventListener("click", exportWorkspace);
-  byId("export-workspace-csv")?.addEventListener("click", () => exportWorkspace("csv"));
-  byId("retention-settings")?.addEventListener("click", openRetentionSettings);
-  byId("delete-workspace")?.addEventListener("click", confirmDeleteWorkspace);
-}
-
-async function loadWorkspaceData() {
-  try {
-    workspaceProjects = await storageList(WORKSPACE_PROJECTS_KEY) || [];
-    workspaceTasks = await storageList(WORKSPACE_TASKS_KEY) || [];
-    workspaceChannels = await storageList(WORKSPACE_CHANNELS_KEY) || [];
-    workspaceCalendar = await storageList(WORKSPACE_CALENDAR_KEY) || [];
-    const settings = await storageList(WORKSPACE_SETTINGS_KEY);
-    if (settings?.length) workspaceSettings = settings[0];
-  } catch (e) {
-    console.error("Failed to load workspace data:", e);
-  }
-}
-
-function renderWorkspaceProjects() {
-  const list = byId("workspace-projects");
-  if (!list) return;
-  if (!workspaceProjects.length) {
-    list.innerHTML = '<div class="empty-state"><strong>No saved projects yet.</strong><span>Save a brief, script, or report from Content Studio or Analytics to see it here.</span></div>';
-    return;
-  }
-  list.innerHTML = workspaceProjects.map((p, i) => `
-    <article class="workspace-item">
-      <div class="workspace-item-head">
-        <strong>${escapeHtml(p.title || "Untitled")}</strong>
-        <span class="workspace-type ev ev-${p.type === "brief" ? "inferred" : p.type === "script" ? "hypothesis" : p.type === "audit" ? "measured" : "inferred"}">${p.type?.toUpperCase() || "PROJECT"}</span>
-      </div>
-      <p class="workspace-item-meta">${escapeHtml(p.description || "")}</p>
-      <div class="workspace-item-meta">${new Date(p.savedAt).toLocaleDateString()} \u00b7 ${p.channel || "No channel"}</div>
-      <div class="workspace-item-actions">
-        <button class="btn btn-ghost btn-small" data-open-project="${i}">Open</button>
-        <button class="btn btn-ghost btn-small" data-duplicate-project="${i}">Duplicate</button>
-        <button class="btn btn-danger btn-small" data-delete-project="${i}">Delete</button>
-      </div>
-    </article>
-  `).join("");
-
-  $$("[data-open-project]", byId("workspace-projects")).forEach(b => {
-    b.addEventListener("click", () => openProject(Number(b.dataset.openProject)));
+  return mountWorkspace({
+    get: storageList,
+    set: storageSet,
+    channel: () => byId("audit-handle")?.value.trim() || profileState?.handle || "",
+    selectChannel: (handle) => { byId("audit-handle").value = handle; byId("lab-competitor").value = handle; },
+    studioOutput: () => ({ title: byId("studio-topic").value.trim(), topic: byId("studio-topic").value.trim(), content: /FAILED|WORKING|STOPPED|INCOMPLETE/.test(byId("studio-task-label").textContent) ? "" : byId("studio-pre").dataset.copyText || "" }),
+    auditOutput: () => ({ title: "Audit · " + byId("audit-handle").value.trim(), content: byId("audit-result").textContent.trim() }),
+    analyticsOutput: () => ({ title: "Analytics · " + byId("analytics-report").value, content: byId("analytics-output").dataset.saveContent || "" }),
+    openProject: (project) => {
+      if (project.type === "draft") {
+        byId("studio-topic").value = project.topic || project.title || "";
+        byId("studio-context").value = project.content || "";
+      }
+    }
   });
-  $$("[data-duplicate-project]", byId("workspace-projects")).forEach(b => {
-    b.addEventListener("click", () => duplicateProject(Number(b.dataset.duplicateProject)));
-  });
-  $$("[data-delete-project]", byId("workspace-projects")).forEach(b => {
-    b.addEventListener("click", () => confirmDeleteProject(Number(b.dataset.deleteProject)));
-  });
-}
-
-function openProject(index) {
-  const project = workspaceProjects[index];
-  if (!project) return;
-  byId("tab-button-studio")?.click();
-  if (project.type === "brief") {
-    byId("studio-topic").value = project.topic || "";
-    byId("studio-context").value = project.content || "";
-  } else if (project.type === "script") {
-    byId("studio-topic").value = project.topic || "";
-    byId("studio-context").value = project.content || "";
-  }
-  byId("tab-studio")?.scrollIntoView({ behavior: "smooth" });
-}
-
-function duplicateProject(index) {
-  const project = workspaceProjects[index];
-  if (!project) return;
-  const copy = { ...project, id: "proj_" + Date.now(), title: (project.title || "Untitled") + " (copy)", savedAt: new Date().toISOString() };
-  workspaceProjects.push(copy);
-  storageSet(WORKSPACE_PROJECTS_KEY, workspaceProjects);
-  renderWorkspaceProjects();
-}
-
-function confirmDeleteProject(index) {
-  if (!confirm("Delete this project? This cannot be undone.")) return;
-  workspaceProjects.splice(index, 1);
-  storageSet(WORKSPACE_PROJECTS_KEY, workspaceProjects);
-  renderWorkspaceProjects();
-}
-
-function exportWorkspace(format = "json") {
-  const data = {
-    projects: workspaceProjects,
-    tasks: workspaceTasks,
-    channels: workspaceChannels,
-    calendar: workspaceCalendar,
-    settings: workspaceSettings,
-    exportedAt: new Date().toISOString()
-  };
-  const blob = new Blob([format === "csv" ? toCSV(data) : JSON.stringify(data, null, 2)], { type: format === "csv" ? "text/csv" : "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "workspace-export-" + new Date().toISOString().slice(0,10) + "." + format;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function toCSV(data) {
-  if (Array.isArray(data)) {
-    if (!data.length) return "";
-    const headers = Object.keys(data[0]);
-    return [headers.join(","), ...data.map(row => headers.map(h => '"' + String(row[h] || "").replace(/"/g, '""') + '"').join(","))].join("\n");
-  }
-  return JSON.stringify(data, null, 2);
-}
-
-function openRetentionSettings() {
-  alert("Retention settings modal - to be implemented");
-}
-
-function confirmDeleteWorkspace() {
-  if (!confirm("DELETE ENTIRE WORKSPACE? This will permanently delete all saved projects, tasks, calendar events, channel connections, and settings. This cannot be undone.")) return;
-  if (!confirm("ARE YOU ABSOLUTELY SURE? Type 'DELETE' to confirm.")) return;
-  const input = prompt("Type DELETE to confirm:");
-  if (input !== "DELETE") return;
-  
-  storageSet(WORKSPACE_PROJECTS_KEY, []);
-  storageSet(WORKSPACE_TASKS_KEY, []);
-  storageSet(WORKSPACE_CHANNELS_KEY, []);
-  storageSet(WORKSPACE_CALENDAR_KEY, []);
-  storageSet(WORKSPACE_SETTINGS_KEY, []);
-  storageSet(WORKSPACE_PROJECTS_KEY, []);
-  storageSet(WORKSPACE_TASKS_KEY, []);
-  storageSet(WORKSPACE_CHANNELS_KEY, []);
-  storageSet(WORKSPACE_CALENDAR_KEY, []);
-  storageSet(WORKSPACE_SETTINGS_KEY, []);
-  
-  workspaceProjects = [];
-  workspaceTasks = [];
-  workspaceChannels = [];
-  workspaceCalendar = [];
-  workspaceSettings = { retentionDays: 365, autoExport: false, exportFormat: "json" };
-  
-  renderWorkspaceProjects();
-  renderWorkspaceTasks();
-  renderChannelWorkspace();
-  initCalendar();
-  alert("Workspace deleted.");
 }
 
 /* ---------- workspace end ---------- */
 
-async function main() {/* ---------- analytics end ---------- */
-
 async function main() {
+  wireMedia(document, async (channelId) => tool("profile", { handle: channelId }, 45000));
+  workspaceTour = mountTour();
+  OAuth = mountGoogleConnection({ invoke: tool, onUseChannel: useGoogleWorkspace, matchesWorkspace: (channel) => matchesOwnedChannel(profileState, channel), onRefresh: decideInitialOnboarding, onWorkspaceSelection: () => { workspaceTour.defer(); closeOnboarding(); byId("tab-button-analytics").click(); byId("google-status").textContent = "Google connection verified. Select an owned channel and use it as your verified workspace—no description change or second sign-in needed."; } });
   // Handle OAuth callback before anything else
   if (location.pathname.endsWith("/oauth-callback") || location.search.includes("code=")) {
     await handleOAuthCallback();
@@ -3883,13 +3585,8 @@ async function main() {
   wireRetention();
   wireRetentionHistory();
   wireExperiment();
-  // Render local workspace state and onboarding immediately. The Anna host
-  // handshake can take time (or remain pending); it must never block the UI.
-  const hostConnection = connect();
-  await loadWorkspaceState();
-  const ok = await hostConnection;
-  // Once the host is available, hydrate the authoritative APS-backed state.
-  if (ok) await loadWorkspaceState();
+  wireAnalytics();
+  const workspace = wireWorkspace();
   byId("audit-run").addEventListener("click", () => runAudit(byId("audit-handle").value));
   byId("audit-handle").addEventListener("keydown", (e) => { if (e.key === "Enter") runAudit(byId("audit-handle").value); });
   $$(".chip[data-handle]").forEach((chip) => {
@@ -3899,6 +3596,17 @@ async function main() {
       input.focus();
     });
   });
+  // Render local workspace state and onboarding immediately. The Anna host
+  // handshake can take time (or remain pending); it must never block the UI.
+  const hostConnection = connect();
+  await loadWorkspaceState();
+  const ok = await hostConnection;
+  // Once the host is available, hydrate the authoritative APS-backed state.
+  if (ok) await loadWorkspaceState();
+  // Optional Google state must never delay the working creator workspace.
+  if (ok) void OAuth.refresh().catch((error) => { byId("google-status").textContent = String(error.message || error); decideInitialOnboarding(); });
+  await workspace.reload();
+  if (!ok) decideInitialOnboarding();
   await renderSavedList();
   if (anna && anna.window) {
     try { await anna.window.set_title({ title: "YouTube Skillbox" }); } catch (_) {}
@@ -3909,45 +3617,8 @@ async function main() {
 
 /* ---------- OAuth callback handler ---------- */
 async function handleOAuthCallback() {
-  const params = new URLSearchParams(location.search);
-  const code = params.get("code");
-  const state = params.get("state");
-  const error = params.get("error");
-
-  const storedState = sessionStorage.getItem(OAUTH_STATE_KEY);
-  sessionStorage.removeItem(OAUTH_STATE_KEY);
-
-  if (error) {
-    setStatus(`OAuth error: ${error}`, false, true);
-    return;
-  }
-
-  if (!code || !state || state !== storedState) {
-    setStatus("OAuth callback invalid: missing code or state mismatch.", false, true);
-    return;
-  }
-
-  setStatus("Exchanging OAuth code for tokens...", true, true);
-  try {
-    const tokens = await OAuth.exchangeCodeForTokens(code);
-    await OAuth.storeTokens(tokens);
-    setStatus("Channel connected via Google OAuth!", true);
-
-    // If we were in onboarding, complete the verification
-    if (profileState && !profileState.verified) {
-      profileState.verified = true;
-      profileState.oauthConnected = true;
-      await storageSet(PROFILE_KEY, [profileState]);
-      guestMode = false;
-      await storageSet(GUEST_KEY, [false]);
-      renderProfileState();
-      renderOnboarding();
-    } else {
-      renderProfileState();
-    }
-  } catch (e) {
-    setStatus(`OAuth token exchange failed: ${e.message}`, false, true);
-  }
+  // A callback must never verify an arbitrary public handle or expose tokens.
+  setStatus(OAUTH_UNAVAILABLE, false, true);
 }
 
 main().catch((e) => setStatus(`Fatal: ${e.message || e}`, false));

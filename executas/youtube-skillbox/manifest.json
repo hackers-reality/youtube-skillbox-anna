@@ -1382,7 +1382,11 @@
         }
       ],
       "timeout": 90
-    }
+    },
+    {"name":"oauth_begin","description":"Start local read-only Google consent; no Google credentials are returned.","parameters":[],"timeout":30},
+    {"name":"oauth_status","description":"List backend-authorized account/channel identities.","parameters":[{"name":"attempt_id","type":"string","required":false}],"timeout":30},
+    {"name":"oauth_disconnect","description":"Explicitly revoke a local Google account connection without clearing the public creator profile.","parameters":[{"name":"grant_id","type":"string","required":true}],"timeout":60},
+    {"name":"oauth_analytics","description":"Read private Analytics using a backend-held grant; channel ownership is checked server-side.","parameters":[{"name":"grant_id","type":"string","required":true},{"name":"channel_id","type":"string","required":true},{"name":"report","type":"string","required":true},{"name":"start_date","type":"string","required":false},{"name":"end_date","type":"string","required":false}],"timeout":60}
   ],
   "credentials": [],
   "runtime": {

@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import { createWorkspaceStore, WORKSPACE_KEYS, workspaceCSV, csvCell, exportRows } from "./workspace.mjs";
+
+const records = new Map([["youtube-skillbox:profile", [{ verified: true, phrase: "PRESERVE", originalDescription: "original" }]]]);
+const get = async (key) => structuredClone(records.get(key) || []);
+const set = async (key, value) => { records.set(key, structuredClone(value)); };
+const store = createWorkspaceStore({ get, set });
+await store.load();
+const [a, b] = await Promise.all([
+  store.add("projects", { title: "Research, brief", content: 'Line 1\n"Line 2"', type: "draft", access_token: "TEST-EXCLUDED" }),
+  store.add("projects", { title: "Script", content: "=SUM(1,2)", type: "draft" })
+]);
+assert.equal(store.state.projects.length, 2, "concurrent saves must not lose versions");
+assert.notEqual(a.id, b.id);
+const task = await store.add("tasks", { title: "Produce video", status: "backlog", projectId: a.id });
+await store.update("tasks", task.id, { status: "review" });
+assert.equal(store.state.tasks[0].status, "review");
+const event = await store.add("calendar", { title: "Publish plan", date: "2026-11-23", projectId: a.id });
+await store.update("calendar", event.id, { date: "2026-12-01" });
+await store.add("channels", { handle: "@public", refresh_token: "TEST-EXCLUDED" });
+const reopened = createWorkspaceStore({ get, set });
+await reopened.load();
+assert.deepEqual(reopened.state, store.state, "all collections persist across sessions");
+assert.equal(reopened.state.calendar[0].date, "2026-12-01");
+const csv = workspaceCSV(store.state);
+assert.ok(csv.includes('"Research, brief"'));
+assert.ok(csv.includes('"Line 1\n""Line 2"""'));
+assert.ok(csv.includes("'=SUM(1,2)"));
+assert.equal(csvCell(0), '"0"');
+assert.equal(csvCell("\t@formula"), '"\'\t@formula"');
+assert.ok(!csv.includes("TEST-EXCLUDED"));
+assert.ok(!JSON.stringify(exportRows(store.state)).includes("TEST-EXCLUDED"));
+await assert.rejects(store.settings(0));
+await store.settings(30);
+await store.update("projects", a.id, { savedAt: "2001-01-01T00:00:00.000Z" });
+assert.equal(store.expired().length, 1);
+await store.deleteExpired();
+assert.equal(store.state.projects.length, 1);
+assert.equal(store.state.tasks.length, 1, "retention never deletes linked tasks");
+await store.remove("tasks", task.id);
+assert.equal(store.state.tasks.length, 0);
+const failing = createWorkspaceStore({ get, set: async () => { throw new Error("APS unavailable"); } });
+await failing.load();
+await assert.rejects(failing.add("projects", { title: "Must not appear saved" }));
+assert.equal(failing.state.projects.length, 1, "failed writes must not mutate saved state");
+await store.clear();
+assert.deepEqual(records.get("youtube-skillbox:profile"), [{ verified: true, phrase: "PRESERVE", originalDescription: "original" }]);
+assert.equal(store.state.projects.length + store.state.tasks.length + store.state.channels.length + store.state.calendar.length, 0);
+assert.equal(Object.keys(WORKSPACE_KEYS).length, 5);
+console.log("Workspace tests passed: CRUD, concurrent writes, reload, CSV safety, credential exclusion, retention, failed writes, scoped deletion");

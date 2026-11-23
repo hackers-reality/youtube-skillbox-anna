@@ -1,0 +1,14 @@
+import assert from "node:assert/strict";
+import { mediaCandidates, mediaImage } from "./media.mjs";
+const id = "-xvOxbvnXuk";
+assert.equal(mediaCandidates({ id })[0], `https://i.ytimg.com/vi/${id}/hqdefault.jpg`);
+assert.equal(mediaCandidates({ id, thumbnail:`https://i.ytimg.com/vi/${id}/frame0.jpg` }, "short")[0], `https://i.ytimg.com/vi/${id}/hqdefault.jpg`);
+assert.ok(mediaCandidates({ id, thumbnails:{ high:{url:"https://i.ytimg.com/real.jpg"} } }).includes("https://i.ytimg.com/real.jpg"));
+assert.equal(mediaCandidates({ id:"invalid", thumbnail:"javascript:alert(1)" }).length, 0);
+assert.equal(mediaCandidates({ id:"invalid", thumbnail:"https://attacker.invalid/image" }).length, 0);
+const markup = mediaImage({ id, title:'<script>alert(1)</script>' });
+assert.ok(markup.includes("data-media-candidates="));
+assert.ok(!markup.includes("<script>"));
+assert.ok(!markup.includes("onerror="));
+assert.ok(mediaImage({ id:"UCchannel", title:"Creator" }, {kind:"channel"}).includes("avatar unavailable"));
+console.log("Media tests passed: normalization fallback, black opening-frame replacement, URL safety and explicit unavailable state");

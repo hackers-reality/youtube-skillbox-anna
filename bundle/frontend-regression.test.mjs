@@ -1,8 +1,18 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { planChatTools } from "./chat-routing.mjs";
 
 const source = await readFile(new URL("./app.js", import.meta.url), "utf8");
+// Compile the exact UTF-8 bytes as the browser's ES module; regex-only checks
+// previously passed even when syntax errors prevented all initialization.
+const syntax = spawnSync(process.execPath, ["--input-type=module", "--check"], { input: source, encoding: "utf8" });
+assert.equal(syntax.status, 0, syntax.stderr || String(syntax.error));
+assert.equal((source.match(/async function main\(/g) || []).length, 1);
+assert.doesNotMatch(source, /oauth2\.googleapis\.com|client_secret|storeTokens|OAUTH_STORAGE_KEY/);
+assert.match(source, /wireAnalytics\(\)/);
+assert.match(source, /Video sample: unavailable; no upload count was measured/);
+assert.match(source, /Outlier check: unavailable; no outlier result was measured/);
 const routingSource = await readFile(new URL("./chat-routing.mjs", import.meta.url), "utf8");
 
 assert.deepEqual(planChatTools({ message: "Why did my videos lose views?", handle: "@creator" }).map((item) => item.method), ["latest", "outliers"]);

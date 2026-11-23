@@ -32,6 +32,11 @@ jobs:
           node --check bundle/anna-tool-runtime.mjs
           node bundle/anna-tool-runtime.test.mjs
           node bundle/frontend-regression.test.mjs
+          node --check bundle/workspace.mjs
+          node bundle/workspace.test.mjs
+          node bundle/media.test.mjs
+          node --check bundle/oauth-client.mjs
+          node --check bundle/tour.mjs
           node --check bundle/anna-tool-ids.js
 
       - name: Set up Python
@@ -57,17 +62,4 @@ jobs:
           python -m json.tool executas/youtube-skillbox/executa.json > /dev/null
 
       - name: Validate HTML parsing
-        run: |
-          python - <<'PY'
-          from html.parser import HTMLParser
-          from pathlib import Path
-
-          class Validator(HTMLParser):
-              def error(self, message):
-                  raise RuntimeError(message)
-
-          parser = Validator()
-          parser.feed(Path("bundle/index.html").read_text(encoding="utf-8"))
-          parser.close()
-          print("bundle/index.html parsed")
-          PY
+        run: python bundle/validate-html.py

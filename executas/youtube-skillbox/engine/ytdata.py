@@ -727,6 +727,7 @@ def slim(e):
         "id": vid,
         "title": e.get("title"),
         "url": url,
+        "thumbnail": e.get("thumbnail") or next((t.get("url") for t in reversed(e.get("thumbnails") or []) if isinstance(t, dict) and t.get("url")), None) or (f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg" if re.fullmatch(r"[\w-]{11}", str(vid or "")) else None),
         "duration": e.get("duration"),
         "duration_string": e.get("duration_string") or fmt_duration(e.get("duration")),
         "views": e.get("view_count"),
@@ -779,10 +780,8 @@ def cmd_search(a):
 
 def cmd_channel(a):
     base = a.handle if a.handle.startswith("http") else f"https://www.youtube.com/{a.handle}"
-    if "/@" not in base and not base.rstrip("/").endswith(("/videos", "/shorts", "/streams")):
-        base = base.rstrip("/") + "/videos"
-    if a.tab in ("shorts", "streams") and not base.rstrip("/").endswith("/" + a.tab):
-        base = base.rstrip("/").split("/videos")[0] + f"/{a.tab}"
+    base = re.sub(r"/(videos|shorts|streams)/?$", "", base.split("?")[0].rstrip("/"))
+    base += "/" + (a.tab if a.tab in ("videos", "shorts", "streams") else "videos")
     args = [base, "--playlist-items", f"1-{a.limit}"]
     entries = dump_entries(args)
     # flat-playlist doesn't include duration; enrich per-video (concurrent, bounded)
