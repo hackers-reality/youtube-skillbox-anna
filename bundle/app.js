@@ -2333,7 +2333,6 @@ async function runLab(kind) {
     byId("lab-save-research").addEventListener("click", async (event) => {
       const button = event.currentTarget;
       if (!workspaceAPI?.ready) {
-        button.textContent = "Workspace loading…";
         button.textContent = "Workspace unavailable · retry later";
         return;
       }
@@ -2348,7 +2347,7 @@ async function runLab(kind) {
           researchKind: kind,
           region: gl,
           language: hl,
-          sourceUrls: [...new Set(sourceLinks)]
+          sourceLinks: [...new Set(sourceLinks)]
         });
         await workspaceAPI.reload();
         button.textContent = "Saved to Workspace";
