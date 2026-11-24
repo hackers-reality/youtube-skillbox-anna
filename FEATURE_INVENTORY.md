@@ -114,3 +114,13 @@ The research handoff is attached only after a successful Lab result render. Fail
 - Saved research briefs can be opened from Workspace back into Create, restoring the topic, context and (when empty) target keyword.
 - The current workspace store persists project records through the host storage adapter and the standalone local-storage fallback already used by the app.
 - Verification remains source-level only; APS-backed save/reload/reopen acceptance has not been run in the local Anna host.
+
+## Improve-to-Library save contract
+
+- Retention CSV and ZIP analyses continue to use the existing private retention-history cache for reopen-in-Retention behavior.
+- A separate **Save copy to Library** action is appended after a successful single report or ZIP bundle analysis. It writes a user-requested copy to the existing Workspace `projects` collection; it does not silently migrate or duplicate old history.
+- Experiment plans and recorded outcomes likewise remain in their existing experiment stores. Each successful plan/result gets an explicit save-to-Library action; no experiment is automatically copied.
+- Library copies are JSON snapshots labelled `retention-report`, `retention-bundle`, `experiment-plan`, or `experiment-result`, with provenance `Creator-saved Improve record`. Experiment result snapshots include the associated plan when it is available.
+- The action checks that Workspace has completed loading before writing and reloads the Workspace after success. If Workspace is unavailable, it leaves the original Improve record untouched and offers retry.
+- This is an explicit copy, not a new source of truth. Existing Retention history and experiment tracking continue to operate in their current stores.
+- Verification is source-level only until the local regression suite and real Anna/APS browser workflow are run.
