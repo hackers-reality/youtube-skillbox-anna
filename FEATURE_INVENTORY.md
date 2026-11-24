@@ -67,3 +67,16 @@ The broader engine manifest also contains research, channel, retention, Analytic
 ## Known verification boundary
 
 This inventory was derived from the current remote `bundle/index.html`, `bundle/app.js`, and `executas/youtube-skillbox/manifest.json`. It is a source inspection, not a local runtime test. The user's local worktree and APS storage are not visible through the GitHub connector; the project test suite and real-browser acceptance still need execution in the local/preview environment.
+
+
+## Research-to-Create handoff
+
+A successful Keyword Lab run now appends a **Use research in Create** action to the rendered result. The action:
+
+- Captures the visible research summary, the selected research kind, seed, region and language.
+- Collects rendered HTTP(S) anchor links and carries their labels and URLs into the context; non-HTTP protocols are ignored.
+- Adds the research summary to the existing Studio Context rather than silently deleting creator notes, with a bounded context size.
+- Prefills the topic and target keyword only when those fields are empty.
+- Opens Content Studio and focuses the Context field so the creator can review the handoff before generating a brief.
+
+**Important limitation:** this is a rendered-summary handoff, not a structured evidence object. It preserves visible source links when the renderer exposes them, but it does not claim full raw tool payload lineage or source completeness. A later contract should pass typed evidence records with provenance and source IDs rather than relying on rendered text.
