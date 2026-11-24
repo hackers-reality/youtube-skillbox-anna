@@ -256,6 +256,8 @@ let onboardingStep = "identity";
 let onboardingExplicit = false;
 let googleOnboardingDecided = false;
 let workspaceTour = null;
+let workspaceAPI = null;
+let workspaceReady = false;
 let chatHistory = [];
 let chatAttachment = null;
 let retentionHistory = [];
@@ -2302,7 +2304,7 @@ async function runLab(kind) {
     out.innerHTML = html;
     const handoff = document.createElement("div");
     handoff.className = "lab-handoff";
-    handoff.innerHTML = '<p>Carry this research into a creative brief with its visible source references.</p><button class="btn btn-primary btn-small" id="lab-to-create" type="button">Use research in Create</button>';
+    handoff.innerHTML = '<p>Carry this research into a creative brief with its visible source references.</p><div class="lab-handoff-actions"><button class="btn btn-primary btn-small" id="lab-to-create" type="button">Use research in Create</button><button class="btn btn-small" id="lab-save-research" type="button">Save research brief</button></div>';
     out.appendChild(handoff);
     byId("lab-to-create").addEventListener("click", () => {
       const visibleEvidence = out.innerText.replace(/Carry this research[\s\S]*$/m, "").trim();
@@ -2328,6 +2330,34 @@ async function runLab(kind) {
       if (!byId("studio-keyword").value.trim()) byId("studio-keyword").value = seed;
       byId("tab-button-studio").click();
       byId("studio-context").focus();
+    });
+    byId("lab-save-research").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      if (!workspaceAPI || !workspaceReady) {
+        button.textContent = "Workspace loading…";
+        button.disabled = true;
+        return;
+      }
+      button.disabled = true;
+      try {
+        await workspaceAPI.store.add("projects", {
+          type: "research-brief",
+          title: "Research · " + seed,
+          topic: seed,
+          content: researchContext,
+          provenance: "Rendered Keyword Lab summary",
+          researchKind: kind,
+          region: gl,
+          language: hl,
+          sourceUrls: [...new Set(sourceLinks)]
+        });
+        await workspaceAPI.reload();
+        button.textContent = "Saved to Workspace";
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = "Save failed · retry";
+        button.title = String(error.message || error);
+      }
     });
     label.textContent = kind === "chain" ? "RESEARCH CHAIN COMPLETE" : "DONE · " + kind.toUpperCase();
   } catch (error) {
@@ -3615,7 +3645,7 @@ async function main() {
   wireRetentionHistory();
   wireExperiment();
   wireAnalytics();
-  const workspace = wireWorkspace();
+  workspaceAPI = wireWorkspace();
   byId("audit-run").addEventListener("click", () => runAudit(byId("audit-handle").value));
   byId("audit-handle").addEventListener("keydown", (e) => { if (e.key === "Enter") runAudit(byId("audit-handle").value); });
   $$(".chip[data-handle]").forEach((chip) => {
@@ -3634,7 +3664,8 @@ async function main() {
   if (ok) await loadWorkspaceState();
   // Optional Google state must never delay the working creator workspace.
   if (ok) void OAuth.refresh().catch((error) => { byId("google-status").textContent = String(error.message || error); decideInitialOnboarding(); });
-  await workspace.reload();
+  await workspaceAPI.reload();
+  workspaceReady = true;
   if (!ok) decideInitialOnboarding();
   await renderSavedList();
   if (anna && anna.window) {
