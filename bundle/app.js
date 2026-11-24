@@ -2305,7 +2305,7 @@ async function runLab(kind) {
     handoff.innerHTML = '<p>Carry this research into a creative brief with its visible source references.</p><button class="btn btn-primary btn-small" id="lab-to-create" type="button">Use research in Create</button>';
     out.appendChild(handoff);
     byId("lab-to-create").addEventListener("click", () => {
-      const visibleEvidence = out.innerText.replace(/Carry this research[\\s\\S]*$/m, "").trim();
+      const visibleEvidence = out.innerText.replace(/Carry this research[\s\S]*$/m, "").trim();
       const sourceLinks = Array.from(out.querySelectorAll("a[href]"))
         .map((anchor) => {
           try {
@@ -2320,10 +2320,10 @@ async function runLab(kind) {
         "Region: " + gl + " · Language: " + hl,
         "Evidence below is a rendered summary of the completed Skillbox research. Preserve its labels; do not treat LLM interpretation as measured data.",
         visibleEvidence.slice(0, 12000),
-        sourceLinks.length ? "VISIBLE SOURCE LINKS:\\n" + [...new Set(sourceLinks)].join("\\n").slice(0, 3500) : "No clickable source links were rendered for this result."
-      ].join("\\n\\n");
+        sourceLinks.length ? "VISIBLE SOURCE LINKS:\n" + [...new Set(sourceLinks)].join("\n").slice(0, 3500) : "No clickable source links were rendered for this result."
+      ].join("\n\n");
       const contextField = byId("studio-context");
-      contextField.value = [researchContext, contextField.value.trim()].filter(Boolean).join("\\n\\n--- EXISTING CREATOR CONTEXT ---\\n\\n").slice(0, 19000);
+      contextField.value = [researchContext, contextField.value.trim()].filter(Boolean).join("\n\n--- EXISTING CREATOR CONTEXT ---\n\n").slice(0, 19000);
       if (!byId("studio-topic").value.trim()) byId("studio-topic").value = seed;
       if (!byId("studio-keyword").value.trim()) byId("studio-keyword").value = seed;
       byId("tab-button-studio").click();
