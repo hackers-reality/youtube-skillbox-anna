@@ -29,6 +29,15 @@ assert.match(source, /workspaceAPI\?\.ready/);
 assert.match(source, /get ready\(\) \{ return loaded; \}/);
 assert.match(source, /const researchContext = \[/);
 assert.match(source, /byId\("lab-save-research"\)\.addEventListener/);
+assert.match(source, /function appendImproveSaveButton\(container, record, type, title\)/);
+assert.match(source, /workspaceAPI\.store\.add\("projects",/);
+assert.match(source, /Creator-saved Improve record/);
+assert.match(source, /appendImproveSaveButton\(output, retentionRecord, "retention-report"/);
+assert.match(source, /appendImproveSaveButton\(output, retentionRecord, "retention-bundle"/);
+assert.match(source, /appendImproveSaveButton\(byId\("exp-output"\), plan, "experiment-plan"/);
+assert.match(source, /appendImproveSaveButton\(resultCard, \{ experiment: exp \|\| null, result: record \}, "experiment-result"/);
+assert.match(source, /Library unavailable · retry later/);
+
 assert.match(source, /\.lab-handoff-actions/);
 
 assert.match(source, /wireAnalytics\(\)/);
