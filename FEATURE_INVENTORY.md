@@ -80,3 +80,27 @@ A successful Keyword Lab run now appends a **Use research in Create** action to 
 - Opens Content Studio and focuses the Context field so the creator can review the handoff before generating a brief.
 
 **Important limitation:** this is a rendered-summary handoff, not a structured evidence object. It preserves visible source links when the renderer exposes them, but it does not claim full raw tool payload lineage or source completeness. A later contract should pass typed evidence records with provenance and source IDs rather than relying on rendered text.
+
+
+## Keyword Lab research contract
+
+| Lab action | Current engine path | Notes |
+|---|---|---|
+| `search` | `search` | Live public YouTube search results |
+| `ideas` | `keywords` | Keyword idea/opportunity rows |
+| `compete` | `compete` | Competition measurement |
+| `verdict` | `keywords` → `compete` → `verdict` | Requires measurable opportunity and competition values |
+| `gap` | `gap` | Requires a seed and competitor channel |
+| `outliers` | `outliers` | Requires competitor channel |
+| `info` | `info` | Requires a video URL or ID |
+| `playlist` | `playlist` | Requires a playlist URL or ID |
+| `scorecard` | `scorecard` | Requires a video URL or ID; can be included in the research chain |
+| `track` | `track` | Requires seed and video URL/ID |
+| `trends` | `trends` | Historical keyword trend output |
+| `chain` | `keywords`, `compete`, optional `verdict`, optional `gap`, optional `scorecard`, `search` | Partial failures are retained and labelled NOT MEASURED in the research read |
+| `market-discover`, `market-trend`, `market-opportunity` | Not dispatched | UI controls currently reach an explicit unavailable error; corresponding manifest methods exist but are not wired through this Lab handler |
+| `market-gap` | Not dispatched from the current Lab UI | The input validation recognizes the kind, but no current button is present in the inspected HTML |
+
+All direct methods called by the current Lab handler are present in the declarative Executa manifest. The existence of the `market-*` manifest methods does not establish that the Anna bridge can invoke them; the UI handler explicitly reports that advanced market reports are not wired.
+
+The research handoff is attached only after a successful Lab result render. Failed research does not expose a handoff button. The current handoff transfers rendered text and visible HTTP(S) links; it is not a typed evidence API.
