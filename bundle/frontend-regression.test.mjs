@@ -13,6 +13,13 @@ assert.equal((source.match(/async function main\(/g) || []).length, 1);
 assert.doesNotMatch(source, /oauth2\.googleapis\.com|client_secret|storeTokens|OAUTH_STORAGE_KEY/);
 assert.match(source, /RESEARCH HANDOFF · /);
 assert.match(source, /VISIBLE SOURCE LINKS/);
+assert.match(source, /let workspaceAPI = null/);
+assert.match(source, /workspaceAPI\.store\.add\("projects"/);
+assert.match(source, /type: "research-brief"/);
+assert.match(source, /sourceUrls: \[\.\.\.new Set\(sourceLinks\)\]/);
+assert.match(source, /workspaceReady = true/);
+assert.match(source, /id="lab-save-research"/);
+
 assert.match(source, /byId\("tab-button-studio"\)\.click\(\)/);
 assert.match(source, /byId\("studio-context"\)\.value/);
 assert.match(styles, /\.lab-handoff/);
