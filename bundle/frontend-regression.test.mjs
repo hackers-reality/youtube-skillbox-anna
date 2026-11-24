@@ -257,6 +257,7 @@ assert.match(styles, /@media\(max-height:600px\)\{\.ret-bundle-deck\{height:clam
 assert.match(styles, /\.create-quickstart-grid/);
 assert.match(styles, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
 assert.match(styles, /@media \(max-width: 760px\)/);
+assert.match(styles, /\.create-step \.studio-actions \{ grid-column: 2; grid-row: 1 \/ span 3; margin-top: 0; \}/);
 assert.match(styles, /chat-attach-icon/);
 assert.match(styles, /@keyframes attach-spin-180-ccw\{from\{transform:rotate\(0deg\)\}to\{transform:rotate\(-180deg\)\}\}/);
 assert.match(styles, /\.chat-attach-icon\{[^}]*transform-box:view-box;transform-origin:50% 50%/);
