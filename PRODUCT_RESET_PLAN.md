@@ -185,3 +185,11 @@ Implemented on `feat/creator-operating-system`:
 - Added a workspace readiness guard to prevent saving against the empty initial store before load completes.
 - Preserves source-link strings and labels the saved content as a rendered research summary; raw tool-payload provenance remains future work.
 - Local APS persistence and browser acceptance remain unverified.
+
+### Improve-to-Library save slice — in progress
+
+- Added explicit **Save copy to Library** actions for successful single retention reports, ZIP retention bundles, experiment plans, and recorded experiment results.
+- The actions use the existing Creator Workspace `projects` collection and its readiness guard; they do not introduce a second Library database or silently copy private records.
+- Retention history and experiment planner/tracker remain authoritative in their existing stores. The Library item is a JSON snapshot with a clear Improve provenance label.
+- Experiment result snapshots include the associated experiment plan when it is available.
+- The local test suite, APS persistence, and browser interactions have not been run in this remote editing session.
