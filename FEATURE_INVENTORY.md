@@ -104,3 +104,13 @@ A successful Keyword Lab run now appends a **Use research in Create** action to 
 All direct methods called by the current Lab handler are present in the declarative Executa manifest. The existence of the `market-*` manifest methods does not establish that the Anna bridge can invoke them; the UI handler explicitly reports that advanced market reports are not wired.
 
 The research handoff is attached only after a successful Lab result render. Failed research does not expose a handoff button. The current handoff transfers rendered text and visible HTTP(S) links; it is not a typed evidence API.
+
+
+### Research brief persistence and reopen loop
+
+- Added an explicit **Save research brief** action after a successful Keyword Lab run. It saves a `research-brief` project record through the existing Creator Workspace store; no implicit autosave.
+- The record contains the research seed, kind, region/language, rendered summary, provenance note, and visible source-link strings. It does not claim full raw-payload lineage.
+- Workspace readiness is exposed by the mounted workspace API. The save action refuses to write until the store has loaded successfully, avoiding a write against its empty initial state.
+- Saved research briefs can be opened from Workspace back into Create, restoring the topic, context and (when empty) target keyword.
+- The current workspace store persists project records through the host storage adapter and the standalone local-storage fallback already used by the app.
+- Verification remains source-level only; APS-backed save/reload/reopen acceptance has not been run in the local Anna host.
