@@ -632,7 +632,8 @@ html[data-theme="light"] input[type="text"],html[data-theme="light"] input[type=
   .create-quickstart-grid { grid-template-columns: 1fr; }
   .create-step { display: grid; grid-template-columns: 1fr auto; align-items: center; }
   .create-step-number, .create-step h3, .create-step p { grid-column: 1; }
-  .create-step .btn { grid-column: 2; grid-row: 1 / span 3; }
+  .create-step .studio-actions { grid-column: 2; grid-row: 1 / span 3; margin-top: 0; }
+  .create-step .btn { margin-top: 0; }
 }
 
 
