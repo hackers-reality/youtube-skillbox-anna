@@ -172,3 +172,9 @@ Implemented on `feat/creator-operating-system`:
 4. Consolidate Improve only after mapping the Retention and Analytics panel dependencies and their separate authorization/data contracts.
 5. Reconcile the remote branch with the user's local worktree before any broader source refactor; local dirty files and APS data are not visible through GitHub.
 
+### Research-to-Create handoff — initial slice
+
+- Added a post-success action to carry the visible Keyword Lab research summary into Studio Context.
+- Preserves existing creator context, prefills empty topic/keyword fields, carries rendered HTTP(S) source links, and opens Create for review.
+- This is a rendered-summary bridge only. Typed evidence records, complete source lineage, and end-to-end research-to-script acceptance remain open.
+- Added frontend source assertions for the handoff path.
