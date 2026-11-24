@@ -3059,6 +3059,41 @@ async function saveRetentionRecord(record) {
   renderRetentionHistory();
 }
 
+// Improve outputs stay in their existing private stores unless the creator
+// explicitly saves a copy to the shared Creator Workspace Library.
+function appendImproveSaveButton(container, record, type, title) {
+  if (!container || container.querySelector("[data-save-improve-library]")) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn btn-small mt";
+  button.dataset.saveImproveLibrary = "true";
+  button.textContent = "Save copy to Library";
+  button.addEventListener("click", async () => {
+    if (!workspaceAPI?.ready) {
+      button.textContent = "Library unavailable · retry later";
+      return;
+    }
+    button.disabled = true;
+    try {
+      await workspaceAPI.store.add("projects", {
+        type,
+        title,
+        content: JSON.stringify(record, null, 2),
+        provenance: "Creator-saved Improve record",
+        channel: profileState?.handle || "",
+        source: "Improve"
+      });
+      await workspaceAPI.reload();
+      button.textContent = "Saved to Library";
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "Save failed · retry";
+      button.title = String(error.message || error);
+    }
+  });
+  container.appendChild(button);
+}
+
 function renderRetentionHistory() {
   const count = retentionHistory.length;
   for (const id of ["ret-history-count", "ret-cache-count"]) if (byId(id)) byId(id).textContent = String(count);
@@ -3148,6 +3183,7 @@ async function wireExperiment() {
       renderExperimentList();
       byId("exp-output").innerHTML = '<div class="note"><b>Experiment planned:</b> ' + escapeHtml(name) + '<br><span class="ev ev-' + hypothesisType.toLowerCase() + '">' + hypothesisType + '</span> · Metric: ' + escapeHtml(metric) + ' · MDE: ' + mde + '% · Power: ' + power + '% · α: ' + alpha + '%</div>';
       byId("exp-output").classList.remove("hidden");
+      appendImproveSaveButton(byId("exp-output"), plan, "experiment-plan", "Experiment · " + name);
       byId("exp-launch").disabled = false;
     } catch (e) {
       byId("exp-output").innerHTML = '<div class="note err"><b>Failed to save</b><span>' + escapeHtml(e.message || e) + '</span></div>';
@@ -3320,7 +3356,11 @@ async function wireExperiment() {
 
       const exp = (await storageList(EXP_STORAGE_KEY)).find(e => e.id === expId);
       const html = '<div class="exp-result-card"><div class="exp-result-head"><strong>' + escapeHtml(exp?.name || expId) + '</strong> <span class="ev ev-' + (label === "A_WINS" || label === "B_WINS" ? "measured" : label === "NO_DIFFERENCE" ? "inferred" : "hypothesis") + '">' + label + '</span></div><div class="exp-result-body">A: ' + escapeHtml(aResult) + ' (n=' + aN + ') · B: ' + escapeHtml(bResult) + ' (n=' + bN + ')</div>' + (notes ? '<div class="hint">' + escapeHtml(notes) + '</div>' : '') + '</div>';
-      list.insertAdjacentHTML("afterbegin", html);
+      const resultCard = document.createElement("div");
+      resultCard.className = "exp-result-card";
+      resultCard.innerHTML = html;
+      list.prepend(resultCard);
+      appendImproveSaveButton(resultCard, { experiment: exp || null, result: record }, "experiment-result", "Experiment result · " + (exp?.name || expId));
 
       byId("track-a-result").value = "";
       byId("track-b-result").value = "";
@@ -3424,7 +3464,9 @@ function wireRetention() {
           + ". Use the measured findings above; no recommendation was fabricated.";
       }
       output.innerHTML = renderRetentionReport(findings, recommendation, retentionTitle);
-      await saveRetentionRecord({ kind: "single", title: retentionTitle, findings, recommendation });
+      const retentionRecord = { kind: "single", title: retentionTitle, findings, recommendation };
+      await saveRetentionRecord(retentionRecord);
+      appendImproveSaveButton(output, retentionRecord, "retention-report", "Retention · " + retentionTitle);
       wireRetentionCarousel();
     } catch (error) {
       output.innerHTML = '<div class="note err"><b>Retention analysis failed</b><span>' + escapeHtml(String(error.message || error)) + '</span></div>';
@@ -3448,7 +3490,9 @@ function wireRetention() {
       const reports = await analyzeRetentionEntries(retentionZipEntries, duration);
       await describeRetentionReports(reports);
       output.innerHTML = renderRetentionBundle(reports, retentionTitle);
-      await saveRetentionRecord({ kind: "bundle", title: retentionTitle, reports });
+      const retentionRecord = { kind: "bundle", title: retentionTitle, reports };
+      await saveRetentionRecord(retentionRecord);
+      appendImproveSaveButton(output, retentionRecord, "retention-bundle", "Retention bundle · " + retentionTitle);
       wireRetentionBundleDeck();
     } catch (error) {
       output.innerHTML = `<div class="note err"><b>Bundle analysis failed</b><span>${escapeHtml(String(error.message || error))}</span></div>`;
