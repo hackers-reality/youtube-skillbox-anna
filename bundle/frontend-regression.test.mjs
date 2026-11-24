@@ -16,6 +16,7 @@ assert.match(source, /VISIBLE SOURCE LINKS/);
 assert.match(source, /let workspaceAPI = null/);
 assert.match(source, /workspaceAPI\.store\.add\("projects"/);
 assert.match(source, /type: "research-brief"/);
+assert.match(source, /\["draft", "research-brief"\]\.includes\(project\.type\)/);
 assert.match(source, /sourceUrls: \[\.\.\.new Set\(sourceLinks\)\]/);
 assert.match(source, /get ready\\(\\) \\{ return loaded; \\}/);
 assert.match(source, /id="lab-save-research"/);
