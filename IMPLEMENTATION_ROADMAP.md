@@ -120,3 +120,13 @@
 3. Implement Channel DNA as the first differentiated capability.
 4. Build OAuth foundation before private Analytics API dashboards.
 5. Expand the remaining departments in the order above.
+
+## Shared engine integration follow-up
+
+- [ ] Implement compatibility fixtures for the public engine JSON outputs and Anna's adapter.
+- [ ] Test manifest declarations against actual dispatcher registrations.
+- [ ] Expose engine package and Anna adapter versions independently.
+- [ ] Verify source provenance, partial-result status, sample size, timestamps, and units survive normalization.
+- [ ] Run both repositories' relevant CI against the exact engine package version before accepting an upgrade.
+
+Contract: [`ENGINE_INTEGRATION_CONTRACT.md`](ENGINE_INTEGRATION_CONTRACT.md). These are follow-up tasks, not completed acceptance criteria.
