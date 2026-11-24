@@ -17,12 +17,18 @@ assert.match(source, /let workspaceAPI = null/);
 assert.match(source, /workspaceAPI\.store\.add\("projects"/);
 assert.match(source, /type: "research-brief"/);
 assert.match(source, /sourceUrls: \[\.\.\.new Set\(sourceLinks\)\]/);
-assert.match(source, /workspaceReady = true/);
+assert.match(source, /get ready\\(\\) \\{ return loaded; \\}/);
 assert.match(source, /id="lab-save-research"/);
 
 assert.match(source, /byId\("tab-button-studio"\)\.click\(\)/);
 assert.match(source, /byId\("studio-context"\)\.value/);
 assert.match(styles, /\.lab-handoff/);
+assert.match(source, /workspaceAPI\?\.ready/);
+assert.match(source, /get ready\(\) \{ return loaded; \}/);
+assert.match(source, /const researchContext = \[/);
+assert.match(source, /byId\("lab-save-research"\)\.addEventListener/);
+assert.match(source, /\.lab-handoff-actions/);
+
 assert.match(source, /wireAnalytics\(\)/);
 assert.match(source, /Video sample: unavailable; no upload count was measured/);
 assert.match(source, /Outlier check: unavailable; no outlier result was measured/);
