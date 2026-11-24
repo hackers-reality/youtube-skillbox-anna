@@ -149,3 +149,26 @@ These counts are a structural inventory, not a usability score. Button counts in
 ## Explicit safety boundary
 
 Do not reset, clean, discard, overwrite or stash-delete local work. Do not edit the Designer Review branch. Do not merge or push to `main`, publish, or promote production. Remote GitHub inspection does not establish the state of the user's local working tree; reconcile local and remote state before broad implementation changes.
+
+## Implementation log
+
+### First guided Create slice — in progress
+
+Implemented on `feat/creator-operating-system`:
+
+- Added a three-step Create quickstart: **Plan → Create → Repurpose**.
+- The shortcuts call existing Studio task identifiers (`brief`, `full`, and `shorts_extraction`); no duplicate generation runtime was introduced.
+- Kept the original Write Pack controls and output/save controls intact.
+- Moved secondary creator workflow controls into a collapsed native `details` disclosure. All ten original task buttons remain in the document and continue to match the existing `.studio-actions [data-task]` event binding.
+- Added responsive card styling and source-level regression assertions for the quickstart, preserved advanced actions, and disclosure styling.
+
+**Verification boundary:** source-level remote checks confirmed the expected markup, task identifiers, and handler selector are present. The local test suite and real-browser interactions have not been executed from this GitHub-only editing session. This slice is not an acceptance claim for the complete Create workflow.
+
+### Next implementation sequence
+
+1. Complete the control → handler → Executa method → test inventory before changing primary navigation.
+2. Define a shared research-brief contract so selected Research evidence can seed Create without copying or inventing metrics.
+3. Add a first-class handoff from a saved research opportunity into the Create brief, preserving source URLs and MEASURED / INFERRED / RECOMMENDATION provenance.
+4. Consolidate Improve only after mapping the Retention and Analytics panel dependencies and their separate authorization/data contracts.
+5. Reconcile the remote branch with the user's local worktree before any broader source refactor; local dirty files and APS data are not visible through GitHub.
+
