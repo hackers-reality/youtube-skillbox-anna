@@ -178,3 +178,10 @@ Implemented on `feat/creator-operating-system`:
 - Preserves existing creator context, prefills empty topic/keyword fields, carries rendered HTTP(S) source links, and opens Create for review.
 - This is a rendered-summary bridge only. Typed evidence records, complete source lineage, and end-to-end research-to-script acceptance remain open.
 - Added frontend source assertions for the handoff path.
+
+### Research brief save/reopen slice
+
+- Added explicit save-to-Workspace and reopen-in-Create actions for successful Keyword Lab research.
+- Added a workspace readiness guard to prevent saving against the empty initial store before load completes.
+- Preserves source-link strings and labels the saved content as a rendered research summary; raw tool-payload provenance remains future work.
+- Local APS persistence and browser acceptance remain unverified.
