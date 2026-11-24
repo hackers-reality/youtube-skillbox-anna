@@ -235,6 +235,7 @@ export function mountWorkspace({ root = document, get, set, channel, selectChann
   }));
   return {
     store,
+    get ready() { return loaded; },
     async reload() {
       loaded = false;
       try { await store.load(); loaded = true; render(); status("Workspace loaded. Calendar dates are plans, not automatic publishing."); }
