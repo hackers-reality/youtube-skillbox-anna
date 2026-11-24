@@ -124,3 +124,9 @@ The research handoff is attached only after a successful Lab result render. Fail
 - The action checks that Workspace has completed loading before writing and reloads the Workspace after success. If Workspace is unavailable, it leaves the original Improve record untouched and offers retry.
 - This is an explicit copy, not a new source of truth. Existing Retention history and experiment tracking continue to operate in their current stores.
 - Verification is source-level only until the local regression suite and real Anna/APS browser workflow are run.
+
+## Shared engine integration contract
+
+See [`ENGINE_INTEGRATION_CONTRACT.md`](ENGINE_INTEGRATION_CONTRACT.md) for the cross-repository ownership boundary, version policy, CLI/JSON integration boundary, evidence provenance requirements, failure semantics, security boundaries, and compatibility test gates.
+
+This contract is a source-inspected proposal. It does not mean the proposed compatibility fixtures, public Python API, version diagnostics, or end-to-end acceptance tests have already been implemented.
