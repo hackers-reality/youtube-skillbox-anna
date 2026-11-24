@@ -257,7 +257,6 @@ let onboardingExplicit = false;
 let googleOnboardingDecided = false;
 let workspaceTour = null;
 let workspaceAPI = null;
-let workspaceReady = false;
 let chatHistory = [];
 let chatAttachment = null;
 let retentionHistory = [];
@@ -2306,8 +2305,7 @@ async function runLab(kind) {
     handoff.className = "lab-handoff";
     handoff.innerHTML = '<p>Carry this research into a creative brief with its visible source references.</p><div class="lab-handoff-actions"><button class="btn btn-primary btn-small" id="lab-to-create" type="button">Use research in Create</button><button class="btn btn-small" id="lab-save-research" type="button">Save research brief</button></div>';
     out.appendChild(handoff);
-    byId("lab-to-create").addEventListener("click", () => {
-      const visibleEvidence = out.innerText.replace(/Carry this research[\s\S]*$/m, "").trim();
+    const visibleEvidence = out.innerText.replace(/Carry this research[\s\S]*$/m, "").trim();
       const sourceLinks = Array.from(out.querySelectorAll("a[href]"))
         .map((anchor) => {
           try {
@@ -2324,6 +2322,7 @@ async function runLab(kind) {
         visibleEvidence.slice(0, 12000),
         sourceLinks.length ? "VISIBLE SOURCE LINKS:\n" + [...new Set(sourceLinks)].join("\n").slice(0, 3500) : "No clickable source links were rendered for this result."
       ].join("\n\n");
+      byId("lab-to-create").addEventListener("click", () => {
       const contextField = byId("studio-context");
       contextField.value = [researchContext, contextField.value.trim()].filter(Boolean).join("\n\n--- EXISTING CREATOR CONTEXT ---\n\n").slice(0, 19000);
       if (!byId("studio-topic").value.trim()) byId("studio-topic").value = seed;
@@ -2333,9 +2332,9 @@ async function runLab(kind) {
     });
     byId("lab-save-research").addEventListener("click", async (event) => {
       const button = event.currentTarget;
-      if (!workspaceAPI || !workspaceReady) {
+      if (!workspaceAPI?.ready) {
         button.textContent = "Workspace loading…";
-        button.disabled = true;
+        button.textContent = "Workspace unavailable · retry later";
         return;
       }
       button.disabled = true;
@@ -3665,7 +3664,6 @@ async function main() {
   // Optional Google state must never delay the working creator workspace.
   if (ok) void OAuth.refresh().catch((error) => { byId("google-status").textContent = String(error.message || error); decideInitialOnboarding(); });
   await workspaceAPI.reload();
-  workspaceReady = true;
   if (!ok) decideInitialOnboarding();
   await renderSavedList();
   if (anna && anna.window) {
