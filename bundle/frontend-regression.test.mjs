@@ -10,6 +10,11 @@ const syntax = spawnSync(process.execPath, ["--input-type=module", "--check"], {
 assert.equal(syntax.status, 0, syntax.stderr || String(syntax.error));
 assert.equal((source.match(/async function main\(/g) || []).length, 1);
 assert.doesNotMatch(source, /oauth2\.googleapis\.com|client_secret|storeTokens|OAUTH_STORAGE_KEY/);
+assert.match(source, /RESEARCH HANDOFF · /);
+assert.match(source, /VISIBLE SOURCE LINKS/);
+assert.match(source, /byId\("tab-button-studio"\)\.click\(\)/);
+assert.match(source, /byId\("studio-context"\)\.value/);
+assert.match(styles, /\.lab-handoff/);
 assert.match(source, /wireAnalytics\(\)/);
 assert.match(source, /Video sample: unavailable; no upload count was measured/);
 assert.match(source, /Outlier check: unavailable; no outlier result was measured/);
