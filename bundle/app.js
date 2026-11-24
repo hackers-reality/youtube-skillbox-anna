@@ -3615,10 +3615,11 @@ function wireWorkspace() {
       if (["draft", "research-brief"].includes(project.type)) {
         byId("studio-topic").value = project.topic || project.title || "";
         byId("studio-context").value = project.content || "";
-        if (project.type === "research-brief" && !byId("studio-keyword").value.trim()) {
-          byId("studio-keyword").value = project.topic || "";
+        if (project.type === "research-brief") {
+          if (!byId("studio-keyword").value.trim()) byId("studio-keyword").value = project.topic || "";
+          byId("workspace-dialog").close();
+          byId("tab-button-studio").click();
         }
-        byId("tab-button-studio").click();
       }
     }
   });
