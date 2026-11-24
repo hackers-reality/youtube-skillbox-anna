@@ -634,3 +634,39 @@ html[data-theme="light"] input[type="text"],html[data-theme="light"] input[type=
   .create-step-number, .create-step h3, .create-step p { grid-column: 1; }
   .create-step .btn { grid-column: 2; grid-row: 1 / span 3; }
 }
+
+
+/* Progressive disclosure for secondary creator workflows */
+.studio-advanced { padding: 0; }
+.studio-advanced-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  list-style: none;
+  cursor: pointer;
+}
+.studio-advanced-summary::-webkit-details-marker { display: none; }
+.studio-advanced-summary > span:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.studio-advanced-summary strong { color: var(--text); font-size: 14px; }
+.studio-advanced-summary .section-copy { margin: 0; }
+.studio-advanced-toggle {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--text-2);
+  font-size: 17px;
+  transition: transform .18s var(--ease);
+}
+.studio-advanced[open] .studio-advanced-toggle { transform: rotate(45deg); }
+.studio-advanced-content { padding: 0 16px 16px; }
