@@ -3612,9 +3612,13 @@ function wireWorkspace() {
     auditOutput: () => ({ title: "Audit · " + byId("audit-handle").value.trim(), content: byId("audit-result").textContent.trim() }),
     analyticsOutput: () => ({ title: "Analytics · " + byId("analytics-report").value, content: byId("analytics-output").dataset.saveContent || "" }),
     openProject: (project) => {
-      if (project.type === "draft") {
+      if (["draft", "research-brief"].includes(project.type)) {
         byId("studio-topic").value = project.topic || project.title || "";
         byId("studio-context").value = project.content || "";
+        if (project.type === "research-brief" && !byId("studio-keyword").value.trim()) {
+          byId("studio-keyword").value = project.topic || "";
+        }
+        byId("tab-button-studio").click();
       }
     }
   });
