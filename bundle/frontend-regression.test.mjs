@@ -107,6 +107,7 @@ assert.match(source, /audit-upload-grid \$\{kind === "shorts" \? "is-shorts"/);
 const index = await readFile(new URL("./index.html", import.meta.url), "utf8");
 assert.match(index, /assets\/skillbox-mark\.svg/);
 assert.match(index, /assets\/skillbox-mark-1024\.png/);
+assert.match(index, /Save research, Create, Improve, audit or Analytics outputs to see them here/);
 assert.match(index, /assets\/skillbox-lockup-on-dark\.svg/);
 assert.match(index, /assets\/skillbox-lockup-on-light\.svg/);
 const manifest = await readFile(new URL("../manifest.json", import.meta.url), "utf8");
