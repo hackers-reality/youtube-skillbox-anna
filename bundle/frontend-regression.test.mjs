@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { planChatTools } from "./chat-routing.mjs";
 
 const source = await readFile(new URL("./app.js", import.meta.url), "utf8");
+const styles = await readFile(new URL("./style.css", import.meta.url), "utf8");
 // Compile the exact UTF-8 bytes as the browser's ES module; regex-only checks
 // previously passed even when syntax errors prevented all initialization.
 const syntax = spawnSync(process.execPath, ["--input-type=module", "--check"], { input: source, encoding: "utf8" });
@@ -231,7 +232,7 @@ assert.match(source, /class="yt-feed \$\{shorts \? "is-shorts" : "is-videos"\}"/
 assert.match(source, /DEV_TOOL_ID/);
 assert.match(source, /llmWithImage/);
 assert.match(source, /llmWithImages/);
-const styles = await readFile(new URL("./style.css", import.meta.url), "utf8");
+
 assert.match(styles, /html\[data-theme="light"\] \.brand-lockup-light/);
 assert.match(styles, /html\[data-theme="system"\] \.brand-lockup-light/);
 assert.match(styles, /prefers-color-scheme:light/);
