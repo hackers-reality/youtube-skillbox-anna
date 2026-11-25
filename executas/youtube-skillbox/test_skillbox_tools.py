@@ -289,6 +289,39 @@ class CreatorToolTests(unittest.TestCase):
         invoke("playlist", {"playlist": "PLabc123", "limit": 25})
         self.assertEqual(engine.call_args.args, ("playlist", "PLabc123", "--limit", "25", "--json"))
 
+    def test_market_tools_are_exposed_only_when_engine_routes_exist(self):
+        names = {item["name"] for item in MANIFEST["tools"]}
+        self.assertIn("market-trend", names)
+        self.assertIn("market-opportunity", names)
+        self.assertNotIn("market-discover", names)
+        self.assertNotIn("market-gap", names)
+
+    @patch("youtube_skillbox_plugin._eng")
+    def test_market_trend_dispatch_uses_bounded_window_and_locale(self, engine):
+        engine.return_value = {"success": True, "data": {"trends": []}}
+        invoke("market-trend", {"seed": "space science", "days": 99999, "gl": "IN", "hl": "en"})
+        self.assertEqual(engine.call_args.args, (
+            "market-trend", "space science", "--days", "3650",
+            "--gl", "IN", "--hl", "en", "--json",
+        ))
+        self.assertEqual(engine.call_args.kwargs["timeout"], 90)
+
+    @patch("youtube_skillbox_plugin._eng")
+    def test_market_opportunity_dispatch_caps_work_and_preserves_locale(self, engine):
+        engine.return_value = {"success": True, "data": {"opportunities": []}}
+        invoke("market-opportunity", {"seed": "space science", "limit": 500, "gl": "IN", "hl": "en"})
+        self.assertEqual(engine.call_args.args, (
+            "market-opportunity", "space science", "--limit", "20",
+            "--gl", "IN", "--hl", "en", "--json",
+        ))
+        self.assertEqual(engine.call_args.kwargs["timeout"], 150)
+
+    def test_market_tools_reject_missing_seed_without_running_engine(self):
+        with patch("youtube_skillbox_plugin._eng") as engine:
+            self.assertFalse(invoke("market-trend", {})["success"])
+            self.assertFalse(invoke("market-opportunity", {})["success"])
+            engine.assert_not_called()
+
     def test_malformed_retention_headers_fail_explicitly(self):
         result = _parse_retention_csv("foo,bar\n1,2\n3,4\n")
         self.assertIn("error", result)
