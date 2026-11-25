@@ -289,7 +289,129 @@ class CreatorToolTests(unittest.TestCase):
         invoke("playlist", {"playlist": "PLabc123", "limit": 25})
         self.assertEqual(engine.call_args.args, ("playlist", "PLabc123", "--limit", "25", "--json"))
 
+    def test_static_manifest_matches_runtime_describe_manifest(self):
+        from pathlib import Path
+        sidecar = json.loads(Path(__file__).with_name("manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            {tool["name"] for tool in sidecar["tools"]},
+            {tool["name"] for tool in MANIFEST["tools"]},
+        )
+
     def test_market_tools_are_exposed_only_when_engine_routes_exist(self):
+        names = {item["name"] for item in MANIFEST["tools"]}
+        self.assertIn("market-trend", names)
+        self.assertIn("market-opportunity", names)
+        self.assertNotIn("market-discover", names)
+        self.assertNotIn("market-gap", names)
+
+    @patch("youtube_skillbox_plugin._eng")
+    def test_market_trend_dispatch_uses_bounded_window_and_locale(self, engine):
+        engine.return_value = {"success": True, "data": {"trends": []}}
+        invoke("market-trend", {"seed": "space science", "days": 99999, "gl": "IN", "hl": "en"})
+        self.assertEqual(engine.call_args.args, (
+            "market-trend", "space science", "--days", "3650",
+            "--gl", "IN", "--hl", "en", "--json",
+        ))
+        self.assertEqual(engine.call_args.kwargs["timeout"], 90)
+
+    @patch("youtube_skillbox_plugin._eng")
+    def test_market_opportunity_dispatch_caps_work_and_preserves_locale(self, engine):
+        engine.return_value = {"success": True, "data": {"opportunities": []}}
+        invoke("market-opportunity", {"seed": "space science", "limit": 500, "gl": "IN", "hl": "en"})
+        self.assertEqual(engine.call_args.args, (
+            "market-opportunity", "space science", "--limit", "20",
+            "--gl", "IN", "--hl", "en", "--json",
+        ))
+        self.assertEqual(engine.call_args.kwargs["timeout"], 150)
+
+    def test_market_tools_reject_missing_seed_without_running_engine(self):
+        with patch("youtube_skillbox_plugin._eng") as engine:
+            self.assertFalse(invoke("market-trend", {})["success"])
+            self.assertFalse(invoke("market-opportunity", {})["success"])
+            engine.assert_not_called()
+
+    def test_malformed_retention_headers_fail_explicitly(self):
+        result = _parse_retention_csv("foo,bar\n1,2\n3,4\n")
+        self.assertIn("error", result)
+        self.assertIn("columns", result)
+
+
+    def test_channel_dna_resists_isolated_ai_tags_and_experimental_uploads(self):
+        videos = [
+            {"title": "NASA discovers a new exoplanet", "description": "Astronomy and space science"},
+            {"title": "What happens inside a black hole?", "transcript": "Astrophysics and the universe"},
+            {"title": "The science of neutron stars", "description": "Physics in space"},
+            {"title": "How the solar system formed", "transcript": "Planets, stars and astronomy"},
+            {"title": "Could life exist on Europa?", "description": "Space science and NASA"},
+            {"title": "AI tool helps farmers build a smart tractor", "tags": ["AI", "technology", "machine learning"]},
+        ]
+        result = _channel_dna(videos)
+        self.assertEqual(result["dominant_niche"], "space_science")
+        self.assertEqual(result["status"], "inferred")
+        self.assertEqual(result["topic_clusters"][0]["video_count"], 5)
+        self.assertEqual(result["experimental_topics"][0]["topic"], "technology")
+        self.assertEqual(result["methodology"]["content_weights"]["tags"], 0.0)
+
+    def test_channel_dna_supports_all_target_creator_archetypes(self):
+        fixtures = {
+            "gaming": ["Minecraft survival gameplay", "Roblox Blox Fruits update", "Fortnite boss fight"],
+            "cooking": ["Easy pasta recipe", "Homemade dessert baking", "Street food cooking"],
+            "education": ["Mathematics exam prep", "History lesson explained", "Chemistry study guide"],
+            "entertainment": ["Anime episode recap", "Movie review", "TV show trailer reaction"],
+            "technology": ["Open source software tutorial", "Python programming guide", "AI tool review"],
+            "music": ["Guitar song cover", "Piano instrumental", "Music production lesson"],
+            "business": ["Startup business strategy", "Personal finance basics", "Marketing for ecommerce"],
+            "space_science": ["NASA mission to Mars", "Black hole science explained", "Astronomy telescope guide"],
+        }
+        for expected, titles in fixtures.items():
+            with self.subTest(expected=expected):
+                result = _channel_dna([{"title": title} for title in titles])
+                self.assertEqual(result["dominant_niche"], expected)
+
+    def test_channel_dna_does_not_infer_a_niche_from_tags_alone(self):
+        result = _channel_dna([
+            {"title": "A day in my life", "tags": ["gaming", "minecraft", "AI"]},
+            {"title": "Weekend vlog", "tags": ["gaming", "minecraft"]},
+        ])
+        self.assertIsNone(result["dominant_niche"])
+        self.assertEqual(result["status"], "insufficient_evidence")
+
+    def test_channel_dna_accepts_creator_confirmed_focus_without_fabricating_sample(self):
+        result = _channel_dna([], "space and science documentaries")
+        self.assertEqual(result["status"], "insufficient_evidence")
+        self.assertEqual(result["creator_confirmed_focus"], "space and science documentaries")
+
+
+    def test_channel_dna_is_exposed_as_an_executa_tool(self):
+        self.assertIn("channel_dna", {tool["name"] for tool in MANIFEST["tools"]})
+        result = invoke("channel_dna", {"videos_json": json.dumps([
+            {"title": "NASA mission to Mars"},
+            {"title": "Astronomy and black holes"},
+        ])})
+        self.assertTrue(result["success"])
+        self.assertEqual(result["data"]["dominant_niche"], "space_science")
+
+    def test_channel_dna_keeps_close_topic_matches_unclassified(self):
+        result = _channel_dna([
+            {"title": "NASA robotics mission"},
+            {"title": "NASA robotics research"},
+            {"title": "NASA robotics project"},
+        ])
+        self.assertIsNone(result["dominant_niche"])
+        self.assertTrue(all(item["primary_topic"] is None for item in result["video_classifications"]))
+        self.assertTrue(all(item["ambiguous_topics"] for item in result["video_classifications"]))
+
+    def test_channel_dna_does_not_treat_general_physics_as_space_channel_evidence(self):
+        result = _channel_dna([
+            {"title": "Physics study guide for beginners"},
+            {"title": "Physics exam prep and practice"},
+            {"title": "Mathematics exam preparation"},
+        ])
+        self.assertEqual(result["dominant_niche"], "education")
+
+if __name__ == "__main__":
+    unittest.main()
+
         names = {item["name"] for item in MANIFEST["tools"]}
         self.assertIn("market-trend", names)
         self.assertIn("market-opportunity", names)
