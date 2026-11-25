@@ -5,21 +5,8 @@
   "description": "Evidence-backed YouTube research from the open-source Skillbox engine: channel snapshots, outliers, keyword volume, competition difficulty, SEO scorecards, content gaps, keyword verdicts and transcripts. Every result is labelled MEASURED / INFERRED.",
   "tools": [
     {
-      "name": "ping",
-      "description": "Smoke-test the tool. Returns pong and the engine version.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        }
-      ],
-      "timeout": 10
-    },
-    {
-      "name": "snapshot",
-      "description": "Channel snapshot: every tab count (videos/shorts/shows/playlists/community) plus the About section (subs, description, keywords). Fast.",
+      "name": "channel",
+      "description": "List a channel's recent uploads from the videos, Shorts or livestreams tab. Optional duration and full metadata enrichment.",
       "parameters": [
         {
           "name": "client_id",
@@ -30,67 +17,43 @@
         {
           "name": "handle",
           "type": "string",
-          "description": "Channel handle (with or without @) or channel URL.",
-          "required": true
-        }
-      ],
-      "timeout": 90
-    },
-    {
-      "name": "latest",
-      "description": "Most recent uploads (reverse chronological), with durations and view counts.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "handle",
-          "type": "string",
-          "description": "Channel handle or URL.",
+          "description": "YouTube channel handle or URL.",
           "required": true
         },
         {
           "name": "limit",
           "type": "integer",
-          "description": "Max videos to return.",
+          "description": "Maximum items to return.",
           "required": false,
-          "default": 10
-        }
-      ],
-      "timeout": 90
-    },
-    {
-      "name": "outliers",
-      "description": "Videos that dramatically outperform the channel's own subscribed baseline (views/subs ratio) — the best source of repeatable ideas.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
+          "default": 15
         },
         {
-          "name": "handle",
+          "name": "tab",
           "type": "string",
-          "description": "Channel handle or URL.",
-          "required": true
+          "description": "videos, shorts or streams.",
+          "required": false,
+          "default": "videos"
         },
         {
-          "name": "min_ratio",
-          "type": "number",
-          "description": "Minimum views/subs multiple.",
+          "name": "with_duration",
+          "type": "boolean",
+          "description": "Enrich rows with duration in seconds.",
           "required": false,
-          "default": 2
+          "default": false
+        },
+        {
+          "name": "full_meta",
+          "type": "boolean",
+          "description": "Enrich rows with full video metadata.",
+          "required": false,
+          "default": false
         }
       ],
       "timeout": 150
     },
     {
-      "name": "scorecard",
-      "description": "SEO checklist for one video: title, keyword-in-title, description, tags, chapters, freshness. Returns 0-100 and per-check results.",
+      "name": "channel_dna",
+      "description": "Infer a channel's dominant content niche from representative published videos. Titles, transcripts and descriptions outweigh tags; one-off topics are reported as experiments, not the channel identity.",
       "parameters": [
         {
           "name": "client_id",
@@ -99,60 +62,20 @@
           "required": false
         },
         {
-          "name": "video",
+          "name": "videos_json",
           "type": "string",
-          "description": "Video URL or 11-char ID.",
+          "description": "JSON array of up to 50 published video objects with title and optional description, transcript, tags, URL, ID, views and format.",
           "required": true
         },
         {
-          "name": "keyword",
+          "name": "preferences",
           "type": "string",
-          "description": "Target keyword for the checks.",
+          "description": "Optional creator-confirmed niche, goals or preferences.",
           "required": false,
           "default": ""
         }
       ],
-      "timeout": 90
-    },
-    {
-      "name": "keywords",
-      "description": "Keyword ideas + relative demand index from YouTube suggest (weighted by position) and DuckDuckGo. 0-100 opportunity score per idea.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "seed",
-          "type": "string",
-          "description": "Seed topic, e.g. 'youtube seo'.",
-          "required": true
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "description": "Max ideas to return.",
-          "required": false,
-          "default": 25
-        },
-        {
-          "name": "gl",
-          "type": "string",
-          "description": "Two-letter region code used for locale-pinned YouTube search.",
-          "required": false,
-          "default": "US"
-        },
-        {
-          "name": "hl",
-          "type": "string",
-          "description": "Language code used for locale-pinned YouTube search.",
-          "required": false,
-          "default": "en"
-        }
-      ],
-      "timeout": 90
+      "timeout": 10
     },
     {
       "name": "compete",
@@ -169,71 +92,6 @@
           "type": "string",
           "description": "Keyword to score.",
           "required": true
-        },
-        {
-          "name": "gl",
-          "type": "string",
-          "description": "Region code.",
-          "required": false,
-          "default": "US"
-        },
-        {
-          "name": "hl",
-          "type": "string",
-          "description": "Language code.",
-          "required": false,
-          "default": "en"
-        }
-      ],
-      "timeout": 90
-    },
-    {
-      "name": "verdict",
-      "description": "Deterministic GO / MAYBE / SKIP verdict for a keyword opportunity based on opportunity vs competition scores you supply (from keywords + compete).",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "opportunity",
-          "type": "number",
-          "description": "0-100 opportunity (from keywords).",
-          "required": true
-        },
-        {
-          "name": "competition",
-          "type": "number",
-          "description": "0-100 competition difficulty (from compete).",
-          "required": true
-        }
-      ],
-      "timeout": 10
-    },
-    {
-      "name": "search",
-      "description": "Search YouTube videos matching a query (locale-pinnable).",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "query",
-          "type": "string",
-          "description": "Search query.",
-          "required": true
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "description": "Max results.",
-          "required": false,
-          "default": 10
         },
         {
           "name": "gl",
@@ -311,32 +169,6 @@
       "timeout": 90
     },
     {
-      "name": "transcribe",
-      "description": "Fetch manual or auto captions, preferring the original spoken language plus English. Returns transcript text and timestamped caption segments for script, chapter, Shorts and edit workflows.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "video",
-          "type": "string",
-          "description": "Video URL or 11-char ID.",
-          "required": true
-        },
-        {
-          "name": "language",
-          "type": "string",
-          "description": "Preferred language code(s), e.g. 'en' or 'es,en'.",
-          "required": false,
-          "default": "en"
-        }
-      ],
-      "timeout": 90
-    },
-    {
       "name": "hookscore",
       "description": "Deterministically score generated hook copy using the upstream five-property heuristic. Scores are copy diagnostics, not retention or performance predictions.",
       "parameters": [
@@ -359,268 +191,6 @@
       "timeout": 10
     },
     {
-      "name": "title_lint",
-      "description": "Lint title text against the upstream Skillbox title checks: length, mobile truncation, wording, concrete anchors and optional thumbnail duplication. Scores are heuristics, not CTR predictions.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "titles",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Title candidates to lint (maximum 30).",
-          "required": true
-        },
-        {
-          "name": "thumbnail_text",
-          "type": "string",
-          "description": "Optional thumbnail copy to check for repeated wording.",
-          "required": false
-        }
-      ],
-      "timeout": 10
-    },
-    {
-      "name": "channel_dna",
-      "description": "Infer a channel's dominant content niche from representative published videos. Titles, transcripts and descriptions outweigh tags; one-off topics are reported as experiments, not the channel identity.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "videos_json",
-          "type": "string",
-          "description": "JSON array of up to 50 published video objects with title and optional description, transcript, tags, URL, ID, views and format.",
-          "required": true
-        },
-        {
-          "name": "preferences",
-          "type": "string",
-          "description": "Optional creator-confirmed niche, goals or preferences.",
-          "required": false,
-          "default": ""
-        }
-      ],
-      "timeout": 10
-    },
-    {
-      "name": "retention",
-      "description": "Parse a pasted YouTube Studio retention CSV and calculate hook leak, cliffs and average slide from the actual axis. Does not invent timestamps from percent-only data.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "csv",
-          "type": "string",
-          "description": "Raw CSV text from the YouTube Studio audience-retention export.",
-          "required": true
-        },
-        {
-          "name": "duration",
-          "type": "number",
-          "description": "Video duration in seconds; required for seconds-based slide rates from percentage-position exports.",
-          "required": false
-        }
-      ],
-      "timeout": 10
-    },
-    {
-      "name": "track",
-      "description": "Check where a video appears for a keyword in YouTube search and compare with saved position history. Results are locale-specific and only exist after a successful measurement.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "query",
-          "type": "string",
-          "description": "Keyword to track.",
-          "required": true
-        },
-        {
-          "name": "video",
-          "type": "string",
-          "description": "Video URL or ID.",
-          "required": true
-        },
-        {
-          "name": "gl",
-          "type": "string",
-          "description": "Two-letter region code.",
-          "required": false,
-          "default": "US"
-        },
-        {
-          "name": "hl",
-          "type": "string",
-          "description": "Language code.",
-          "required": false,
-          "default": "en"
-        }
-      ],
-      "timeout": 90
-    },
-    {
-      "name": "trends",
-      "description": "Read historical keyword-demand snapshots saved by previous keyword research runs. Returns no trend until history exists.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "seed",
-          "type": "string",
-          "description": "Keyword seed to inspect.",
-          "required": true
-        }
-      ],
-      "timeout": 90
-    },
-    {
-      "name": "channel",
-      "description": "List a channel's recent uploads from the videos, Shorts or livestreams tab. Optional duration and full metadata enrichment.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "handle",
-          "type": "string",
-          "description": "YouTube channel handle or URL.",
-          "required": true
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "description": "Maximum items to return.",
-          "required": false,
-          "default": 15
-        },
-        {
-          "name": "tab",
-          "type": "string",
-          "description": "videos, shorts or streams.",
-          "required": false,
-          "default": "videos"
-        },
-        {
-          "name": "with_duration",
-          "type": "boolean",
-          "description": "Enrich rows with duration in seconds.",
-          "required": false,
-          "default": false
-        },
-        {
-          "name": "full_meta",
-          "type": "boolean",
-          "description": "Enrich rows with full video metadata.",
-          "required": false,
-          "default": false
-        }
-      ],
-      "timeout": 150
-    },
-    {
-      "name": "posts",
-      "description": "Fetch recent public YouTube Community posts from a channel, including text, author, publication label and available likes/attachments.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "handle",
-          "type": "string",
-          "description": "YouTube channel handle or URL.",
-          "required": true
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "description": "Maximum posts to return.",
-          "required": false,
-          "default": 10
-        }
-      ],
-      "timeout": 90
-    },
-    {
-      "name": "shows",
-      "description": "List public YouTube Shows (episode collections) from a channel.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "handle",
-          "type": "string",
-          "description": "YouTube channel handle or URL.",
-          "required": true
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "description": "Maximum shows to return.",
-          "required": false,
-          "default": 20
-        }
-      ],
-      "timeout": 90
-    },
-    {
-      "name": "playlist",
-      "description": "List public videos in a YouTube playlist.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "playlist",
-          "type": "string",
-          "description": "YouTube playlist URL or ID.",
-          "required": true
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "description": "Maximum videos to return.",
-          "required": false,
-          "default": 20
-        }
-      ],
-      "timeout": 90
-    },
-    {
       "name": "info",
       "description": "Fetch public metadata for one YouTube video: views, likes, date, duration, tags, categories and description excerpt.",
       "parameters": [
@@ -640,8 +210,8 @@
       "timeout": 90
     },
     {
-      "name": "market-trend",
-      "description": "Analyze saved keyword-demand history for a topic and locale. Returns no trend until enough prior keyword research exists; freshness is inferred from source dates.",
+      "name": "keywords",
+      "description": "Keyword ideas + relative demand index from YouTube suggest (weighted by position) and DuckDuckGo. 0-100 opportunity score per idea.",
       "parameters": [
         {
           "name": "client_id",
@@ -652,29 +222,55 @@
         {
           "name": "seed",
           "type": "string",
-          "description": "Topic or keyword to inspect.",
+          "description": "Seed topic, e.g. 'youtube seo'.",
           "required": true
         },
         {
-          "name": "days",
+          "name": "limit",
           "type": "integer",
-          "description": "Days of history to analyze.",
+          "description": "Max ideas to return.",
           "required": false,
-          "default": 90
+          "default": 25
         },
         {
           "name": "gl",
           "type": "string",
-          "description": "Region code.",
+          "description": "Two-letter region code used for locale-pinned YouTube search.",
           "required": false,
           "default": "US"
         },
         {
           "name": "hl",
           "type": "string",
-          "description": "Language code.",
+          "description": "Language code used for locale-pinned YouTube search.",
           "required": false,
           "default": "en"
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "latest",
+      "description": "Most recent uploads (reverse chronological), with durations and view counts.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "Channel handle or URL.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Max videos to return.",
+          "required": false,
+          "default": 10
         }
       ],
       "timeout": 90
@@ -720,34 +316,44 @@
       "timeout": 150
     },
     {
-      "name": "oauth_begin",
-      "description": "Start local read-only Google consent; no Google credentials are returned.",
-      "parameters": [],
-      "timeout": 30
-    },
-    {
-      "name": "oauth_status",
-      "description": "List backend-authorized account/channel identities.",
+      "name": "market-trend",
+      "description": "Analyze saved keyword-demand history for a topic and locale. Returns no trend until enough prior keyword research exists; freshness is inferred from source dates.",
       "parameters": [
         {
-          "name": "attempt_id",
+          "name": "client_id",
           "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
           "required": false
-        }
-      ],
-      "timeout": 30
-    },
-    {
-      "name": "oauth_disconnect",
-      "description": "Explicitly revoke a local Google account connection without clearing the public creator profile.",
-      "parameters": [
+        },
         {
-          "name": "grant_id",
+          "name": "seed",
           "type": "string",
+          "description": "Topic or keyword to inspect.",
           "required": true
+        },
+        {
+          "name": "days",
+          "type": "integer",
+          "description": "Days of history to analyze.",
+          "required": false,
+          "default": 90
+        },
+        {
+          "name": "gl",
+          "type": "string",
+          "description": "Region code.",
+          "required": false,
+          "default": "US"
+        },
+        {
+          "name": "hl",
+          "type": "string",
+          "description": "Language code.",
+          "required": false,
+          "default": "en"
         }
       ],
-      "timeout": 60
+      "timeout": 90
     },
     {
       "name": "oauth_analytics",
@@ -780,6 +386,419 @@
         }
       ],
       "timeout": 60
+    },
+    {
+      "name": "oauth_begin",
+      "description": "Start local read-only Google consent; no Google credentials are returned.",
+      "parameters": [],
+      "timeout": 30
+    },
+    {
+      "name": "oauth_disconnect",
+      "description": "Explicitly revoke a local Google account connection without clearing the public creator profile.",
+      "parameters": [
+        {
+          "name": "grant_id",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "timeout": 60
+    },
+    {
+      "name": "oauth_status",
+      "description": "List backend-authorized account/channel identities.",
+      "parameters": [
+        {
+          "name": "attempt_id",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "timeout": 30
+    },
+    {
+      "name": "outliers",
+      "description": "Videos that dramatically outperform the channel's own subscribed baseline (views/subs ratio) — the best source of repeatable ideas.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "Channel handle or URL.",
+          "required": true
+        },
+        {
+          "name": "min_ratio",
+          "type": "number",
+          "description": "Minimum views/subs multiple.",
+          "required": false,
+          "default": 2
+        }
+      ],
+      "timeout": 150
+    },
+    {
+      "name": "ping",
+      "description": "Smoke-test the tool. Returns pong and the engine version.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        }
+      ],
+      "timeout": 10
+    },
+    {
+      "name": "playlist",
+      "description": "List public videos in a YouTube playlist.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "playlist",
+          "type": "string",
+          "description": "YouTube playlist URL or ID.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Maximum videos to return.",
+          "required": false,
+          "default": 20
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "posts",
+      "description": "Fetch recent public YouTube Community posts from a channel, including text, author, publication label and available likes/attachments.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "YouTube channel handle or URL.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Maximum posts to return.",
+          "required": false,
+          "default": 10
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "profile",
+      "description": "Fetch the public channel identity: name, handle, channel URL, avatar/profile metadata, subscriber count, description and tags.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "Channel handle (with or without @), channel URL or channel ID.",
+          "required": true
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "retention",
+      "description": "Parse a pasted YouTube Studio retention CSV and calculate hook leak, cliffs and average slide from the actual axis. Does not invent timestamps from percent-only data.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "csv",
+          "type": "string",
+          "description": "Raw CSV text from the YouTube Studio audience-retention export.",
+          "required": true
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "description": "Video duration in seconds; required for seconds-based slide rates from percentage-position exports.",
+          "required": false
+        }
+      ],
+      "timeout": 10
+    },
+    {
+      "name": "scorecard",
+      "description": "SEO checklist for one video: title, keyword-in-title, description, tags, chapters, freshness. Returns 0-100 and per-check results.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "video",
+          "type": "string",
+          "description": "Video URL or 11-char ID.",
+          "required": true
+        },
+        {
+          "name": "keyword",
+          "type": "string",
+          "description": "Target keyword for the checks.",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "search",
+      "description": "Search YouTube videos matching a query (locale-pinnable).",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "description": "Search query.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Max results.",
+          "required": false,
+          "default": 10
+        },
+        {
+          "name": "gl",
+          "type": "string",
+          "description": "Region code.",
+          "required": false,
+          "default": "US"
+        },
+        {
+          "name": "hl",
+          "type": "string",
+          "description": "Language code.",
+          "required": false,
+          "default": "en"
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "shows",
+      "description": "List public YouTube Shows (episode collections) from a channel.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "YouTube channel handle or URL.",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "description": "Maximum shows to return.",
+          "required": false,
+          "default": 20
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "snapshot",
+      "description": "Channel snapshot: every tab count (videos/shorts/shows/playlists/community) plus the About section (subs, description, keywords). Fast.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "handle",
+          "type": "string",
+          "description": "Channel handle (with or without @) or channel URL.",
+          "required": true
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "title_lint",
+      "description": "Lint title text against the upstream Skillbox title checks: length, mobile truncation, wording, concrete anchors and optional thumbnail duplication. Scores are heuristics, not CTR predictions.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "titles",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Title candidates to lint (maximum 30).",
+          "required": true
+        },
+        {
+          "name": "thumbnail_text",
+          "type": "string",
+          "description": "Optional thumbnail copy to check for repeated wording.",
+          "required": false
+        }
+      ],
+      "timeout": 10
+    },
+    {
+      "name": "track",
+      "description": "Check where a video appears for a keyword in YouTube search and compare with saved position history. Results are locale-specific and only exist after a successful measurement.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "description": "Keyword to track.",
+          "required": true
+        },
+        {
+          "name": "video",
+          "type": "string",
+          "description": "Video URL or ID.",
+          "required": true
+        },
+        {
+          "name": "gl",
+          "type": "string",
+          "description": "Two-letter region code.",
+          "required": false,
+          "default": "US"
+        },
+        {
+          "name": "hl",
+          "type": "string",
+          "description": "Language code.",
+          "required": false,
+          "default": "en"
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "transcribe",
+      "description": "Fetch manual or auto captions, preferring the original spoken language plus English. Returns transcript text and timestamped caption segments for script, chapter, Shorts and edit workflows.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "video",
+          "type": "string",
+          "description": "Video URL or 11-char ID.",
+          "required": true
+        },
+        {
+          "name": "language",
+          "type": "string",
+          "description": "Preferred language code(s), e.g. 'en' or 'es,en'.",
+          "required": false,
+          "default": "en"
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "trends",
+      "description": "Read historical keyword-demand snapshots saved by previous keyword research runs. Returns no trend until history exists.",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "seed",
+          "type": "string",
+          "description": "Keyword seed to inspect.",
+          "required": true
+        }
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "verdict",
+      "description": "Deterministic GO / MAYBE / SKIP verdict for a keyword opportunity based on opportunity vs competition scores you supply (from keywords + compete).",
+      "parameters": [
+        {
+          "name": "client_id",
+          "type": "string",
+          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "required": false
+        },
+        {
+          "name": "opportunity",
+          "type": "number",
+          "description": "0-100 opportunity (from keywords).",
+          "required": true
+        },
+        {
+          "name": "competition",
+          "type": "number",
+          "description": "0-100 competition difficulty (from compete).",
+          "required": true
+        }
+      ],
+      "timeout": 10
     }
   ],
   "credentials": [],
