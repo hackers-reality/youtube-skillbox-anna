@@ -264,6 +264,28 @@ MANIFEST = {
             ],
             "timeout": 10,
         },
+        {
+            "name": "market-trend",
+            "description": "Analyze saved keyword-demand history for a topic and locale. Returns no trend until enough prior keyword research exists; freshness is inferred from source dates.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "seed", "type": "string", "description": "Topic or keyword to inspect.", "required": True},
+                {"name": "days", "type": "integer", "description": "Days of history to analyze.", "required": False, "default": 90},
+                {"name": "gl", "type": "string", "description": "Region code.", "required": False, "default": "US"},
+                {"name": "hl", "type": "string", "description": "Language code.", "required": False, "default": "en"},
+            ],
+            "timeout": ENGINE_TIMEOUT,
+        },
+        {
+            "name": "market-opportunity",
+            "description": "Score topic opportunities by combining keyword demand and competition. Demand and competition are measured inputs; the combined score is inferred.",
+            "parameters": [CLIENT_ID_PARAM,
+                {"name": "seed", "type": "string", "description": "Topic or niche.", "required": True},
+                {"name": "limit", "type": "integer", "description": "Maximum opportunities to return (bounded by the engine).", "required": False, "default": 20},
+                {"name": "gl", "type": "string", "description": "Region code.", "required": False, "default": "US"},
+                {"name": "hl", "type": "string", "description": "Language code.", "required": False, "default": "en"},
+            ],
+            "timeout": AUDIT_TIMEOUT,
+        },
     ],
     "credentials": [],
     "runtime": {"type": "python"},
@@ -1388,6 +1410,21 @@ def invoke(method: str, args: dict) -> dict:
             if "access_token" in a: argv.extend(["--access-token", str(a.get("access_token"))])
             return _eng(*argv, timeout=AUDIT_TIMEOUT)
 
+        if method == "market-trend":
+            argv = ["market-trend", str(a.get("seed", "")).strip(),
+                    "--days", str(max(1, min(3650, int(a.get("days", 90))))),
+                    "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en")), "--json"]
+            if not argv[1]:
+                return {"success": False, "error": "seed is required"}
+            return _eng(*argv, timeout=ENGINE_TIMEOUT)
+        if method == "market-opportunity":
+            limit = max(1, min(20, int(a.get("limit", 20))))
+            seed = str(a.get("seed", "")).strip()
+            if not seed:
+                return {"success": False, "error": "seed is required"}
+            return _eng("market-opportunity", seed, "--limit", str(limit),
+                        "--gl", str(a.get("gl", "US")), "--hl", str(a.get("hl", "en")),
+                        "--json", timeout=AUDIT_TIMEOUT)
         return {"success": False, "error": f"unknown method: {method}"}
     except Exception as e:
         return {"success": False, "error": f"{method} crashed: {e}"}
