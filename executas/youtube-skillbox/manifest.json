@@ -1194,106 +1194,8 @@
       "timeout": 150
     },
     {
-      "name": "market-discover",
-      "description": "Discover competitors in a niche via YouTube search. MEASURED data from YouTube Search API.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "seed",
-          "type": "string",
-          "description": "Seed topic or niche (e.g., 'python tutorials').",
-          "required": true
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "description": "Max competitors to return.",
-          "required": false,
-          "default": 20
-        },
-        {
-          "name": "gl",
-          "type": "string",
-          "description": "Region code.",
-          "required": false,
-          "default": "US"
-        },
-        {
-          "name": "hl",
-          "type": "string",
-          "description": "Language code.",
-          "required": false,
-          "default": "en"
-        },
-        {
-          "name": "access_token",
-          "type": "string",
-          "description": "OAuth access token (from Skillbox OAuth flow).",
-          "required": true
-        }
-      ],
-      "timeout": 90
-    },
-    {
-      "name": "market-gap",
-      "description": "Find content gaps vs competitors. Use the existing 'gap' tool for content gap analysis.",
-      "parameters": [
-        {
-          "name": "client_id",
-          "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
-          "required": false
-        },
-        {
-          "name": "seed",
-          "type": "string",
-          "description": "Seed topic.",
-          "required": true
-        },
-        {
-          "name": "competitor",
-          "type": "string",
-          "description": "Competitor channel handle or URL.",
-          "required": true
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "description": "Max gaps to return.",
-          "required": false,
-          "default": 20
-        },
-        {
-          "name": "gl",
-          "type": "string",
-          "description": "Region code.",
-          "required": false,
-          "default": "US"
-        },
-        {
-          "name": "hl",
-          "type": "string",
-          "description": "Language code.",
-          "required": false,
-          "default": "en"
-        },
-        {
-          "name": "access_token",
-          "type": "string",
-          "description": "OAuth access token (from Skillbox OAuth flow).",
-          "required": true
-        }
-      ],
-      "timeout": 90
-    },
-    {
       "name": "market-trend",
-      "description": "Analyze topic trend with source dates and freshness labels. MEASURED data from keyword research history, INFERRED freshness labels.",
+      "description": "Analyze saved keyword-demand history for a topic and locale. Returns no trend until enough prior keyword research exists; freshness is inferred from source dates.",
       "parameters": [
         {
           "name": "client_id",
@@ -1304,7 +1206,7 @@
         {
           "name": "seed",
           "type": "string",
-          "description": "Topic or keyword.",
+          "description": "Topic or keyword to inspect.",
           "required": true
         },
         {
@@ -1327,24 +1229,18 @@
           "description": "Language code.",
           "required": false,
           "default": "en"
-        },
-        {
-          "name": "access_token",
-          "type": "string",
-          "description": "OAuth access token (from Skillbox OAuth flow).",
-          "required": true
         }
       ],
       "timeout": 90
     },
     {
       "name": "market-opportunity",
-      "description": "Score content opportunities combining demand and competition. MEASURED demand and competition, INFERRED combined score.",
+      "description": "Score topic opportunities by combining keyword demand and competition. Demand and competition are measured inputs; the combined score is inferred.",
       "parameters": [
         {
           "name": "client_id",
           "type": "string",
-          "description": "Matrix Agent ID used by the host to route this call. The host injects it; if it did not, pass one of the online_clients IDs from the error payload. The engine ignores this argument.",
+          "description": "Matrix Agent ID used by the host to route this call. If absent, the engine ignores it.",
           "required": false
         },
         {
@@ -1356,7 +1252,7 @@
         {
           "name": "limit",
           "type": "integer",
-          "description": "Max opportunities to return.",
+          "description": "Maximum opportunities to return (bounded by the engine).",
           "required": false,
           "default": 20
         },
@@ -1373,20 +1269,72 @@
           "description": "Language code.",
           "required": false,
           "default": "en"
-        },
+        }
+      ],
+      "timeout": 150
+    },
+    {
+      "name": "oauth_begin",
+      "description": "Start local read-only Google consent; no Google credentials are returned.",
+      "parameters": [],
+      "timeout": 30
+    },
+    {
+      "name": "oauth_status",
+      "description": "List backend-authorized account/channel identities.",
+      "parameters": [
         {
-          "name": "access_token",
+          "name": "attempt_id",
           "type": "string",
-          "description": "OAuth access token (from Skillbox OAuth flow).",
+          "required": false
+        }
+      ],
+      "timeout": 30
+    },
+    {
+      "name": "oauth_disconnect",
+      "description": "Explicitly revoke a local Google account connection without clearing the public creator profile.",
+      "parameters": [
+        {
+          "name": "grant_id",
+          "type": "string",
           "required": true
         }
       ],
-      "timeout": 90
+      "timeout": 60
     },
-    {"name":"oauth_begin","description":"Start local read-only Google consent; no Google credentials are returned.","parameters":[],"timeout":30},
-    {"name":"oauth_status","description":"List backend-authorized account/channel identities.","parameters":[{"name":"attempt_id","type":"string","required":false}],"timeout":30},
-    {"name":"oauth_disconnect","description":"Explicitly revoke a local Google account connection without clearing the public creator profile.","parameters":[{"name":"grant_id","type":"string","required":true}],"timeout":60},
-    {"name":"oauth_analytics","description":"Read private Analytics using a backend-held grant; channel ownership is checked server-side.","parameters":[{"name":"grant_id","type":"string","required":true},{"name":"channel_id","type":"string","required":true},{"name":"report","type":"string","required":true},{"name":"start_date","type":"string","required":false},{"name":"end_date","type":"string","required":false}],"timeout":60}
+    {
+      "name": "oauth_analytics",
+      "description": "Read private Analytics using a backend-held grant; channel ownership is checked server-side.",
+      "parameters": [
+        {
+          "name": "grant_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "channel_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "report",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "start_date",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "end_date",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "timeout": 60
+    }
   ],
   "credentials": [],
   "runtime": {
